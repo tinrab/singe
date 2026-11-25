@@ -23,10 +23,8 @@ use crate::{
 
 const MAGIC: &[u8; 8] = b"FLASHPK\0";
 
-// The metadata length and the magic.
 const FOOTER: u64 = 16;
 
-// The alignment fal's package writes by default, which every element size divides.
 const ALIGN_BYTES: u64 = 128;
 const ONE_TYPE: &str = "flashpack_v3";
 const TYPES: &str = "flashpack_v4";
@@ -63,7 +61,6 @@ struct Entry {
     macroblock: Option<usize>,
 }
 
-// Whether `file` ends with flashpack's magic.
 pub fn holds(file: &File) -> Result<bool> {
     let length = file.metadata()?.len();
     if length < FOOTER {
@@ -75,7 +72,6 @@ pub fn holds(file: &File) -> Result<bool> {
     Ok(&magic == MAGIC)
 }
 
-// Reads the metadata at the end of a flashpack file, checking that each tensor lies inside its macroblock and each macroblock inside the payload.
 pub fn index(file: &File) -> Result<Vec<(String, StoredTensor)>> {
     let footer = file
         .metadata()?
@@ -179,8 +175,6 @@ pub fn index(file: &File) -> Result<Vec<(String, StoredTensor)>> {
         .collect()
 }
 
-// Writes `tensors` to a flashpack file at `path` as fal's package does: largest first, one macroblock per data type in order of first appearance, and `flashpack_v3` when there is one type.
-// It fills a file beside `path` and renames it into place, so `path` holds either its old contents or the whole new file.
 pub fn write<'a>(
     path: &Path,
     tensors: impl IntoIterator<Item = (&'a str, &'a Tensor)>,
@@ -321,7 +315,6 @@ fn pad(writer: &mut impl Write, mut count: u64) -> Result<()> {
     Ok(())
 }
 
-// `.{name}.partial` beside `path`.
 fn partial_path(path: &Path) -> Result<PathBuf> {
     let name = path
         .file_name()
@@ -343,7 +336,6 @@ const fn lcm(a: u64, b: u64) -> u64 {
     a / gcd(a, b) * b
 }
 
-// The type torch names `name`.
 fn data_type(name: &str) -> Result<DataType> {
     Ok(match name {
         "bool" => DataType::Bool,
@@ -365,7 +357,6 @@ fn data_type(name: &str) -> Result<DataType> {
     })
 }
 
-// Torch's name for `data_type`.
 fn name(data_type: DataType) -> Result<&'static str> {
     Ok(match data_type {
         DataType::Bool => "bool",

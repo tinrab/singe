@@ -14,7 +14,11 @@ mod utility;
 
 pub use crate::onnx::{
     error::{Error, Result},
-    exporter::export,
+    exporter::{
+        compare::{Divergence, first_divergence},
+        export,
+        external::{WeightPlacement, export_file},
+    },
     model::{OnnxModel, OnnxModelMetadata, OnnxValueInfo},
     options::OnnxOptions,
 };

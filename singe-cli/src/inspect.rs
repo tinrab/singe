@@ -49,7 +49,6 @@ pub fn tasks() {
     }
 }
 
-// An error and its sources on one line.
 fn report(error: &dyn Error) -> String {
     let mut message = error.to_string();
     let mut source = error.source();

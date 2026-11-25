@@ -61,13 +61,20 @@ pub fn verify(session: &mut Session) {
     session.check::<TextClassificationPipeline>("toxicity");
     session.check::<TextClassificationPipeline>("spam");
     session.check_exported("spam");
+    session.check_onnx("spam");
+    session.check_onnx("toxicity");
     session.check::<TextClassificationPipeline>("toxicity-bf16");
     session.check::<TextRankingPipeline>("ranking");
+    session.check_onnx("ranking");
     for strategy in ["none", "simple", "first", "average", "max"] {
         session.check::<TokenClassificationPipeline>(&format!("entities-{strategy}"));
     }
     session.check::<FeatureExtractionPipeline>("features");
+    session.check_onnx("features");
     session.check::<SentenceSimilarityPipeline>("similarity");
+    session.check_onnx("similarity");
     session.check::<SentenceEmbeddings>("embeddings-sqrt");
     session.check::<FillMaskPipeline>("fill");
+    session.check_onnx("fill");
+    session.check_onnx("entities-none");
 }

@@ -60,6 +60,30 @@ def fixture(op, version, variant="", constant=False):
         extra("other", np.array([[0.5, 0.2, 0.9]], dtype=np.float32))
     elif op in {"Acosh"}:
         runtime["x"] = x + 1
+    elif op in {"And", "Or", "Xor", "Not"}:
+        runtime["x"] = np.array([[True, False, True], [False, True, False]])
+        if op != "Not":
+            extra("other", [[True, True, False]], np.bool_)
+    elif op.startswith("Bitwise") or op in {"BitShift", "Mod"}:
+        dtype = np.uint8 if op == "BitShift" else np.int32
+        runtime["x"] = np.array([[-5, 7, 3], [4, -9, 8]]).astype(dtype)
+        if op == "BitShift":
+            attrs["direction"] = "LEFT" if version < 28 else "RIGHT"
+        if op != "BitwiseNot":
+            extra("other", [[3, 2, 1]] if op == "BitShift" else [[3, -4, 5]], dtype)
+    elif op in {"CumSum", "CumProd"}:
+        extra("axis", 1, np.int64)
+    elif op == "RMSNormalization":
+        extra("scale", [1.0, 0.75, 1.25], np.float32)
+    elif op == "RotaryEmbedding":
+        runtime["x"] = np.arange(24, dtype=np.float32).reshape(1, 2, 3, 4) / 8 - 1
+        angles = np.arange(6, dtype=np.float32).reshape(1, 3, 2) * 0.4
+        extra("cos", np.cos(angles))
+        extra("sin", np.sin(angles))
+        if variant == "interleaved":
+            attrs["interleaved"] = 1
+    elif op == "SwiGLU":
+        extra("other", -x * 2)
     elif op == "Pow":
         extra("exponent", 2.0, np.float32)
     elif op in {"Gemm", "MatMul"}:
@@ -330,7 +354,7 @@ def fixture(op, version, variant="", constant=False):
         [nh.from_array(value, name) for name, value in initializers.items()],
     )
     model = h.make_model(
-        graph, opset_imports=[h.make_opsetid("", version)], ir_version=10
+        graph, opset_imports=[h.make_opsetid("", version)], ir_version=14
     )
     if op == "BatchNormalization" and version < 14:
         # The pre-14 reference implementation selects training from the default
@@ -343,22 +367,12 @@ def fixture(op, version, variant="", constant=False):
             + initializers["bias"].reshape(1, -1, 1, 1)
         ]
     elif op == "DequantizeLinear":
-        # ONNX 1.21 lacks a pre-19 reference class. This per-tensor uint8
+        # ONNX 1.23 lacks a pre-19 reference class. This per-tensor uint8
         # case uses the schema's affine formula without precision extensions.
         actual = [
             (runtime["x"].astype(np.float32) - initializers["zero"])
             * initializers["scale"]
         ]
-    elif (
-        op == "Gather"
-        and (runtime.get("indices", initializers.get("indices"))).size == 0
-    ):
-        # ONNX 1.21 op_gather.py returns shape (0,) for every empty index tensor.
-        # NumPy take preserves the specified input-prefix/indices/input-suffix
-        # dimensions. ONNX shape inference independently checks that shape below.
-        source = runtime.get("x", initializers.get("x"))
-        indices = runtime.get("indices", initializers.get("indices"))
-        actual = [np.take(source, indices, axis=attrs["axis"])]
     elif op == "Gelu" and constant:
         # ReferenceEvaluator's context-dependent Gelu loader requires at least
         # one graph input to discover tensor types. Declaring each initializer
@@ -420,7 +434,7 @@ def fixture(op, version, variant="", constant=False):
 
 
 def generate():
-    assert onnx.__version__ == "1.21.0"
+    assert onnx.__version__ == "1.23.2"
     cases = []
     for op, (minimum, maximum) in sorted(RANGES.items()):
         versions = {minimum, maximum}
@@ -446,6 +460,7 @@ def generate():
                         )
                     )
     cases.append(fixture("GRU", 22, "reset_after"))
+    cases.append(fixture("RotaryEmbedding", 23, "interleaved"))
     for op in ["HannWindow", "HammingWindow", "BlackmanWindow"]:
         cases.append(fixture(op, 17, "symmetric"))
     for variant in ["complex", "inverse", "onesided", "padded"]:

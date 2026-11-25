@@ -15,6 +15,7 @@ include.workspace = true
 [features]
 default = []
 cuda_13_4 = ["singe/cuda_13_4", "singe-testing/cuda_13_4"]
+onnx = ["singe/onnx"]
 
 [dependencies]
 rayon.workspace = true
@@ -56,12 +57,16 @@ required-features = ["cuda_13_4"]
 name = "profile"
 required-features = ["cuda_13_4"]
 
+[[example]]
+name = "export_onnx"
+required-features = ["onnx"]
+
 [[test]]
 name = "verifications"
 path = "verifications/main.rs"
 harness = false
 test = false
-required-features = ["cuda_13_4"]
+required-features = ["cuda_13_4", "onnx"]
 
 [[bench]]
 name = "models"

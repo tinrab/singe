@@ -9,8 +9,8 @@ use crate::{
         error::{Error, Result},
         importer::{ImportedValue, Importer},
         ops::{
-            add_binary_intermediate, add_scale, expect_input_count, expect_outputs,
-            register_node_outputs, static_f32_scalar,
+            add_binary_intermediate, add_scale, elementwise::lower_binary, expect_input_count,
+            expect_outputs, register_node_outputs,
         },
         utility::{node_label, node_name},
     },
@@ -96,17 +96,32 @@ pub fn lower_pow(importer: &mut Importer, node: &Node) -> Result<()> {
     expect_input_count(importer, node, 2)?;
     expect_outputs(importer, node, 1)?;
     let input = importer.required_input(node, 0)?;
-    if input.data_type != DataType::F32 {
-        return Err(Error::unsupported_operator(
-            node.domain.as_deref(),
-            &node.operator_type,
-            importer.opset_version(node.domain.as_deref()),
-            "only f32 pow inputs are supported",
-        ));
-    }
-
-    let exponent = static_f32_scalar(importer, node, 1, "exponent")?;
-    let operation = pow_operation(importer, node, exponent)?;
+    let exponent = importer.required_input(node, 1)?;
+    let special = match importer.optional_static_input_tensor(node, 1)? {
+        Some((_, tensor))
+            if input.data_type == DataType::F32
+                && tensor.data_type() == DataType::F32
+                && tensor.shape().rank() == 0 =>
+        {
+            tensor
+                .to_vec::<f32>()?
+                .first()
+                .copied()
+                .and_then(pow_operation)
+        }
+        _ => None,
+    };
+    let Some(operation) = special else {
+        if exponent.data_type != input.data_type {
+            return Err(Error::unsupported_operator(
+                node.domain.as_deref(),
+                &node.operator_type,
+                importer.opset_version(node.domain.as_deref()),
+                "an exponent of another type than the base",
+            ));
+        }
+        return lower_binary(importer, node, Operation::Pow);
+    };
     let device = importer.options().device;
     let id = importer
         .graph()
@@ -123,21 +138,12 @@ pub fn lower_pow(importer: &mut Importer, node: &Node) -> Result<()> {
     )
 }
 
-pub fn pow_operation(importer: &Importer, node: &Node, exponent: f32) -> Result<Operation> {
-    if exponent == 2.0 {
-        Ok(Operation::Square)
-    } else if exponent == 0.5 {
-        Ok(Operation::Sqrt)
-    } else if exponent == -0.5 {
-        Ok(Operation::Rsqrt)
-    } else if exponent == -1.0 {
-        Ok(Operation::Reciprocal)
-    } else {
-        Err(Error::unsupported_operator(
-            node.domain.as_deref(),
-            &node.operator_type,
-            importer.opset_version(node.domain.as_deref()),
-            format!("static exponent {exponent} is not supported"),
-        ))
+fn pow_operation(exponent: f32) -> Option<Operation> {
+    match exponent {
+        2.0 => Some(Operation::Square),
+        0.5 => Some(Operation::Sqrt),
+        -0.5 => Some(Operation::Rsqrt),
+        -1.0 => Some(Operation::Reciprocal),
+        _ => None,
     }
 }

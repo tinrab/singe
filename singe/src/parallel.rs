@@ -71,7 +71,6 @@ pub(crate) fn collect<T: Send>(count: usize, produce: impl Fn(usize) -> T + Sync
     collect_with_grain(count, GRAIN_SIZE, produce)
 }
 
-// Runs `body` on this thread with a scope whose spawned work runs on the pool, or on rayon's global pool when the workers cannot start.
 #[cfg(feature = "cuda")]
 pub(crate) fn in_place_scope<'scope, R>(body: impl FnOnce(&rayon::Scope<'scope>) -> R) -> R {
     match pool() {

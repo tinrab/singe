@@ -352,8 +352,6 @@ pub fn push(nodes: &mut Vec<Node>, node: Node) -> ValueId {
 
 #[cfg(feature = "onnx")]
 impl Graph {
-    // Appends what `trace` records on meta tensors laid out as the nodes `inputs`, placed on `device`, and returns the nodes of its results in order.
-    // Each result is read contiguously, so a view that `trace` returns becomes a copy.
     pub(crate) fn append_traced(
         &mut self,
         inputs: &[ValueId],

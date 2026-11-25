@@ -5,7 +5,7 @@ use crate::{
     graph::{
         CompiledGraph, Graph, GraphSignature,
         generators::with_generator_states,
-        interpreter::{execute_ir, value_releases},
+        interpreter::{execute_ir, execute_values, value_releases},
         ir::{OperationId, ValueId},
         symbolic::SymbolicShapeEnv,
     },
@@ -118,6 +118,25 @@ impl Graph {
         let releases = value_releases(&ir, &operations)?;
         let (outputs, _) = execute_ir(&ir, &operations, &requests, &releases, &symbols, cache)?;
         write_back(&targets, narrow_counted(ir.counted_outputs(), outputs)?)
+    }
+}
+
+impl Graph {
+    pub(crate) fn run_keeping_values(
+        &self,
+        inputs: &HashMap<String, Tensor>,
+    ) -> Result<(Self, Vec<OperationId>, HashMap<ValueId, Tensor>)> {
+        let ir = self.to_ir()?;
+        let symbols = SymbolicShapeEnv::create_from_ir(&ir)?;
+        let signature = GraphSignature::create(self)?;
+        let inputs = with_generator_states(ir.generators(), inputs)?;
+        let resolved = signature.resolve(&inputs)?;
+        let cache = ir.bind_inputs(&resolved)?;
+        let operations = operation_order(&ir, &self.topological_sort_reachable()?)?;
+        let requests = ir.checked_requests(&operations)?;
+        let releases = vec![Vec::new(); operations.len()];
+        let (values, _) = execute_values(&ir, &operations, &requests, &releases, &symbols, cache)?;
+        Ok((ir, operations, values))
     }
 }
 

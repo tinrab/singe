@@ -1,9 +1,12 @@
+use singe_onnx::proto::onnx::AttributeProto;
+
 use crate::{
     backend::{
         registry::{
-            BatchNormalizationAttributes, Conv2dAttributes, FlattenAttributes,
-            LayerNormalizationAttributes, Operation, OperationAttributes, Pool2dAttributes,
-            ReductionAttributes, SliceAttributes, StridedAttributes, TransposeAttributes,
+            BatchNormalizationAttributes, ClampAttributes, Conv2dAttributes, Conv3dAttributes,
+            FlattenAttributes, LayerNormalizationAttributes, Operation, OperationAttributes,
+            PadAttributes, Pool2dAttributes, ReductionAttributes, SliceAttributes,
+            StridedAttributes, TopKAttributes, TransposeAttributes,
         },
         spec::reduction_problem,
     },
@@ -27,13 +30,13 @@ use crate::{
 };
 
 // What exporting one graph operation starts from.
-struct OperationExport<'a> {
-    value: ValueId,
-    node: &'a OperationNode,
-    inputs: Vec<String>,
-    output: String,
-    data_type: DataType,
-    operation: Operation,
+pub(crate) struct OperationExport<'a> {
+    pub(crate) value: ValueId,
+    pub(crate) node: &'a OperationNode,
+    pub(crate) inputs: Vec<String>,
+    pub(crate) output: String,
+    pub(crate) data_type: DataType,
+    pub(crate) operation: Operation,
 }
 
 impl Exporter<'_> {
@@ -61,8 +64,78 @@ impl Exporter<'_> {
         };
         match (operation, attributes) {
             (_, Attr::None) if let Some(name) = operation.onnx_operator() => {
-                self.matching_floats(&op)?;
-                self.node(name, op.inputs, op.output, vec![]);
+                self.elementwise(op, name, vec![])?;
+            }
+            (Op::Maximum, Attr::None) => self.elementwise(op, "Max", vec![])?,
+            (Op::Minimum, Attr::None) => self.elementwise(op, "Min", vec![])?,
+            (Op::Pow, Attr::None) => self.elementwise(op, "Pow", vec![])?,
+            (Op::Equal, Attr::None) => self.elementwise(op, "Equal", vec![])?,
+            (Op::Less, Attr::None) => self.elementwise(op, "Less", vec![])?,
+            (Op::LessEqual, Attr::None) => self.elementwise(op, "LessOrEqual", vec![])?,
+            (Op::Greater, Attr::None) => self.elementwise(op, "Greater", vec![])?,
+            (Op::GreaterEqual, Attr::None) => self.elementwise(op, "GreaterOrEqual", vec![])?,
+            (Op::NotEqual, Attr::None) => self.not_equal(op)?,
+            (Op::LogicalAnd | Op::LogicalOr | Op::LogicalNot, Attr::None) => self.logical(op)?,
+            (
+                Op::BitwiseAnd
+                | Op::BitwiseOr
+                | Op::BitwiseXor
+                | Op::BitwiseNot
+                | Op::BitwiseLeftShift
+                | Op::BitwiseRightShift,
+                Attr::None,
+            ) => self.bitwise(op)?,
+            (Op::Modulo | Op::Remainder, Attr::None) => self.remainder(op)?,
+            (Op::Square | Op::Rsqrt | Op::Log1p | Op::Expm1 | Op::Truncate, Attr::None) => {
+                self.unary_composition(op)?;
+            }
+            (Op::Lerp, Attr::Lerp(weight)) => self.lerp(op, weight)?,
+            (Op::Where, Attr::None) => self.node("Where", op.inputs, op.output, vec![]),
+            (Op::Clamp, Attr::Clamp(ClampAttributes { min, max })) => self.clamp(op, min, max)?,
+            (Op::SwiGlu, Attr::None) => self.swiglu(op)?,
+            (Op::RmsNorm, Attr::LayerNormalization(attributes)) => self.rms_norm(op, attributes)?,
+            (Op::RotaryEmbedding | Op::RotaryHalves, Attr::None) => self.rotary(op)?,
+            (Op::ScaledDotProductAttention, Attr::ScaledDotProductAttention(attention)) => {
+                self.attention(op, attention)?;
+            }
+            (Op::RepeatKv, Attr::RepeatKv(repeats)) => self.repeat_kv(op, repeats)?,
+            (Op::Expand, Attr::Shape(shape)) => self.expand(op, &shape)?,
+            (Op::Pad, Attr::Pad(PadAttributes { padding, value })) => {
+                self.pad(op, &padding, value)?;
+            }
+            (Op::ArgMax | Op::ArgMin, Attr::Dimension(dim)) => self.arg_reduction(op, dim)?,
+            (Op::Cumsum | Op::Cumprod, Attr::Dimension(dim)) => self.cumulative(op, dim)?,
+            (Op::ResampleLinear, Attr::Dimension(dim)) => self.resample_linear(op, dim)?,
+            (Op::TopKValues | Op::TopKIndices, Attr::TopK(topk)) => self.topk_result(op, topk)?,
+            (Op::Rfft, Attr::None) => self.rfft(op)?,
+            (Op::Irfft, Attr::Length(length)) => self.irfft(op, length)?,
+            (
+                Op::Conv3d,
+                Attr::Conv3d(Conv3dAttributes {
+                    stride,
+                    padding,
+                    dilation,
+                    groups,
+                    ..
+                }),
+            ) => {
+                self.spatial_floats(&op)?;
+                self.node(
+                    "Conv",
+                    op.inputs,
+                    op.output,
+                    vec![
+                        integers("strides", vec![stride.0, stride.1, stride.2]),
+                        integers(
+                            "pads",
+                            vec![
+                                padding.0, padding.1, padding.2, padding.0, padding.1, padding.2,
+                            ],
+                        ),
+                        integers("dilations", vec![dilation.0, dilation.1, dilation.2]),
+                        integer("group", groups),
+                    ],
+                );
             }
             (Op::Gelu | Op::GeluExact, Attr::None) => {
                 self.matching_floats(&op)?;
@@ -80,7 +153,12 @@ impl Exporter<'_> {
             }
             (Op::Silu, Attr::None) => self.silu(op)?,
             (
-                Op::Scale | Op::AddScalar | Op::SubScalar | Op::RSubScalar | Op::RDivScalar,
+                Op::Scale
+                | Op::AddScalar
+                | Op::SubScalar
+                | Op::RSubScalar
+                | Op::RDivScalar
+                | Op::PowScalar,
                 Attr::Scalar(value),
             ) => self.scalar_arithmetic(op, value)?,
             (Op::Contiguous, Attr::None) => self.node("Identity", op.inputs, op.output, vec![]),
@@ -141,7 +219,7 @@ impl Exporter<'_> {
             }
             (Op::Softmax | Op::LogSoftmax, Attr::Dimension(dim)) => self.softmax(op, dim)?,
             (
-                Op::Mean | Op::Sum | Op::Max | Op::Min,
+                Op::Mean | Op::Sum | Op::Max | Op::Min | Op::Product | Op::LogSumExp,
                 Attr::Reduction(ReductionAttributes {
                     dimensions,
                     keepdim,
@@ -236,17 +314,56 @@ impl Exporter<'_> {
                     custom.name()
                 )));
             }
+            (
+                Op::PagedAttention
+                | Op::PagedAttentionOutput
+                | Op::PagedAttentionLse
+                | Op::PagedMlaAttention
+                | Op::PagedMlaAttentionOutput
+                | Op::PagedMlaAttentionLse,
+                _,
+            ) => {
+                return Err(unsupported(format!(
+                    "{operation:?} reads a paged cache, which onnx has no operator for"
+                )));
+            }
+            (Op::Atan2, _) => {
+                return Err(unsupported("onnx has no two-argument arctangent"));
+            }
             _ => {
                 return Err(unsupported(format!(
-                    "canonical operation {operation:?} and its attributes are outside the opset-20 export subset"
+                    "{operation:?} with these attributes has no onnx export"
                 )));
             }
         }
         Ok(())
     }
 
+    pub(crate) fn results(
+        &mut self,
+        node: &OperationNode,
+        inputs: &[String],
+        outputs: Vec<String>,
+    ) -> Result<()> {
+        match (node.opcode(), node.attributes()) {
+            (Some(Operation::TopK), OperationAttributes::TopK(topk)) => {
+                let k = self.integers(vec![1], &[topk.k])?;
+                self.outputs_node(
+                    "TopK",
+                    vec![inputs[0].clone(), k],
+                    outputs,
+                    topk_attributes(*topk),
+                );
+                Ok(())
+            }
+            (operation, _) => Err(unsupported(format!(
+                "{operation:?} has several results, which export only for top-k"
+            ))),
+        }
+    }
+
     // ONNX binary operators do not apply Singe/PyTorch dtype promotion, so mixed operands are refused rather than narrowed.
-    fn matching_floats(&self, op: &OperationExport<'_>) -> Result<()> {
+    pub(crate) fn matching_floats(&self, op: &OperationExport<'_>) -> Result<()> {
         let dtype = op.data_type;
         if !matches!(
             dtype,
@@ -268,7 +385,7 @@ impl Exporter<'_> {
         self.matching_floats(op)?;
         if op.data_type == DataType::Bf16 {
             return Err(unsupported(format!(
-                "opset-20 {:?} does not support bfloat16",
+                "onnx {:?} does not support bfloat16",
                 op.operation
             )));
         }
@@ -343,6 +460,7 @@ impl Exporter<'_> {
             Operation::Scale => "Mul",
             Operation::AddScalar => "Add",
             Operation::SubScalar | Operation::RSubScalar => "Sub",
+            Operation::PowScalar => "Pow",
             _ => "Div",
         };
         if compute_type == storage_type {
@@ -462,14 +580,20 @@ impl Exporter<'_> {
         dimensions: &[i64],
         keepdim: bool,
     ) -> Result<()> {
-        self.matching_floats(&op)?;
+        // Integer and Boolean sums and products accumulate in the type of their result, as `PyTorch`'s do.
+        let input_type = self.source.required_value_data_type(op.node.inputs()[0])?;
         let OperationExport {
             node,
             mut inputs,
             output,
             operation,
+            data_type,
             ..
         } = op;
+        if input_type != data_type {
+            inputs[0] = self.cast(inputs[0].clone(), data_type)?;
+        }
+
         let shape = self.source.required_value_shape(node.inputs()[0])?;
         let dimensions = reduction_problem(shape, dimensions, keepdim)?
             .dimensions
@@ -484,6 +608,8 @@ impl Exporter<'_> {
             Operation::Mean => "ReduceMean",
             Operation::Sum => "ReduceSum",
             Operation::Max => "ReduceMax",
+            Operation::Product => "ReduceProd",
+            Operation::LogSumExp => "ReduceLogSumExp",
             _ => "ReduceMin",
         };
         self.node(
@@ -521,7 +647,7 @@ impl Exporter<'_> {
             attrs.push(integers("dilations", vec![dilation.0, dilation.1]));
         } else {
             if dilation != (1, 1) {
-                return Err(unsupported("opset-20 AveragePool dilation"));
+                return Err(unsupported("dilated average pooling"));
             }
 
             attrs.push(integer(
@@ -571,7 +697,8 @@ impl Exporter<'_> {
         if has_weight {
             operands.push(inputs[1].clone());
         } else {
-            operands.push(self.filled(data_type, normalized_shape.clone(), 1.)?);
+            // Ones of extent 1 broadcast over the normalized axes at any length they run at.
+            operands.push(self.filled(data_type, vec![1; normalized_shape.len()], 1.)?);
         }
 
         if has_bias {
@@ -712,7 +839,12 @@ impl Exporter<'_> {
         Ok(())
     }
 
-    fn filled(&mut self, dtype: DataType, dimensions: Vec<i64>, value: f64) -> Result<String> {
+    pub(crate) fn filled(
+        &mut self,
+        dtype: DataType,
+        dimensions: Vec<i64>,
+        value: f64,
+    ) -> Result<String> {
         let count = dimensions.iter().try_fold(1_usize, |count, &dim| {
             let dim =
                 usize::try_from(dim).map_err(|_| unsupported("affine parameter dimension"))?;
@@ -733,6 +865,14 @@ impl Exporter<'_> {
         }
         self.literal(dtype, dimensions, values)
     }
+}
+
+pub(crate) fn topk_attributes(topk: TopKAttributes) -> Vec<AttributeProto> {
+    vec![
+        integer("axis", topk.dim),
+        integer("largest", i64::from(topk.largest)),
+        integer("sorted", 1),
+    ]
 }
 
 /// Returns the storage position of every addressed element, in row-major order of `strided.dimensions`.

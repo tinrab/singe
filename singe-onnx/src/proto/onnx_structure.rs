@@ -361,6 +361,8 @@ pub mod tensor_proto {
         Float8e8m0 = 24,
         Uint2 = 25,
         Int2 = 26,
+        Float6e2m3 = 27,
+        Float6e3m2 = 28,
     }
     impl DataType {
         /// String value of the enum field names used in the ProtoBuf definition.
@@ -396,6 +398,8 @@ pub mod tensor_proto {
                 Self::Float8e8m0 => "FLOAT8E8M0",
                 Self::Uint2 => "UINT2",
                 Self::Int2 => "INT2",
+                Self::Float6e2m3 => "FLOAT6E2M3",
+                Self::Float6e3m2 => "FLOAT6E3M2",
             }
         }
         /// Creates an enum from field names used in the ProtoBuf definition.
@@ -428,6 +432,8 @@ pub mod tensor_proto {
                 "FLOAT8E8M0" => Some(Self::Float8e8m0),
                 "UINT2" => Some(Self::Uint2),
                 "INT2" => Some(Self::Int2),
+                "FLOAT6E2M3" => Some(Self::Float6e2m3),
+                "FLOAT6E3M2" => Some(Self::Float6e3m2),
                 _ => None,
             }
         }
@@ -537,7 +543,7 @@ impl ::prost::Name for TensorShapeProto {
 pub struct TypeProto {
     #[prost(string, tag = "6")]
     pub denotation: ::prost::alloc::string::String,
-    #[prost(oneof = "type_proto::Value", tags = "1, 4, 5, 8, 9")]
+    #[prost(oneof = "type_proto::Value", tags = "1, 4, 5, 8, 9, 7")]
     pub value: ::core::option::Option<type_proto::Value>,
 }
 /// Nested message and enum types in `TypeProto`.
@@ -623,6 +629,23 @@ pub mod type_proto {
             "/onnx_structure.TypeProto.SparseTensor".into()
         }
     }
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+    pub struct Opaque {
+        #[prost(string, tag = "1")]
+        pub domain: ::prost::alloc::string::String,
+        #[prost(string, tag = "2")]
+        pub name: ::prost::alloc::string::String,
+    }
+    impl ::prost::Name for Opaque {
+        const NAME: &'static str = "Opaque";
+        const PACKAGE: &'static str = "onnx_structure";
+        fn full_name() -> ::prost::alloc::string::String {
+            "onnx_structure.TypeProto.Opaque".into()
+        }
+        fn type_url() -> ::prost::alloc::string::String {
+            "/onnx_structure.TypeProto.Opaque".into()
+        }
+    }
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
         #[prost(message, tag = "1")]
@@ -635,6 +658,8 @@ pub mod type_proto {
         SparseTensorType(SparseTensor),
         #[prost(message, tag = "9")]
         OptionalType(::prost::alloc::boxed::Box<Optional>),
+        #[prost(message, tag = "7")]
+        OpaqueType(Opaque),
     }
 }
 impl ::prost::Name for TypeProto {
@@ -858,6 +883,8 @@ impl tensor_proto::DataType {
     pub const FLOAT_8_E_8_M_0_VALUE_NAME: &'static str = "FLOAT8E8M0";
     pub const UINT_2_VALUE_NAME: &'static str = "UINT2";
     pub const INT_2_VALUE_NAME: &'static str = "INT2";
+    pub const FLOAT_6_E_2_M_3_VALUE_NAME: &'static str = "FLOAT6E2M3";
+    pub const FLOAT_6_E_3_M_2_VALUE_NAME: &'static str = "FLOAT6E3M2";
     pub const VALUE_NAMES: &'static [&'static str] = &[
         Self::UNDEFINED_VALUE_NAME,
         Self::FLOAT_VALUE_NAME,
@@ -886,6 +913,8 @@ impl tensor_proto::DataType {
         Self::FLOAT_8_E_8_M_0_VALUE_NAME,
         Self::UINT_2_VALUE_NAME,
         Self::INT_2_VALUE_NAME,
+        Self::FLOAT_6_E_2_M_3_VALUE_NAME,
+        Self::FLOAT_6_E_3_M_2_VALUE_NAME,
     ];
 }
 impl tensor_proto::DataLocation {
@@ -946,6 +975,7 @@ impl TypeProto {
     pub const MAP_TYPE_FIELD_NAME: &'static str = "map_type";
     pub const SPARSE_TENSOR_TYPE_FIELD_NAME: &'static str = "sparse_tensor_type";
     pub const OPTIONAL_TYPE_FIELD_NAME: &'static str = "optional_type";
+    pub const OPAQUE_TYPE_FIELD_NAME: &'static str = "opaque_type";
     pub const DENOTATION_FIELD_NAME: &'static str = "denotation";
 }
 impl TypeProto {
@@ -957,10 +987,16 @@ impl type_proto::Value {
     pub const MAP_TYPE_VARIANT_NAME: &'static str = "map_type";
     pub const SPARSE_TENSOR_TYPE_VARIANT_NAME: &'static str = "sparse_tensor_type";
     pub const OPTIONAL_TYPE_VARIANT_NAME: &'static str = "optional_type";
+    pub const OPAQUE_TYPE_VARIANT_NAME: &'static str = "opaque_type";
 }
 impl From<type_proto::Map> for type_proto::Value {
     fn from(value: type_proto::Map) -> Self {
         Self::MapType(value.into())
+    }
+}
+impl From<type_proto::Opaque> for type_proto::Value {
+    fn from(value: type_proto::Opaque) -> Self {
+        Self::OpaqueType(value.into())
     }
 }
 impl From<type_proto::Optional> for type_proto::Value {
@@ -991,6 +1027,7 @@ impl type_proto::Value {
             Self::MapType(_) => Self::MAP_TYPE_VARIANT_NAME,
             Self::SparseTensorType(_) => Self::SPARSE_TENSOR_TYPE_VARIANT_NAME,
             Self::OptionalType(_) => Self::OPTIONAL_TYPE_VARIANT_NAME,
+            Self::OpaqueType(_) => Self::OPAQUE_TYPE_VARIANT_NAME,
         }
     }
 }
@@ -1011,6 +1048,10 @@ impl type_proto::Optional {
 impl type_proto::SparseTensor {
     pub const ELEM_TYPE_FIELD_NAME: &'static str = "elem_type";
     pub const SHAPE_FIELD_NAME: &'static str = "shape";
+}
+impl type_proto::Opaque {
+    pub const DOMAIN_FIELD_NAME: &'static str = "domain";
+    pub const NAME_FIELD_NAME: &'static str = "name";
 }
 impl OperatorSetIdProto {
     pub const DOMAIN_FIELD_NAME: &'static str = "domain";

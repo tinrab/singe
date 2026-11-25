@@ -121,6 +121,13 @@ pub enum Error {
 
     #[error("onnx external data `{name}` at {path} lies outside the model directory")]
     ExternalDataOutside { name: String, path: PathBuf },
+
+    #[error("cannot write an onnx export to {path}")]
+    ExportWrite {
+        path: PathBuf,
+        #[source]
+        source: IoError,
+    },
 }
 
 impl Error {

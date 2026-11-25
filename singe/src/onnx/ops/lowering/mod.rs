@@ -12,7 +12,7 @@ pub use self::{
     },
     quantization::{
         optional_quantization_zero_point, optional_static_f32_scalar, quantization_scale,
-        static_f32_scalar, zero_point_initializer,
+        zero_point_initializer,
     },
     shape::{
         axes_from_attribute_or_input, expand_output_shape, normalize_shape_bound,

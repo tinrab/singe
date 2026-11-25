@@ -2,6 +2,7 @@
 
 mod compare;
 mod export;
+mod onnx;
 mod snapshot;
 
 use std::{
@@ -156,6 +157,20 @@ impl Session {
         self.checked(&label, name, run_exported);
     }
 
+    pub fn check_onnx(&mut self, name: &str) {
+        let label = format!("{}/{name}/onnx", self.name);
+        self.checked(&label, name, |case, snapshot, label| {
+            run_onnx(case, snapshot, label, None)
+        });
+    }
+
+    pub fn check_onnx_at(&mut self, name: &str, shape: &[i64]) {
+        let label = format!("{}/{name}/onnx", self.name);
+        self.checked(&label, name, |case, snapshot, label| {
+            run_onnx(case, snapshot, label, Some(shape.to_vec()))
+        });
+    }
+
     // A case whose snapshot is not downloaded is skipped, and one that fails to load or run fails, and the next case runs.
     fn checked(
         &mut self,
@@ -292,6 +307,19 @@ fn run_exported(case: &Case, snapshot: &Path, label: &str) -> Result<Outcome> {
     Ok(verdict(label, matched, &details))
 }
 
+fn run_onnx(
+    case: &Case,
+    snapshot: &Path,
+    label: &str,
+    input_shape: Option<Vec<i64>>,
+) -> Result<Outcome> {
+    let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("onnx")
+        .join(label.replace('/', "-"));
+    let (matched, details) = onnx::run(case, snapshot, &directory, input_shape)?;
+    Ok(verdict(label, matched, &details))
+}
+
 fn data_type<'de, D: Deserializer<'de>>(deserializer: D) -> Result<DataType, D::Error> {
     match String::deserialize(deserializer)?.as_str() {
         "f32" => Ok(DataType::F32),
@@ -323,7 +351,6 @@ fn media(value: Value) -> Value {
     }
 }
 
-// Replaces each string naming a file under `media/` with its contents, as pipelines take media from JSON.
 fn embedded(value: Value) -> Result<Value> {
     Ok(match value {
         Value::String(text) if text.starts_with("media/") => file_value(&root().join(text))?,

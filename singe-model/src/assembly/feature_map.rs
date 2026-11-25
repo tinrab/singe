@@ -1,6 +1,6 @@
 //! Reshapes between feature maps `[B, C, H, W]`, their tokens `[B, H · W, C]`, and the windows of a channels-last map `[B, H, W, C]`, which Swin, `Swin2SR`, `SegFormer`, SAM, DETR, and Depth Anything read.
 
-use singe::{Error as SingeError, Result as SingeResult, Tensor};
+use singe::{Error as SingeError, Result as SingeResult, Tensor, graph::DimensionExpr};
 
 /// Returns a map `[B, C, H, W]` as tokens `[B, H · W, C]`.
 pub fn to_tokens(map: &Tensor) -> SingeResult<Tensor> {
@@ -9,12 +9,17 @@ pub fn to_tokens(map: &Tensor) -> SingeResult<Tensor> {
 
 /// Returns tokens `[B, H · W, C]` as a map `[B, C, H, W]`.
 pub fn to_map(tokens: &Tensor, (height, width): (i64, i64)) -> SingeResult<Tensor> {
-    let &[batch, _, channels] = tokens.shape().dimensions() else {
+    if tokens.shape().dimensions().len() != 3 {
         return Err(SingeError::invalid_argument("tokens"));
-    };
-    tokens
-        .transpose(1, 2)?
-        .reshape([batch, channels, height, width])
+    }
+
+    let channels = tokens.transpose(1, 2)?;
+    channels.reshape_with(&[
+        channels.dimension(0)?,
+        channels.dimension(1)?,
+        DimensionExpr::constant(height),
+        DimensionExpr::constant(width),
+    ])
 }
 
 pub fn spatial(map: &Tensor) -> SingeResult<(i64, i64)> {

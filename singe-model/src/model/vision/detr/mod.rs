@@ -8,7 +8,7 @@ use std::f32::consts::PI;
 use serde::{Deserialize, Serialize};
 use singe::{
     Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    graph::{ComputePrecision, with_convolution_precision},
+    graph::{ComputePrecision, capture, with_convolution_precision},
     nn::{Activation, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, Mlp, ModelState, StateKey},
 };
 
@@ -135,11 +135,10 @@ fn sine_positions(height: i64, width: i64, features: i64, device: Device) -> Sin
             encode(x, &mut values);
         }
     }
-    Tensor::from_vec(
-        device,
-        Shape::create([1, height * width, half * 2])?,
-        values,
-    )
+
+    // A constant of the map's size, which a captured program holds as a literal.
+    let shape = Shape::create([1, height * width, half * 2])?;
+    capture::literal(device, |device| Tensor::from_vec(device, shape, values))
 }
 
 /// DETR and its heads: from images to each query's label scores and box, `[B, Q, labels + 1 + 4]`.

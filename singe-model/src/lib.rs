@@ -4,7 +4,7 @@ pub mod assembly;
 mod batch;
 mod decoder_cache;
 mod error;
-#[cfg(feature = "cuda_13_4")]
+#[cfg(any(feature = "cuda_13_4", feature = "onnx"))]
 pub mod export;
 pub mod format;
 pub mod head;

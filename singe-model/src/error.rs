@@ -7,6 +7,8 @@ use std::{
 use image::ImageError;
 use serde_json::Error as JsonError;
 use singe::Error as SingeError;
+#[cfg(feature = "onnx")]
+use singe::onnx::Error as OnnxError;
 use thiserror::Error;
 use tokenizers::Error as TokenizerError;
 
@@ -15,6 +17,10 @@ use tokenizers::Error as TokenizerError;
 pub enum Error {
     #[error(transparent)]
     Singe(#[from] SingeError),
+    // Boxed, since the ONNX error would double the size of every `Result` here.
+    #[cfg(feature = "onnx")]
+    #[error(transparent)]
+    Onnx(Box<OnnxError>),
     #[error("failed to access {}", path.display())]
     Io {
         path: PathBuf,
@@ -68,6 +74,13 @@ pub enum Error {
 }
 
 pub type Result<T> = StdResult<T, Error>;
+
+#[cfg(feature = "onnx")]
+impl From<OnnxError> for Error {
+    fn from(error: OnnxError) -> Self {
+        Self::Onnx(Box::new(error))
+    }
+}
 
 impl Error {
     #[must_use]

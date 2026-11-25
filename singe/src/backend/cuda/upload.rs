@@ -17,8 +17,6 @@ use crate::{
 // Small buffers filled by many threads read faster than large ones by few: on a 20-core laptop, a warm load of Qwen3-0.6B's 1.2 GB took 72 ms through twenty 512 KiB buffers, 135 ms through eight of 16 MiB, and 160 ms through two of 8 MiB filled by all cores in turn.
 const CHUNK_BYTES: usize = 512 << 10;
 
-// Fills device tensors from the host a chunk at a time, through page-locked buffers: several fill at once on the CPU pool while the eager stream copies the filled ones.
-// A tensor then takes no more host memory than the buffers, however large it is.
 pub struct CudaUpload {
     device: Device,
     staging: Vec<PinnedVec<u8>>,
@@ -143,7 +141,6 @@ impl CudaUpload {
         Ok(unsafe { output.assume_init() })
     }
 
-    // Copies `buffer`'s first `length` bytes to byte `offset` past `target` on the eager stream, and records when the copy has read the buffer.
     fn copy(
         &self,
         target: *mut u8,

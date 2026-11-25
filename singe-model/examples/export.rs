@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 use singe::{DataType, backend::cuda::export::compiled::program_target, tensor::SamplingOptions};
 use singe_model::{
     Source,
-    export::{ExportOptions, export},
+    export::cuda::{ExportOptions, export},
     task::Task,
 };
 

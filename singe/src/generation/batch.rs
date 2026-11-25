@@ -25,9 +25,6 @@ struct RunningSequence {
     options: SequenceOptions,
 }
 
-// A batch whose sequences join and leave while the others run, each in a row of its decoder, with its own limit, stop tokens, and sampling.
-// A finished sequence frees its row and its pages at once, and an idle row costs nothing but its place in a step.
-// The batch's options give the suppressed tokens every sequence shares, and the sequence options of `join` and `join_with`.
 pub struct RunningBatch<'a, D: Decoder + ?Sized> {
     decoder: &'a mut D,
     options: GenerationOptions,
@@ -63,7 +60,6 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
         })
     }
 
-    // Starts a sequence after `prompt` in a free row, with the batch's sequence options, and returns its id, or `None` when every row is taken.
     pub fn join(&mut self, prompt: &[i64]) -> Result<Option<usize>> {
         let options = self.options.sequence();
         self.join_with_options(prompt, options, |_, _| Ok(()))
@@ -79,8 +75,6 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
         self.join_with_options(prompt, options, prepare)
     }
 
-    // Starts a sequence as `join_with` does, generating as `options` asks rather than as the batch's options do.
-    // A sequence whose preparation fails does not join, and its row stays free.
     pub fn join_with_options(
         &mut self,
         prompt: &[i64],
@@ -113,8 +107,6 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
         Ok(Some(id))
     }
 
-    // Stops sequence `id` and frees its row and pages; returns whether it was running.
-    // A token an enqueued step chooses for it is dropped, as a finished sequence's is.
     pub fn leave(&mut self, id: usize) -> Result<bool> {
         let Some(index) = self
             .rows
@@ -128,7 +120,6 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
         Ok(true)
     }
 
-    // Returns how many sequences are running.
     #[must_use]
     pub fn running(&self) -> usize {
         self.rows.iter().flatten().count()
@@ -239,7 +230,6 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
         Ok(Some(UnreadStep { chosen, choosing }))
     }
 
-    // Chooses each row's token with its sequence's sampling: in one call when every choosing row samples alike, or else row by row.
     fn choose_rows(
         &self,
         logits: &Tensor,

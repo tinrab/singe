@@ -1,8 +1,8 @@
 use singe_onnx::{Node, TensorDataType};
 
 use crate::{
-    backend::registry::Operation,
-    graph::{GraphOperationOutput, GraphOperationRequest},
+    backend::registry::{Conv3dAttributes, Operation, OperationAttributes, OperationRequest},
+    graph::{GraphOperationInputs, GraphOperationOutput, GraphOperationRequest},
     onnx::{
         attributes::Attributes,
         error::{Error, Result},
@@ -15,11 +15,16 @@ use crate::{
         utility::{node_label, node_name, pair},
     },
     shape::Shape,
+    value::ValueSpec,
 };
 
 pub fn lower_conv(importer: &mut Importer, node: &Node) -> Result<()> {
     expect_outputs(importer, node, 1)?;
     expect_input_range(importer, node, 2, 3)?;
+    if importer.required_input(node, 1)?.shape.rank() == 5 {
+        return lower_conv3d(importer, node);
+    }
+
     let Conv2dInput {
         input,
         weight,
@@ -55,6 +60,85 @@ pub fn lower_conv(importer: &mut Importer, node: &Node) -> Result<()> {
         importer,
         node,
         vec![ImportedValue::new(id, input.data_type, shape)],
+    )
+}
+
+fn lower_conv3d(importer: &mut Importer, node: &Node) -> Result<()> {
+    let attrs = Attributes::create(node)?;
+    let refuse = |reason: &str| {
+        Error::unsupported_operator(
+            node.domain.as_deref(),
+            &node.operator_type,
+            importer.opset_version(node.domain.as_deref()),
+            reason,
+        )
+    };
+    if attrs.string("auto_pad", "NOTSET")? != "NOTSET" {
+        return Err(refuse("auto_pad is not supported"));
+    }
+
+    let triple = |name: &str, default: i64| -> Result<(i64, i64, i64)> {
+        match attrs.ints_or(name, &[default; 3])?[..] {
+            [first, second, third] => Ok((first, second, third)),
+            _ => Err(Error::invalid_attribute(
+                node_label(node),
+                name,
+                "expected three values",
+            )),
+        }
+    };
+    let stride = triple("strides", 1)?;
+    let dilation = triple("dilations", 1)?;
+    let pads = attrs.ints_or("pads", &[0; 6])?;
+    let [first, second, third, first_end, second_end, third_end] = pads[..] else {
+        return Err(Error::invalid_attribute(
+            node_label(node),
+            "pads",
+            "expected six values",
+        ));
+    };
+    if (first, second, third) != (first_end, second_end, third_end) {
+        return Err(refuse("pads that differ before and after an axis"));
+    }
+
+    let input = importer.required_input(node, 0)?;
+    let weight = importer.required_input(node, 1)?;
+    let bias = optional_input(importer, node, 2)?;
+    let attributes = OperationAttributes::Conv3d(Conv3dAttributes {
+        has_bias: bias.is_some(),
+        stride,
+        padding: (first, second, third),
+        dilation,
+        groups: attrs.int("group", 1)?,
+    });
+    let mut operands = vec![&input, &weight];
+    operands.extend(bias.as_ref());
+    let specs = operands
+        .iter()
+        .map(|operand| ValueSpec::new(operand.data_type, operand.shape.clone()))
+        .collect();
+    let inference = OperationRequest::new(Operation::Conv3d, attributes.clone(), specs).infer()?;
+    let output = &inference.outputs()[0];
+    let device = importer.options().device;
+    let id = importer
+        .graph()
+        .add_operation_request(GraphOperationRequest::new(
+            node_name(node),
+            GraphOperationInputs::new(
+                Operation::Conv3d,
+                attributes,
+                operands.iter().map(|operand| operand.node).collect(),
+            ),
+            GraphOperationOutput::new(output.data_type(), output.shape().clone(), device),
+        ))?;
+    register_node_outputs(
+        importer,
+        node,
+        vec![ImportedValue::new(
+            id,
+            output.data_type(),
+            output.shape().clone(),
+        )],
     )
 }
 

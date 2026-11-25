@@ -16,10 +16,8 @@ use crate::{
     utility::{to_i64, to_usize},
 };
 
-// The largest header a safetensors file may have, as the format allows.
 const LARGEST_HEADER: u64 = 100_000_000;
 
-// Reads the header of a safetensors file.
 pub fn index(file: &File) -> Result<Vec<(String, StoredTensor)>> {
     let mut length = [0; 8];
     read_exact_at(file, 0, &mut length)?;
@@ -39,13 +37,11 @@ pub fn index(file: &File) -> Result<Vec<(String, StoredTensor)>> {
     stored(&metadata, data)
 }
 
-// Reads the header of safetensors `bytes`.
 pub fn index_bytes(bytes: &[u8]) -> Result<Vec<(String, StoredTensor)>> {
     let (header, metadata) = SafeTensors::read_metadata(bytes)?;
     stored(&metadata, header as u64 + 8)
 }
 
-// The tensors `metadata` lists, whose data starts at byte `data` of the file.
 fn stored(metadata: &Metadata, data: u64) -> Result<Vec<(String, StoredTensor)>> {
     metadata
         .offset_keys()
@@ -71,7 +67,6 @@ fn stored(metadata: &Metadata, data: u64) -> Result<Vec<(String, StoredTensor)>>
         .collect()
 }
 
-// Serializes `tensors` under their names.
 pub fn serialize<'a>(tensors: impl IntoIterator<Item = (&'a str, &'a Tensor)>) -> Result<Vec<u8>> {
     let owned = tensors
         .into_iter()

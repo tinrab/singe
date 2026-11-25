@@ -13,7 +13,6 @@ use crate::{
     tensor::{AttentionOptions, Tensor},
 };
 
-// The projections and biases of a [`RelativeAttention`]: queries, keys, values, and output, `positions` without a bias, and the content and position biases `[H, D]`.
 #[derive(Debug, Clone)]
 pub struct RelativeAttentionLayers {
     pub query: Linear,
@@ -25,14 +24,12 @@ pub struct RelativeAttentionLayers {
     pub position_bias: StateKey,
 }
 
-// Local attention, as NeMo's `rel_pos_local_attn` computes it: above `above` rows, each row attends only to the `window` rows before and after it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalAttention {
     pub window: i64,
     pub above: i64,
 }
 
-// What relative attention reads: `hidden`, `[B, T, W]`; `positions`, the embeddings of the distances `R` down to `-R`, `[2R + 1, W]`, where `R` is [`RelativeAttention::reach`] of `T`; and `key_lengths`, `[B]`, each sequence's count of real steps, which come first, if a batch's sequences differ in length.
 #[derive(Debug, Clone, Copy)]
 pub struct RelativeAttentionInput<'a> {
     pub hidden: &'a Tensor,
@@ -40,15 +37,10 @@ pub struct RelativeAttentionInput<'a> {
     pub key_lengths: Option<&'a Tensor>,
 }
 
-// The bytes of scores against distances that one chunk of queries holds; a layer whose queries all fit runs them at once.
 const SCORE_BUDGET: f64 = (256 << 20) as f64;
 
-// Chunks of queries are a multiple of this many rows.
 const CHUNK_ROWS: i64 = 64;
 
-// Multi-head self-attention over relative positions, attending to every key, or with `local`, to the keys near each query.
-// Queries run in chunks when their scores against every distance would pass `SCORE_BUDGET`, so a layer's memory grows with the length times the chunk rather than the length's square; each chunk gives exactly the rows full attention gives.
-// Local attention runs its queries in groups of `2 · window`, each against its `4 · window` nearest keys, so its memory and work grow with the length.
 #[derive(Debug, Clone)]
 pub struct RelativeAttention {
     layers: RelativeAttentionLayers,
@@ -82,13 +74,11 @@ impl RelativeAttention {
         Ok(self)
     }
 
-    // Whether `steps` rows attend locally: when local attention is on and they are more than its `above`, even if its window reaches every row.
     #[must_use]
     pub const fn attends_locally(&self, steps: i64) -> bool {
         matches!(self.local, Some(local) if steps > local.above)
     }
 
-    // The largest distance whose position attention reads over `steps` rows: the local window when it attends locally, or `steps - 1`.
     #[must_use]
     pub const fn reach(&self, steps: i64) -> i64 {
         match self.local {
@@ -102,7 +92,6 @@ impl RelativeAttention {
         &self.layers
     }
 
-    // `[B, T, W]` to `[B, H, T, D]`.
     fn heads(&self, tensor: &Tensor) -> Result<Tensor> {
         let &[batch, steps, _] = tensor.shape().dimensions() else {
             return Err(Error::invalid_argument(
@@ -120,7 +109,6 @@ impl RelativeAttention {
             .reshape([1, self.heads, 1, self.head_dim])
     }
 
-    // The rows of queries one chunk takes: all `steps` when their scores against every distance fit `SCORE_BUDGET`, or the most rows, a multiple of `CHUNK_ROWS`, whose `[B, H, rows, rows + steps - 1]` scores fit it.
     fn chunk_rows(&self, batch: i64, steps: i64, data_type: DataType) -> i64 {
         let bytes = |rows: i64| {
             (batch * self.heads) as f64
@@ -140,10 +128,6 @@ impl RelativeAttention {
     }
 }
 
-// Local attention over `[B, H, T, D]` queries, keys, and values, each query attending to the keys up to `window` rows from it, with `positions` the projections of the distances `window` down to `-window`.
-// Queries run in groups of `c = 2 · window` rows; group `g` reads the `2c` keys from `g · c - window`, so with the keys padded by `window` at each end, a group's keys are the padded keys' groups `g` and `g + 1`.
-// Query `a` of a group reads its key `k` at distance column `k - a`, which a skew of the `[c, 2 · window + 1]` distance scores to `[c, 2c]` gives; a band mask hides the keys outside the window, and another the keys past each sequence's length.
-// The groups run in batches whose scores fit `SCORE_BUDGET`.
 fn attend_local(input: &LocalInput<'_>, window: i64, scale: f64) -> Result<Tensor> {
     let &[batch, heads, steps, depth] = input.content.shape().dimensions() else {
         return Err(Error::invalid_argument(
@@ -264,7 +248,6 @@ fn attend_local(input: &LocalInput<'_>, window: i64, scale: f64) -> Result<Tenso
     attended.narrow(2, 0, steps)
 }
 
-// The tensors local attention reads, `[B, H, T, D]` but for `positions`, `[1, H, D, 2 · window + 1]`.
 struct LocalInput<'a> {
     content: &'a Tensor,
     positional: &'a Tensor,
@@ -366,8 +349,6 @@ impl Layer<RelativeAttentionInput<'_>> for RelativeAttention {
     }
 }
 
-// Shifts the scores of `c` queries against distances, `[…, c, c + T - 1]`, whose row `a` holds query `a`'s score for key `j` at column `c - 1 - a + j`, to scores against each of the `T` keys, `[…, c, T]`.
-// It pads a column before the first, flattens the last two axes, drops the first `c` values, and reads the rest back as `[c, c + T - 1]`, as Transformer-XL's `rel_shift` does for `c = T`.
 fn rel_shift(scores: &Tensor) -> Result<Tensor> {
     let dimensions = scores.shape().dimensions().to_vec();
     let rank = dimensions.len();
@@ -399,7 +380,6 @@ fn rel_shift(scores: &Tensor) -> Result<Tensor> {
         .narrow(-1, 0, keys)
 }
 
-// An additive mask that hides each sequence's keys from its length on, `[B, 1, 1, T]`.
 fn padding_mask(lengths: &Tensor, steps: i64, data_type: DataType) -> Result<Tensor> {
     let device = lengths.device();
     let positions =

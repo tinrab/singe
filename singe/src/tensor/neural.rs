@@ -10,7 +10,7 @@ use crate::{
     device::Device,
     dispatch::{call, call_one},
     error::{Error, Result},
-    graph::capture,
+    graph::{DimensionExpr, capture},
     scalar::Scalar,
     shape::Shape,
     tensor::Tensor,
@@ -367,7 +367,7 @@ impl Tensor {
         eps: f32,
     ) -> Result<Self> {
         let dimensions = self.shape().dimensions();
-        let &[batch, channels, ref spatial @ ..] = dimensions else {
+        let &[_, channels, ref spatial @ ..] = dimensions else {
             return Err(Error::invalid_argument(
                 "group normalization needs batch and channel dimensions",
             ));
@@ -379,10 +379,22 @@ impl Tensor {
         }
 
         let points = spatial.iter().product::<i64>() * (channels / groups);
+        // The reshapes follow the input's run-time axes under capture.
+        let original = (0..dimensions.len())
+            .map(|axis| self.dimension(axis))
+            .collect::<Result<Vec<_>>>()?;
+        let grouped = original[2..].iter().fold(
+            DimensionExpr::constant(channels / groups),
+            |points, axis| points * axis.clone(),
+        );
         let mut normalized = self
-            .reshape([batch, groups, points])?
+            .reshape_with(&[
+                original[0].clone(),
+                DimensionExpr::constant(groups),
+                grouped,
+            ])?
             .layer_norm(&[points], None, None, eps)?
-            .reshape(dimensions.to_vec())?;
+            .reshape_with(&original)?;
         // The affine parameters hold one value per channel, broadcast over the spatial points.
         let mut channel = vec![1; dimensions.len() - 1];
         channel[0] = channels;

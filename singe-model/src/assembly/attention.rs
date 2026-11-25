@@ -2,6 +2,7 @@
 
 use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
+    graph::DimensionExpr,
     nn::{Linear, ModelState},
     tensor::AttentionOptions,
 };
@@ -165,40 +166,52 @@ impl Attention {
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let projected = input.apply(linear, state)?;
-        let &[rows, inner] = projected.shape().dimensions() else {
+        let &[_, inner] = projected.shape().dimensions() else {
             return Err(SingeError::invalid_argument("attention rows"));
         };
-        projected.reshape([rows, self.heads, inner / self.heads])
+        projected.reshape_with(&[
+            projected.dimension(0)?,
+            DimensionExpr::constant(self.heads),
+            DimensionExpr::constant(inner / self.heads),
+        ])
     }
 
     /// Returns each row's heads, `[T, H, 1, D]`, joined and through the output projection, `[T, W]`.
     fn merge_rows(&self, attended: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let &[rows, heads, _, dim] = attended.shape().dimensions() else {
+        let &[_, heads, _, dim] = attended.shape().dimensions() else {
             return Err(SingeError::invalid_argument("attended rows"));
         };
         attended
-            .reshape([rows, heads * dim])?
+            .reshape_with(&[attended.dimension(0)?, DimensionExpr::constant(heads * dim)])?
             .apply(&self.output, state)
     }
 }
 
 /// Returns a projection's `[B, L, inner]` split into `heads` heads, `[B, H, L, inner / H]`.
 pub fn split_heads(tensor: &Tensor, heads: i64) -> SingeResult<Tensor> {
-    let &[batch, length, inner] = tensor.shape().dimensions() else {
+    let &[_, _, inner] = tensor.shape().dimensions() else {
         return Err(SingeError::invalid_argument("attention heads' input"));
     };
     tensor
-        .reshape([batch, length, heads, inner / heads])?
+        .reshape_with(&[
+            tensor.dimension(0)?,
+            tensor.dimension(1)?,
+            DimensionExpr::constant(heads),
+            DimensionExpr::constant(inner / heads),
+        ])?
         .transpose(1, 2)
 }
 
 pub fn merge_heads(tensor: &Tensor) -> SingeResult<Tensor> {
-    let &[batch, heads, length, head] = tensor.shape().dimensions() else {
+    let &[_, heads, _, head] = tensor.shape().dimensions() else {
         return Err(SingeError::invalid_argument("attention heads' output"));
     };
-    tensor
-        .transpose(1, 2)?
-        .reshape([batch, length, heads * head])
+    let joined = tensor.transpose(1, 2)?;
+    joined.reshape_with(&[
+        joined.dimension(0)?,
+        joined.dimension(1)?,
+        DimensionExpr::constant(heads * head),
+    ])
 }
 
 #[must_use]

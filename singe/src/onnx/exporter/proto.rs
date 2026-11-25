@@ -80,12 +80,41 @@ pub fn scalar_bytes(value: Scalar, dtype: DataType) -> Result<Vec<u8>> {
             .to_vec(),
         DataType::F32 => value.single().to_le_bytes().to_vec(),
         DataType::F64 => value.float().to_le_bytes().to_vec(),
-        _ => {
-            return Err(unsupported(
-                "scalar export currently requires a floating result",
-            ));
-        }
+        DataType::Bool => vec![u8::from(value.float() != 0.0)],
+        DataType::I8 => narrowed::<i8>(value)?.to_le_bytes().to_vec(),
+        DataType::I16 => narrowed::<i16>(value)?.to_le_bytes().to_vec(),
+        DataType::I32 => narrowed::<i32>(value)?.to_le_bytes().to_vec(),
+        DataType::I64 => integral(value)?.to_le_bytes().to_vec(),
+        DataType::U8 => narrowed::<u8>(value)?.to_le_bytes().to_vec(),
+        DataType::U16 => narrowed::<u16>(value)?.to_le_bytes().to_vec(),
+        DataType::U32 => narrowed::<u32>(value)?.to_le_bytes().to_vec(),
+        DataType::U64 => u64::try_from(integral(value)?)
+            .map_err(|_| unsupported("scalar out of the range of u64"))?
+            .to_le_bytes()
+            .to_vec(),
+        _ => return Err(unsupported(format!("scalar of {dtype}"))),
     })
+}
+
+fn integral(value: Scalar) -> Result<i64> {
+    match value {
+        Scalar::Bool(value) => Ok(i64::from(value)),
+        Scalar::Signed(value) => Ok(value),
+        Scalar::Unsigned(value) => {
+            i64::try_from(value).map_err(|_| unsupported("scalar out of the range of i64"))
+        }
+        Scalar::Float(value) => {
+            let whole = value.trunc();
+            if whole != value || !(-(2.0_f64.powi(63))..2.0_f64.powi(63)).contains(&whole) {
+                return Err(unsupported(format!("integer scalar of {value}")));
+            }
+            Ok(whole as i64)
+        }
+    }
+}
+
+fn narrowed<T: TryFrom<i64>>(value: Scalar) -> Result<T> {
+    T::try_from(integral(value)?).map_err(|_| unsupported("scalar out of its type's range"))
 }
 
 pub fn value_info(

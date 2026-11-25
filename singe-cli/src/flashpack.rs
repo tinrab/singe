@@ -84,7 +84,6 @@ fn build(arguments: &BuildArguments) -> Result<()> {
     Ok(())
 }
 
-// The head `task`'s pipeline loads that `source`'s model serves, or the model's default head.
 fn head(source: &Source, task: Option<&str>) -> Result<Head> {
     let Some(task) = task else {
         return Ok(model::default_head(source)?);

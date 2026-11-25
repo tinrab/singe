@@ -1,10 +1,16 @@
+pub(crate) mod compare;
+mod elementwise;
+pub(crate) mod external;
+mod fused;
 mod ops;
 mod proto;
 mod shapes;
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    mem,
+};
 
-use prost::Message;
 use singe_onnx::proto::onnx::{
     AttributeProto, GraphProto, ModelProto, NodeProto, OperatorSetIdProto, StringStringEntryProto,
 };
@@ -13,7 +19,7 @@ use crate::{
     data_type::DataType,
     graph::{
         CaptureInfo, GraphProgram, ProgramInputBinding, StateBindingKind, StateSnapshot,
-        decompose_all_attention,
+        decompose_attention,
         ir::{Graph, ValueId},
     },
     onnx::{
@@ -22,9 +28,10 @@ use crate::{
         exporter::proto::{raw_tensor, tensor, unsupported, value_info},
     },
     scalar::Scalar,
+    shape::Shape,
 };
 
-/// Exports a logical program and an explicit immutable state publication as inline ONNX opset-20 protobuf bytes.
+/// Exports a logical program and an explicit immutable state publication as inline ONNX protobuf bytes at IR version 14 and opset 28.
 /// No provider is selected and no tensor operation executes.
 /// CUDA state readback, when needed, is explicit export work.
 ///
@@ -34,6 +41,21 @@ use crate::{
 ///
 /// Returns an error if state differs from the program schema, capture or state was specialized to observed values, the graph contains unsupported operations, types, shape expressions, or output projections, or initializer readback or graph conversion fails.
 pub fn export(program: &GraphProgram, state: &StateSnapshot) -> Result<Vec<u8>> {
+    external::encoded(&model(program, state)?)
+}
+
+fn model(program: &GraphProgram, state: &StateSnapshot) -> Result<ModelProto> {
+    Ok(exported(program, state)?.model)
+}
+
+struct Exported {
+    model: ModelProto,
+    graph: Graph,
+    ir: Graph,
+    names: HashMap<ValueId, String>,
+}
+
+fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
     program.validate_state_schema(state)?;
     if program
         .capture_info()
@@ -50,8 +72,10 @@ pub fn export(program: &GraphProgram, state: &StateSnapshot) -> Result<Vec<u8>> 
         ));
     }
 
-    // ONNX has no operation for fused attention, so it exports as what it computes.
-    let graph = decompose_all_attention(program.logical_graph())?;
+    // `Attention` has no sinks and aligns its causal mask to key lengths at the bottom right, so attention with either exports as what it computes.
+    let graph = decompose_attention(program.logical_graph(), |attention| {
+        attention.sinks || (attention.key_lengths && (attention.causal || attention.masked))
+    })?;
     let ir = graph.to_ir()?;
     let source = &ir;
     if !source.counted_outputs().is_empty() {
@@ -93,6 +117,9 @@ pub fn export(program: &GraphProgram, state: &StateSnapshot) -> Result<Vec<u8>> 
             .inputs()
             .iter()
             .any(|input| !input.dimension_guards().is_empty()),
+        grown: Default::default(),
+        traced: None,
+        origin: None,
     };
     for input in program.signature().inputs() {
         let mut info = value_info(
@@ -151,13 +178,6 @@ pub fn export(program: &GraphProgram, state: &StateSnapshot) -> Result<Vec<u8>> 
 
     exporter.constraints()?;
     for (index, &output) in source.output_values().iter().enumerate() {
-        if source
-            .result_for_value(output)
-            .is_some_and(|(_, result)| result.index() != 0)
-        {
-            return Err(unsupported("multi-result output projection"));
-        }
-
         let value = exporter.emit(output)?;
         let name = index.checked_sub(visible_outputs).map_or_else(
             || {
@@ -188,14 +208,19 @@ pub fn export(program: &GraphProgram, state: &StateSnapshot) -> Result<Vec<u8>> 
             .graph
             .output
             .push(value_info(name, spec.data_type(), dims)?);
+        if exporter.dynamic {
+            exporter.require_growth(output)?;
+        }
     }
-    Ok(Message::encode_to_vec(&ModelProto {
-        ir_version: 10,
+
+    let names = exporter.names;
+    let model = ModelProto {
+        ir_version: IR_VERSION,
         producer_name: "singe".into(),
         producer_version: env!("CARGO_PKG_VERSION").into(),
         opset_import: vec![OperatorSetIdProto {
             domain: String::new(),
-            version: 20,
+            version: OPSET_VERSION,
         }],
         metadata_props: vec![StringStringEntryProto {
             key: SHAPE_CONTRACT.into(),
@@ -203,8 +228,17 @@ pub fn export(program: &GraphProgram, state: &StateSnapshot) -> Result<Vec<u8>> 
         }],
         graph: Some(exporter.graph),
         ..Default::default()
-    }))
+    };
+    Ok(Exported {
+        model,
+        graph,
+        ir,
+        names,
+    })
 }
+
+const IR_VERSION: i64 = 14;
+const OPSET_VERSION: i64 = 28;
 
 struct Exporter<'a> {
     source: &'a Graph,
@@ -214,6 +248,9 @@ struct Exporter<'a> {
     visiting: HashSet<ValueId>,
     serial: usize,
     dynamic: bool,
+    grown: [HashMap<ValueId, Option<Shape>>; 2],
+    traced: Option<String>,
+    origin: Option<String>,
 }
 
 impl Exporter<'_> {
@@ -234,13 +271,24 @@ impl Exporter<'_> {
         output: String,
         attribute: Vec<AttributeProto>,
     ) {
+        self.outputs_node(operation, inputs, vec![output], attribute);
+    }
+
+    fn outputs_node(
+        &mut self,
+        operation: &str,
+        inputs: Vec<String>,
+        outputs: Vec<String>,
+        attribute: Vec<AttributeProto>,
+    ) {
         let name = self.fresh();
         self.graph.node.push(NodeProto {
             name,
             op_type: operation.into(),
             input: inputs,
-            output: vec![output],
+            output: outputs,
             attribute,
+            doc_string: self.origin.clone().unwrap_or_default(),
             ..Default::default()
         });
     }
@@ -301,17 +349,42 @@ impl Exporter<'_> {
             name
         } else {
             let operation = source.required_operation_for_value(value)?;
-            if operation.results().len() != 1 {
-                return Err(unsupported("multi-result operation"));
-            }
-
             let inputs = operation
                 .inputs()
                 .iter()
                 .map(|&input| self.emit(input))
                 .collect::<Result<Vec<_>>>()?;
-            let output = self.fresh();
-            self.operation(value, operation, inputs, output.clone())?;
+            let origin = operation.opcode().map(|opcode| {
+                operation.source_location().map_or_else(
+                    || format!("{opcode:?}"),
+                    |location| format!("{opcode:?} at {location}"),
+                )
+            });
+            let previous = mem::replace(&mut self.origin, origin);
+            let output = if operation.results().len() == 1 {
+                let output = self.fresh();
+                self.operation(value, operation, inputs, output.clone())?;
+                output
+            } else {
+                let outputs = operation
+                    .results()
+                    .iter()
+                    .map(|_| self.fresh())
+                    .collect::<Vec<_>>();
+                self.results(operation, &inputs, outputs.clone())?;
+                for (result, name) in operation.results().iter().zip(&outputs) {
+                    if result.value() != value {
+                        self.names.insert(result.value(), name.clone());
+                    }
+                }
+                operation
+                    .results()
+                    .iter()
+                    .zip(outputs)
+                    .find_map(|(result, name)| (result.value() == value).then_some(name))
+                    .ok_or_else(|| unsupported("operation without the requested result"))?
+            };
+            self.origin = previous;
             output
         };
         self.names.insert(value, output.clone());

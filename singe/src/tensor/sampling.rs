@@ -63,7 +63,6 @@ impl SamplingOptions {
         self
     }
 
-    // Keeps only tokens at least `min_p` times as likely as the most likely one, or every token for zero.
     #[must_use]
     pub const fn with_min_p(mut self, min_p: f32) -> Self {
         self.min_p = min_p;

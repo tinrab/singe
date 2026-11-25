@@ -183,7 +183,25 @@ impl Tensor {
     /// Returns an error for an invalid axis range or failed materialization.
     pub fn flatten(&self, start_dim: i64, end_dim: i64) -> Result<Self> {
         let problem = spec::flatten_problem(self.shape(), start_dim, end_dim, "flatten")?;
-        self.reshape(problem.output_shape.dimensions())
+        let rank = self.shape().dimensions().len();
+        if rank == 0 {
+            return self.reshape(problem.output_shape.dimensions());
+        }
+
+        // The flattened axes' product, as an expression, so a captured program's flatten follows its run-time shapes.
+        let mut dimensions = (0..problem.start_axis)
+            .map(|axis| self.dimension(axis))
+            .collect::<Result<Vec<_>>>()?;
+        let mut flattened = self.dimension(problem.start_axis)?;
+        for axis in problem.start_axis + 1..=problem.end_axis {
+            flattened = flattened * self.dimension(axis)?;
+        }
+
+        dimensions.push(flattened);
+        for axis in problem.end_axis + 1..rank {
+            dimensions.push(self.dimension(axis)?);
+        }
+        self.reshape_with(&dimensions)
     }
 
     /// Creates a view of this tensor with a different shape.

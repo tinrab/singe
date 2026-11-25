@@ -7,7 +7,7 @@
     "program": true
   },
   {
-    "name": "Abs_25",
+    "name": "Abs_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -28,7 +28,7 @@
     "program": true
   },
   {
-    "name": "Acos_25",
+    "name": "Acos_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -49,7 +49,7 @@
     "program": true
   },
   {
-    "name": "Acosh_25",
+    "name": "Acosh_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -70,7 +70,21 @@
     "program": true
   },
   {
-    "name": "Add_25",
+    "name": "Add_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "And_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "And_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -84,7 +98,7 @@
     "program": true
   },
   {
-    "name": "ArgMax_25",
+    "name": "ArgMax_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -98,7 +112,7 @@
     "program": true
   },
   {
-    "name": "ArgMin_25",
+    "name": "ArgMin_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -119,7 +133,7 @@
     "program": true
   },
   {
-    "name": "Asin_25",
+    "name": "Asin_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -140,7 +154,7 @@
     "program": true
   },
   {
-    "name": "Asinh_25",
+    "name": "Asinh_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -161,7 +175,7 @@
     "program": true
   },
   {
-    "name": "Atan_25",
+    "name": "Atan_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -182,7 +196,7 @@
     "program": true
   },
   {
-    "name": "Atanh_25",
+    "name": "Atanh_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -190,6 +204,27 @@
   },
   {
     "name": "Attention_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Attention_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Attention_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Attention_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -210,7 +245,14 @@
     "program": true
   },
   {
-    "name": "AveragePool_20",
+    "name": "AveragePool_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "AveragePool_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -238,7 +280,77 @@
     "program": true
   },
   {
-    "name": "BatchNormalization_25",
+    "name": "BatchNormalization_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "BitShift_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "BitShift_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "BitwiseAnd_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "BitwiseAnd_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "BitwiseNot_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "BitwiseNot_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "BitwiseOr_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "BitwiseOr_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "BitwiseXor_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "BitwiseXor_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -252,7 +364,7 @@
     "program": true
   },
   {
-    "name": "BlackmanWindow_25",
+    "name": "BlackmanWindow_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -273,7 +385,35 @@
     "program": true
   },
   {
-    "name": "Cast_20",
+    "name": "Cast_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Cast_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Cast_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Cast_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Cast_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -287,7 +427,7 @@
     "program": true
   },
   {
-    "name": "Ceil_25",
+    "name": "Ceil_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -301,7 +441,7 @@
     "program": true
   },
   {
-    "name": "Clip_25",
+    "name": "Clip_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -315,7 +455,7 @@
     "program": true
   },
   {
-    "name": "Concat_25",
+    "name": "Concat_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -364,6 +504,13 @@
     "program": true
   },
   {
+    "name": "Constant_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
     "name": "ConstantOfShape_13",
     "importable": true,
     "eager": true,
@@ -406,6 +553,13 @@
     "program": true
   },
   {
+    "name": "ConstantOfShape_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
     "name": "Conv_13",
     "importable": true,
     "eager": true,
@@ -420,7 +574,7 @@
     "program": true
   },
   {
-    "name": "Conv_25",
+    "name": "Conv_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -441,7 +595,7 @@
     "program": true
   },
   {
-    "name": "Cos_25",
+    "name": "Cos_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -462,7 +616,35 @@
     "program": true
   },
   {
-    "name": "Cosh_25",
+    "name": "Cosh_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "CumProd_26",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "CumProd_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "CumSum_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "CumSum_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -483,7 +665,7 @@
     "program": true
   },
   {
-    "name": "DFT_25",
+    "name": "DFT_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -497,7 +679,42 @@
     "program": true
   },
   {
-    "name": "DequantizeLinear_18",
+    "name": "DequantizeLinear_19",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "DequantizeLinear_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "DequantizeLinear_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "DequantizeLinear_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "DequantizeLinear_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "DequantizeLinear_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -518,7 +735,7 @@
     "program": true
   },
   {
-    "name": "Div_25",
+    "name": "Div_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -539,7 +756,7 @@
     "program": true
   },
   {
-    "name": "Dropout_25",
+    "name": "Dropout_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -560,7 +777,7 @@
     "program": true
   },
   {
-    "name": "Equal_25",
+    "name": "Equal_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -574,7 +791,7 @@
     "program": true
   },
   {
-    "name": "Erf_25",
+    "name": "Erf_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -588,7 +805,7 @@
     "program": true
   },
   {
-    "name": "Exp_25",
+    "name": "Exp_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -602,7 +819,7 @@
     "program": true
   },
   {
-    "name": "Expand_25",
+    "name": "Expand_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -644,6 +861,13 @@
     "program": true
   },
   {
+    "name": "Flatten_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
     "name": "Floor_13",
     "importable": true,
     "eager": true,
@@ -651,7 +875,7 @@
     "program": true
   },
   {
-    "name": "Floor_25",
+    "name": "Floor_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -672,7 +896,7 @@
     "program": true
   },
   {
-    "name": "GRU_25",
+    "name": "GRU_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -686,7 +910,7 @@
     "program": true
   },
   {
-    "name": "Gather_25",
+    "name": "Gather_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -700,7 +924,7 @@
     "program": true
   },
   {
-    "name": "Gelu_25",
+    "name": "Gelu_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -714,7 +938,7 @@
     "program": true
   },
   {
-    "name": "Gemm_25",
+    "name": "Gemm_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -735,7 +959,7 @@
     "program": true
   },
   {
-    "name": "GlobalAveragePool_25",
+    "name": "GlobalAveragePool_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -749,7 +973,7 @@
     "program": true
   },
   {
-    "name": "Greater_25",
+    "name": "Greater_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -770,7 +994,7 @@
     "program": true
   },
   {
-    "name": "GreaterOrEqual_25",
+    "name": "GreaterOrEqual_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -784,7 +1008,7 @@
     "program": true
   },
   {
-    "name": "HammingWindow_25",
+    "name": "HammingWindow_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -798,7 +1022,7 @@
     "program": true
   },
   {
-    "name": "HannWindow_25",
+    "name": "HannWindow_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -861,6 +1085,34 @@
     "program": true
   },
   {
+    "name": "Identity_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "IsNaN_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "IsNaN_20",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "IsNaN_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
     "name": "LSTM_14",
     "importable": true,
     "eager": true,
@@ -875,7 +1127,7 @@
     "program": true
   },
   {
-    "name": "LSTM_25",
+    "name": "LSTM_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -889,7 +1141,7 @@
     "program": true
   },
   {
-    "name": "LayerNormalization_25",
+    "name": "LayerNormalization_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -910,7 +1162,7 @@
     "program": true
   },
   {
-    "name": "LeakyRelu_25",
+    "name": "LeakyRelu_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -924,7 +1176,7 @@
     "program": true
   },
   {
-    "name": "Less_25",
+    "name": "Less_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -945,7 +1197,7 @@
     "program": true
   },
   {
-    "name": "LessOrEqual_25",
+    "name": "LessOrEqual_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -959,7 +1211,7 @@
     "program": true
   },
   {
-    "name": "Log_25",
+    "name": "Log_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -973,7 +1225,7 @@
     "program": true
   },
   {
-    "name": "LogSoftmax_25",
+    "name": "LogSoftmax_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -987,7 +1239,7 @@
     "program": true
   },
   {
-    "name": "MatMul_25",
+    "name": "MatMul_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1001,7 +1253,7 @@
     "program": true
   },
   {
-    "name": "Max_25",
+    "name": "Max_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1022,7 +1274,7 @@
     "program": true
   },
   {
-    "name": "MaxPool_25",
+    "name": "MaxPool_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1036,7 +1288,7 @@
     "program": true
   },
   {
-    "name": "MelWeightMatrix_25",
+    "name": "MelWeightMatrix_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1050,7 +1302,21 @@
     "program": true
   },
   {
-    "name": "Min_25",
+    "name": "Min_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Mod_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Mod_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1071,7 +1337,7 @@
     "program": true
   },
   {
-    "name": "Mul_25",
+    "name": "Mul_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1085,7 +1351,35 @@
     "program": true
   },
   {
-    "name": "Neg_25",
+    "name": "Neg_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Not_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Not_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Or_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Or_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1141,6 +1435,13 @@
     "program": true
   },
   {
+    "name": "Pad_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
     "name": "Pow_13",
     "importable": true,
     "eager": true,
@@ -1155,7 +1456,7 @@
     "program": true
   },
   {
-    "name": "Pow_25",
+    "name": "Pow_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1169,7 +1470,14 @@
     "program": true
   },
   {
-    "name": "QLinearMatMul_20",
+    "name": "QLinearMatMul_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "QLinearMatMul_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1183,7 +1491,56 @@
     "program": true
   },
   {
-    "name": "QuantizeLinear_18",
+    "name": "QuantizeLinear_19",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "QuantizeLinear_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "QuantizeLinear_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "QuantizeLinear_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "QuantizeLinear_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "QuantizeLinear_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "RMSNormalization_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "RMSNormalization_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1204,7 +1561,7 @@
     "program": true
   },
   {
-    "name": "RNN_25",
+    "name": "RNN_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1218,7 +1575,7 @@
     "program": true
   },
   {
-    "name": "Reciprocal_25",
+    "name": "Reciprocal_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1239,7 +1596,7 @@
     "program": true
   },
   {
-    "name": "ReduceL1_25",
+    "name": "ReduceL1_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1260,7 +1617,7 @@
     "program": true
   },
   {
-    "name": "ReduceL2_25",
+    "name": "ReduceL2_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1281,7 +1638,7 @@
     "program": true
   },
   {
-    "name": "ReduceLogSum_25",
+    "name": "ReduceLogSum_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1302,7 +1659,7 @@
     "program": true
   },
   {
-    "name": "ReduceLogSumExp_25",
+    "name": "ReduceLogSumExp_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1330,7 +1687,7 @@
     "program": true
   },
   {
-    "name": "ReduceMax_25",
+    "name": "ReduceMax_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1351,7 +1708,7 @@
     "program": true
   },
   {
-    "name": "ReduceMean_25",
+    "name": "ReduceMean_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1379,7 +1736,7 @@
     "program": true
   },
   {
-    "name": "ReduceMin_25",
+    "name": "ReduceMin_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1400,7 +1757,7 @@
     "program": true
   },
   {
-    "name": "ReduceProd_25",
+    "name": "ReduceProd_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1414,7 +1771,7 @@
     "program": true
   },
   {
-    "name": "ReduceSum_25",
+    "name": "ReduceSum_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1435,7 +1792,7 @@
     "program": true
   },
   {
-    "name": "ReduceSumSquare_25",
+    "name": "ReduceSumSquare_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1456,7 +1813,7 @@
     "program": true
   },
   {
-    "name": "Relu_25",
+    "name": "Relu_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1512,6 +1869,48 @@
     "program": true
   },
   {
+    "name": "Reshape_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "RotaryEmbedding_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "RotaryEmbedding_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Round_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Round_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Round_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
     "name": "STFT_17",
     "importable": true,
     "eager": true,
@@ -1519,7 +1918,7 @@
     "program": true
   },
   {
-    "name": "STFT_25",
+    "name": "STFT_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1540,7 +1939,7 @@
     "program": true
   },
   {
-    "name": "ScatterElements_25",
+    "name": "ScatterElements_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1596,6 +1995,13 @@
     "program": true
   },
   {
+    "name": "Shape_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
     "name": "Sigmoid_13",
     "importable": true,
     "eager": true,
@@ -1603,7 +2009,7 @@
     "program": true
   },
   {
-    "name": "Sigmoid_25",
+    "name": "Sigmoid_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1624,7 +2030,7 @@
     "program": true
   },
   {
-    "name": "Sin_25",
+    "name": "Sin_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1645,7 +2051,7 @@
     "program": true
   },
   {
-    "name": "Sinh_25",
+    "name": "Sinh_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1659,7 +2065,7 @@
     "program": true
   },
   {
-    "name": "Slice_25",
+    "name": "Slice_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1673,7 +2079,7 @@
     "program": true
   },
   {
-    "name": "Softmax_25",
+    "name": "Softmax_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1687,7 +2093,7 @@
     "program": true
   },
   {
-    "name": "Sqrt_25",
+    "name": "Sqrt_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1729,6 +2135,13 @@
     "program": true
   },
   {
+    "name": "Squeeze_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
     "name": "Sub_13",
     "importable": true,
     "eager": true,
@@ -1743,7 +2156,14 @@
     "program": true
   },
   {
-    "name": "Sub_25",
+    "name": "Sub_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "SwiGLU_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1757,7 +2177,7 @@
     "program": true
   },
   {
-    "name": "Swish_25",
+    "name": "Swish_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1778,7 +2198,7 @@
     "program": true
   },
   {
-    "name": "Tan_25",
+    "name": "Tan_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1792,7 +2212,7 @@
     "program": true
   },
   {
-    "name": "Tanh_25",
+    "name": "Tanh_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1813,7 +2233,7 @@
     "program": true
   },
   {
-    "name": "TopK_25",
+    "name": "TopK_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -1855,6 +2275,13 @@
     "program": true
   },
   {
+    "name": "Transpose_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
     "name": "Unsqueeze_13",
     "importable": true,
     "eager": true,
@@ -1890,6 +2317,13 @@
     "program": true
   },
   {
+    "name": "Unsqueeze_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
     "name": "Where_13",
     "importable": true,
     "eager": true,
@@ -1904,7 +2338,21 @@
     "program": true
   },
   {
-    "name": "Where_25",
+    "name": "Where_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Xor_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Xor_28",
     "importable": true,
     "eager": true,
     "compiled": true,
@@ -2080,6 +2528,13 @@
   },
   {
     "name": "GRU_22_reset_after",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "RotaryEmbedding_23_interleaved",
     "importable": true,
     "eager": true,
     "compiled": true,

@@ -38,7 +38,7 @@ mod symbolic;
 pub(crate) mod test_support;
 
 #[cfg(feature = "onnx")]
-pub(crate) use self::passes::decompose_all_attention;
+pub(crate) use self::passes::decompose_attention;
 #[cfg(feature = "onnx")]
 pub(crate) use self::shape_program::{
     DimensionConstraint, ReshapeExpression, ShapeValue, ValueShapeConstraint,

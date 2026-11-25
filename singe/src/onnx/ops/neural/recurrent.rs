@@ -42,7 +42,6 @@ impl OnnxRecurrence {
         }
     }
 
-    // The ONNX gate of each of PyTorch's, in PyTorch's order.
     const fn pytorch_order(self) -> &'static [i64] {
         match self {
             Self::Rnn => &[0],
@@ -53,7 +52,6 @@ impl OnnxRecurrence {
         }
     }
 
-    // The activations ONNX applies by default, per direction.
     const fn default_activations(self) -> &'static [&'static str] {
         match self {
             Self::Rnn => &["Tanh"],
@@ -77,19 +75,16 @@ impl OnnxRecurrence {
     }
 }
 
-// What a recurrent node computes, read from its attributes and inputs' shapes.
 #[derive(Debug, Clone, Copy)]
 struct Recurrence {
     kind: OnnxRecurrence,
     cell: RecurrentCell,
-    // Whether each direction runs from the last step back.
     directions: &'static [bool],
     batch_first: bool,
     linear_before_reset: bool,
     hidden: i64,
 }
 
-// Where each optional input sits among the inputs a trace reads.
 #[derive(Debug, Clone, Copy, Default)]
 struct OptionalInputs {
     bias: Option<usize>,
@@ -254,7 +249,6 @@ fn recurrence(
     })
 }
 
-// The node's outputs, `Y`, `Y_h`, and `Y_c`, the first `outputs` of them.
 fn unrolled(
     recurrence: &Recurrence,
     inputs: &[&Tensor],
@@ -413,7 +407,6 @@ fn unrolled(
     Ok(results)
 }
 
-// A GRU step that resets the hidden state before its recurrent projection, as ONNX's default `linear_before_reset = 0` does: `n = tanh(W_n x + b_Wn + (r h) R_nᵀ + b_Rn)`.
 fn gru_reset_before(
     gates: &Tensor,
     recurrent: &Tensor,

@@ -6,4 +6,5 @@ use crate::support::Session;
 
 pub fn verify(session: &mut Session) {
     session.check::<AutomaticSpeechRecognitionPipeline>("transcription");
+    session.check_onnx("transcription");
 }

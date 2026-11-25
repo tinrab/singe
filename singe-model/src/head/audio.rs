@@ -52,6 +52,11 @@ impl CtcRecognizer {
         self.sample_rate
     }
 
+    #[must_use]
+    pub const fn input(&self) -> &CtcInput {
+        &self.input
+    }
+
     /// Returns each frame's most likely token for one clip's samples.
     pub fn best_tokens(&self, samples: &[f32]) -> Result<Vec<i64>> {
         let count =

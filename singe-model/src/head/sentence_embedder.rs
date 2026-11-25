@@ -20,16 +20,29 @@ pub struct SentenceLayers {
     pooling: Pooling,
 }
 
-impl Layer<TokenBatch> for SentenceLayers {
-    fn forward(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
+impl SentenceLayers {
+    /// Returns each token's hidden state, `[B, T, W]`, and each sentence's vector pooled from them, `[B, W]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if running the encoder or the pooling fails.
+    pub fn embeddings(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<[Tensor; 2]> {
         let hidden = self.encoder.forward(input, state)?;
-        self.pooling.forward(
+        let pooled = self.pooling.forward(
             &PoolingInput {
                 hidden: &hidden,
                 padding: input.padding(),
             },
             state,
-        )
+        )?;
+        Ok([hidden, pooled])
+    }
+}
+
+impl Layer<TokenBatch> for SentenceLayers {
+    fn forward(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
+        let [_, pooled] = self.embeddings(input, state)?;
+        Ok(pooled)
     }
 }
 

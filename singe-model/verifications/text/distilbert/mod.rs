@@ -12,11 +12,14 @@ use crate::support::Session;
 
 pub fn verify(session: &mut Session) {
     session.check::<TextClassificationPipeline>("sentiment");
+    session.check_onnx("sentiment");
     session.check::<ZeroShotClassificationPipeline>("zero-shot");
+    session.check_onnx("zero-shot");
     session.check::<ZeroShotClassificationPipeline>("zero-shot-multi-label");
     session.check::<TokenClassificationPipeline>("entities-simple");
     session.check::<TokenClassificationPipeline>("entities-first");
     session.check::<QuestionAnsweringPipeline>("answers");
+    session.check_onnx("answers");
     session.check::<QuestionAnsweringPipeline>("answers-small-windows");
     session.check::<QuestionAnsweringPipeline>("answers-bf16");
     session.check::<FillMaskPipeline>("fill");

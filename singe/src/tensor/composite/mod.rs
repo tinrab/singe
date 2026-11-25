@@ -399,7 +399,6 @@ impl Tensor {
         self.split(((extent + chunks - 1) / chunks).max(1), dim)
     }
 
-    // The first half along `dim` gated by the sigmoid of the second, as `torch.nn.functional.glu` computes it.
     pub fn glu(&self, dim: i64) -> Result<Self> {
         let extent = self.shape().dimensions()[self.axis(dim)?];
         if extent % 2 != 0 {

@@ -218,7 +218,7 @@ verify filter="":
     filter="{{ filter }}"
     uv run --locked python singe-model/verifications/support.py media
     status=0
-    cargo test -p singe-model --features cuda_13_4 --test verifications -- "$filter" || status=1
+    cargo test -p singe-model --features cuda_13_4,onnx --test verifications -- "$filter" || status=1
     ran=0
     for script in singe-model/verifications/*/*/verify.py; do
         directory="${script%/verify.py}"

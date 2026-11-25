@@ -86,7 +86,9 @@ impl Wav2Vec2Layers {
             input = convolution.channels;
         }
 
+        // An even kernel would give one frame too many, which `Wav2Vec2SamePadLayer` drops; padding one less after gives the frames alone, so the layer reads no frame count.
         let half = config.position_kernel / 2;
+        let after = half - (1 - config.position_kernel % 2);
         let block = PostNormBlockConfig {
             width,
             heads: config.heads,
@@ -110,7 +112,7 @@ impl Wav2Vec2Layers {
                 width,
                 config.position_kernel,
                 Conv1dConfig {
-                    padding: (half, half),
+                    padding: (half, after),
                     groups: config.position_groups,
                     ..Conv1dConfig::default()
                 },
@@ -145,14 +147,9 @@ impl Layer for Wav2Vec2Layers {
             .transpose(1, 2)?
             .apply(&self.projection_norm, state)?
             .apply(&self.projection, state)?;
-        // An even kernel leaves one frame too many, which `Wav2Vec2SamePadLayer` drops.
-        let &[_, frames, _] = hidden.shape().dimensions() else {
-            return Err(SingeError::invalid_argument("Wav2Vec2 frames"));
-        };
         let positions = hidden
             .transpose(1, 2)?
             .apply(&self.positions, state)?
-            .narrow(2, 0, frames)?
             .apply(&activation, state)?
             .transpose(1, 2)?;
         let mut hidden = hidden.add(&positions)?.apply(&self.norm, state)?;

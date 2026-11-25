@@ -278,9 +278,6 @@ pub mod tile_kernel {
         }
     }
 
-    // cuTile's generated shortcut receives only a device ordinal.
-    // Bypass it and resolve every launch through the actual-context cache above.
-    // Never infer the requested stream context from the calling thread's current context.
     #[derive(Default)]
     pub struct LaunchSite;
 

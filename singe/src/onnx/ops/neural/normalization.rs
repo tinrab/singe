@@ -61,8 +61,17 @@ pub fn lower_batch_normalization(importer: &mut Importer, node: &Node) -> Result
     )
 }
 
-pub fn lower_layer_normalization(importer: &mut Importer, node: &Node) -> Result<()> {
-    expect_input_range(importer, node, 2, 3)?;
+pub fn lower_layer_normalization(
+    importer: &mut Importer,
+    node: &Node,
+    operation: Operation,
+) -> Result<()> {
+    let inputs = if operation == Operation::RmsNorm {
+        2
+    } else {
+        3
+    };
+    expect_input_range(importer, node, 2, inputs)?;
     let attrs = Attributes::create(node)?;
     let input = importer.required_input(node, 0)?;
     let weight = importer.required_input(node, 1)?;
@@ -83,7 +92,7 @@ pub fn lower_layer_normalization(importer: &mut Importer, node: &Node) -> Result
         .graph()
         .add_operation_request(GraphOperationRequest::layer_normalization(
             node_name(node),
-            Operation::LayerNorm,
+            operation,
             input.node,
             normalized_shape,
             Some(weight.node),
@@ -133,7 +142,7 @@ fn validate_supported_outputs(importer: &Importer, node: &Node) -> Result<()> {
     }
     Err(Error::unsupported_operator(
         node.domain.as_deref(),
-        "LayerNormalization",
+        &node.operator_type,
         importer.opset_version(node.domain.as_deref()),
         "mean and inverse standard deviation outputs are not supported",
     ))
@@ -145,7 +154,7 @@ fn validate_stash_type(importer: &Importer, node: &Node, attrs: &Attributes) -> 
     }
     Err(Error::unsupported_operator(
         node.domain.as_deref(),
-        "LayerNormalization",
+        &node.operator_type,
         importer.opset_version(node.domain.as_deref()),
         "only float stash type is supported",
     ))
@@ -167,7 +176,7 @@ fn validate_data_types(
     Err(Error::UnsupportedType {
         name: node_label(node),
         data_type: TensorDataType::Float,
-        reason: "layer normalization input, scale, and bias dtypes must match".into(),
+        reason: "normalization input, scale, and bias dtypes must match".into(),
     })
 }
 

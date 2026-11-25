@@ -123,9 +123,12 @@ pub fn expand_output_shape(name: &str, input: &Shape, mut target: Vec<i64>) -> R
                 reason: "expand target dimensions must be non-negative".into(),
             });
         }
+        // ONNX broadcasts both ways, so a target of one keeps the input's extent.
         if axis >= input_offset {
             let input_dimension = input_dimensions[axis - input_offset];
-            if input_dimension != 1 && input_dimension != *dimension {
+            if *dimension == 1 {
+                *dimension = input_dimension;
+            } else if input_dimension != 1 && input_dimension != *dimension {
                 return Err(Error::UnsupportedShape {
                     name: name.into(),
                     reason: "expand target is not broadcast-compatible with input".into(),

@@ -38,7 +38,6 @@ fn refuse(importer: &Importer, node: &Node, reason: impl Into<String>) -> Error 
     )
 }
 
-// The value of the scalar input `index`, which must be a constant.
 fn static_scalar(importer: &Importer, node: &Node, index: usize) -> Result<Option<f64>> {
     if node.inputs.get(index).is_none_or(String::is_empty) {
         return Ok(None);
@@ -74,7 +73,6 @@ fn count(importer: &Importer, node: &Node, value: f64) -> Result<i64> {
     Ok(value as i64)
 }
 
-// The type `output_datatype` names, float by default.
 fn output_type(node: &Node, attrs: &Attributes<'_>) -> Result<DataType> {
     let invalid = || {
         Error::invalid_attribute(
@@ -120,7 +118,6 @@ pub fn lower_window(importer: &mut Importer, node: &Node, window: OnnxWindow) ->
     constant(importer, node, Shape::create([size])?, values, data_type)
 }
 
-// The triangular filters of `num_mel_bins` bands between the two edges, `[dft_length / 2 + 1, num_mel_bins]`, as ONNX's reference computes them: band edges on HTK's mel scale, `(num_mel_bins + 2)` steps apart, each rounded down to a frequency bin.
 pub fn lower_mel_weight_matrix(importer: &mut Importer, node: &Node) -> Result<()> {
     expect_input_range(importer, node, 5, 5)?;
     let attrs = Attributes::create(node)?;
@@ -186,7 +183,6 @@ pub fn lower_mel_weight_matrix(importer: &mut Importer, node: &Node) -> Result<(
     )
 }
 
-// The cosines and sines of a transform of `length` over `rows` samples to `columns` frequencies, `[rows, columns]` each, in `data_type`.
 fn bases(
     device: Device,
     rows: i64,
@@ -228,7 +224,6 @@ impl Transform {
         }
     }
 
-    // Transforms `real` and `imaginary` along their last axis, `[…, L]`, to `[…, K, 2]`.
     fn apply(&self, real: &Tensor, imaginary: Option<&Tensor>) -> SingeResult<Tensor> {
         let dimensions = real.shape().dimensions().to_vec();
         let samples = dimensions.last().copied().unwrap_or(0);
@@ -289,7 +284,6 @@ impl Transform {
     }
 }
 
-// The real and imaginary parts of `[…, 1]` or `[…, 2]`, without the last axis.
 fn components(signal: &Tensor) -> SingeResult<(Tensor, Option<Tensor>)> {
     let parts = signal.shape().dimensions().last().copied().unwrap_or(1);
     let last = signal.shape().rank() - 1;
@@ -383,7 +377,6 @@ fn register_traced(importer: &mut Importer, node: &Node, id: ValueId) -> Result<
     register_node_outputs(importer, node, vec![value])
 }
 
-// `[B, N, 1 or 2]` to `[B, frames, K, 2]`: frames of `frame_length` every `frame_step` samples, each weighted by `window` and transformed.
 pub fn lower_stft(importer: &mut Importer, node: &Node) -> Result<()> {
     expect_input_range(importer, node, 2, 4)?;
     let attrs = Attributes::create(node)?;

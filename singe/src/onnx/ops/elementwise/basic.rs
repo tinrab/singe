@@ -11,7 +11,7 @@ use crate::{
             add_binary_intermediate, expect_input_count, expect_input_range, expect_outputs,
             register_node_outputs,
         },
-        utility::node_name,
+        utility::{node_label, node_name},
     },
 };
 
@@ -109,4 +109,72 @@ pub fn lower_variadic_binary(
     } else {
         register_node_outputs(importer, node, vec![current])
     }
+}
+
+fn refuse(importer: &Importer, node: &Node, reason: &str) -> Error {
+    Error::unsupported_operator(
+        node.domain.as_deref(),
+        &node.operator_type,
+        importer.opset_version(node.domain.as_deref()),
+        reason,
+    )
+}
+
+pub fn lower_mod(importer: &mut Importer, node: &Node) -> Result<()> {
+    if Attributes::create(node)?.int("fmod", 0)? != 0 {
+        return Err(refuse(
+            importer,
+            node,
+            "fmod, whose remainder takes the sign of the dividend",
+        ));
+    }
+    lower_binary(importer, node, Operation::Remainder)
+}
+
+pub fn lower_bit_shift(importer: &mut Importer, node: &Node) -> Result<()> {
+    let operation = match Attributes::create(node)?.string("direction", "")?.as_str() {
+        "LEFT" => Operation::BitwiseLeftShift,
+        "RIGHT" => Operation::BitwiseRightShift,
+        _ => {
+            return Err(Error::invalid_attribute(
+                node_label(node),
+                "direction",
+                "direction must be LEFT or RIGHT",
+            ));
+        }
+    };
+    lower_binary(importer, node, operation)
+}
+
+pub fn lower_swiglu(importer: &mut Importer, node: &Node) -> Result<()> {
+    expect_input_count(importer, node, 2)?;
+    expect_outputs(importer, node, 1)?;
+    if Attributes::create(node)?.float("alpha", 1.0)? != 1.0 {
+        return Err(refuse(importer, node, "an alpha other than one"));
+    }
+
+    let gate = importer.required_input(node, 0)?;
+    let value = importer.required_input(node, 1)?;
+    if gate.shape != value.shape || gate.data_type != value.data_type {
+        return Err(refuse(
+            importer,
+            node,
+            "operands of different shapes or types",
+        ));
+    }
+
+    let device = importer.options().device;
+    let id = importer
+        .graph()
+        .add_operation_request(GraphOperationRequest::binary(
+            node_name(node),
+            Operation::SwiGlu,
+            [value.node, gate.node],
+            GraphOperationOutput::new(value.data_type, value.shape.clone(), device),
+        ))?;
+    register_node_outputs(
+        importer,
+        node,
+        vec![ImportedValue::new(id, value.data_type, value.shape)],
+    )
 }

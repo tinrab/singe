@@ -155,19 +155,3 @@ pub fn optional_static_f32_scalar(
         )),
     }
 }
-
-pub fn static_f32_scalar(
-    importer: &Importer,
-    node: &Node,
-    index: usize,
-    name: &str,
-) -> Result<f32> {
-    optional_static_f32_scalar(importer, node, index, name)?.ok_or_else(|| {
-        Error::unsupported_operator(
-            node.domain.as_deref(),
-            &node.operator_type,
-            importer.opset_version(node.domain.as_deref()),
-            format!("{name} input is required"),
-        )
-    })
-}

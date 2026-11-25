@@ -11,20 +11,14 @@ use crate::{
     tensor::Tensor,
 };
 
-// A window function, as `torch.signal.windows` and Kaldi compute them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowFunction {
-    // `0.5 - 0.5 cos(2πn / N)`.
     Hann,
-    // `0.54 - 0.46 cos(2πn / N)`.
     Hamming,
-    // `0.42 - 0.5 cos(2πn / N) + 0.08 cos(4πn / N)`.
     Blackman,
-    // Kaldi's: a symmetric Hann window raised to the power 0.85, whatever `periodic` says.
     Povey,
 }
 
-// The `length` values of a window function: periodic, as spectral analysis uses it and `torch.hann_window` makes it by default, over `N = length`, or symmetric, as `periodic=False` makes it, over `N = length - 1`.
 #[must_use]
 pub fn window(function: WindowFunction, length: i64, periodic: bool) -> Vec<f64> {
     let span = if periodic && function != WindowFunction::Povey {
@@ -51,21 +45,15 @@ pub fn window(function: WindowFunction, length: i64, periodic: bool) -> Vec<f64>
         .collect()
 }
 
-// How each clip is padded at each end by half a transform before it is cut into frames.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FramePadding {
-    // With its own reflection, as `torch.stft`'s default `pad_mode="reflect"`.
     Reflect,
-    // With zeros, as `pad_mode="constant"`.
     Zeros,
 }
 
-// How mel power becomes the log features.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogScale {
-    // Whisper's: `log10` of at least 1e-10, clamped to `dynamic_range` decades below the clip's loudest value, then `(x + 4) / 4`.
     Whisper { dynamic_range: f64 },
-    // NeMo's: the natural log of the power plus `guard`.
     Natural { guard: f64 },
 }
 
@@ -73,24 +61,19 @@ pub enum LogScale {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LogMelOptions {
     pub sample_rate: i64,
-    // The samples of each frame's window.
     pub window: i64,
     pub window_function: WindowFunction,
     pub periodic: bool,
-    // The samples of each frame's Fourier transform, at least the window's, which sits centered among them, as `torch.stft` pads a shorter window.
     pub fft: i64,
     // The samples between frames.
     pub hop: i64,
     pub mels: i64,
     // The highest frequency the mel filters cover, in hertz.
     pub max_frequency: f64,
-    // The samples a clip is padded with zeros or cut to, where a front end reads clips of one length, as Whisper's does.
     pub samples: i64,
     pub padding: FramePadding,
-    // The coefficient `a` of a pre-emphasis `x[t] - a · x[t - 1]` before the transform.
     pub preemphasis: Option<f64>,
     pub log: LogScale,
-    // Whether each mel bin is normalized to zero mean and unit variance over each clip's own frames.
     pub normalize: bool,
 }
 
@@ -115,7 +98,6 @@ impl LogMelOptions {
         }
     }
 
-    // NeMo's `AudioToMelSpectrogramPreprocessor`, as Parakeet's and Canary's feature extractors compute it: 16 kHz clips of any length, 25 ms symmetric Hann windows centered in 512-sample transforms every 10 ms, zero padding, pre-emphasis of 0.97, Slaney's filters up to 8 kHz, the natural log of the power plus 2⁻²⁴, and each bin normalized.
     #[must_use]
     pub const fn nemo(mels: i64) -> Self {
         Self {
@@ -148,10 +130,6 @@ impl LogMelOptions {
     }
 }
 
-// A clip's log-mel spectrogram: each clip padded at each end by half a transform, cut into windowed frames every hop, each frame's power spectrum through Slaney-normalized mel filters on the Slaney mel scale, then the log its options name.
-//
-// As a layer it computes Whisper's, `[B, mels, frames]` from samples `[B, N]` or `[N]`: each clip padded or cut to its length and reflected at each end, and the log features clamped to the dynamic range below the clip's loudest value and mapped by `(x + 4) / 4`.
-// `features` computes NeMo's, from clips of any length.
 #[derive(Debug, Clone)]
 pub struct LogMelSpectrogram {
     options: LogMelOptions,
@@ -198,7 +176,6 @@ impl LogMelSpectrogram {
         })
     }
 
-    // The frames NeMo counts as a clip's own of `samples`, `(samples + 2⌊fft / 2⌋ - fft) / hop` rounded down, as `transformers`' Parakeet feature extractor counts them.
     #[must_use]
     pub const fn own_frames(&self, samples: i64) -> i64 {
         let options = &self.options;
@@ -269,8 +246,6 @@ pub fn slaney_mel_filters(
 const POWER_FLOOR: f32 = 1e-10;
 
 impl LogMelSpectrogram {
-    // The log mel power of each frame of `padded`, samples already padded by half a transform at each end, `[B, mels, frames]`, in `log10` for Whisper's scale and the natural log plus the guard for NeMo's.
-    // It runs in spans of frames whose windowed samples fit `FRAME_BUDGET`; each frame reads only its own samples, so the spans give exactly the whole clip's frames.
     fn log_power(&self, padded: &Tensor) -> Result<Tensor> {
         let options = &self.options;
         let &[batch, length] = padded.shape().dimensions() else {
@@ -330,7 +305,6 @@ impl LogMelSpectrogram {
         }
     }
 
-    // How far below a clip's loudest value Whisper's scale clamps its log values, in decades.
     fn range(&self) -> Result<f32> {
         match self.options.log {
             LogScale::Whisper { dynamic_range } => Ok(dynamic_range as f32),
@@ -400,10 +374,6 @@ impl LogMelSpectrogram {
 }
 
 impl LogMelSpectrogram {
-    // The log-mel features of a batch of clips of any length, `[B, N]`, each clip's own samples first and counted by `lengths`, an `I64` `[B]`, or all `N` when `None`.
-    // Returns `[B, mels, N / hop + 1]` and each clip's own frames, an `I64` `[B]`, as `own_frames` counts them.
-    // Each clip is pre-emphasized when the options say, its samples past its length zeroed, padded at each end by half a transform, and its log mel power taken on the options' scale without Whisper's clamping; when the options normalize, each bin is normalized over the clip's own frames, with the unbiased variance and `1e-5` added to the deviation; frames past the clip's own are zero.
-    // A clip of under two frames divides by one where NeMo's variance divides by zero.
     pub fn features(&self, samples: &Tensor, lengths: Option<&Tensor>) -> Result<(Tensor, Tensor)> {
         let options = &self.options;
         let &[batch, count] = samples.shape().dimensions() else {
@@ -492,10 +462,8 @@ impl LogMelSpectrogram {
     }
 }
 
-// The bytes of windowed samples one span of a clip's frames holds.
 const FRAME_BUDGET: f64 = (256 << 20) as f64;
 
-// What NeMo adds to a bin's deviation before dividing by it.
 const NORMALIZE_EPSILON: f64 = 1e-5;
 
 impl Layer for LogMelSpectrogram {

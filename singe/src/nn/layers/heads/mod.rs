@@ -6,7 +6,6 @@ use crate::{
     data_type::DataType,
     error::{Error, Result},
     nn::{Layer, ModelState},
-    shape::Shape,
     tensor::Tensor,
 };
 
@@ -85,18 +84,21 @@ impl Layer<PoolingInput<'_>> for Pooling {
                     .cast(hidden.data_type())?
             }
             PoolingMode::LastToken => {
-                let &[rows, _, width, ..] = hidden.shape().dimensions() else {
+                if hidden.shape().dimensions().len() != 3 {
                     return Err(Error::invalid_argument("last-token pooling input"));
-                };
+                }
+
+                // Each sequence's last real token, broadcast over the features by adding zeros of one token's shape, so a program built with a run-time batch follows it.
+                let zeros = hidden.narrow(1, 0, 1)?.cast(DataType::I64)?.mul_scalar(0)?;
                 let last = input
                     .padding
                     .cast(DataType::I64)?
-                    .sum(&[1], false)?
+                    .sum(&[1], true)?
                     .add_scalar(-1)?
                     .clamp(0.0, f32::MAX)?
                     .cast(DataType::I64)?
-                    .reshape([rows, 1, 1])?
-                    .expand(Shape::create([rows, 1, width])?)?;
+                    .unsqueeze(-1)?
+                    .add(&zeros)?;
                 hidden.gather(1, &last)?.squeeze(1)?
             }
         };

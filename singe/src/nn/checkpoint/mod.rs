@@ -39,7 +39,6 @@ impl ModelState {
         )
     }
 
-    // Writes parameters and persistent buffers to a flashpack file at `path`, each tie once under its first name, replacing the file whole once it is written.
     pub fn save_flashpack(&self, path: impl AsRef<Path>) -> Result<()> {
         let mut written = HashSet::new();
         let tensors = self
@@ -406,7 +405,6 @@ fn accept_type(name: &str, source: DataType, target: DataType, convert: bool) ->
     Ok(())
 }
 
-// Safetensors and flashpack files read as one checkpoint, whose tensors stay where they lie until a load reads them.
 pub struct Checkpoint<'a> {
     shards: Vec<Shard<'a>>,
     // The shard each stored name is in.
@@ -608,7 +606,6 @@ struct Loading {
     // The page-locked buffers each CUDA device's tensors upload through.
     #[cfg(feature = "cuda")]
     uploads: Vec<(Device, CudaUpload)>,
-    // Whole tensors stored as their bindings' types, which upload into one block per device.
     #[cfg(feature = "cuda")]
     blocked: Vec<Blocked>,
 }
@@ -630,7 +627,6 @@ impl Loading {
         Ok(())
     }
 
-    // Reads `stored`'s tensor as `target` onto `device`: a chunk at a time on CUDA, and whole on the host otherwise.
     #[cfg_attr(
         not(feature = "cuda"),
         expect(
@@ -673,8 +669,6 @@ impl Loading {
         Ok(&mut self.uploads[at].1)
     }
 
-    // Uploads the blocked tensors into one allocation per device, read as one stream of chunks, and keeps each as a view of it.
-    // One allocation replaces one per tensor, and small tensors share chunks rather than each waiting on its own copy.
     #[cfg(feature = "cuda")]
     fn upload_blocks(&mut self, shards: &[Shard<'_>], row_groups: &[Vec<String>]) -> Result<()> {
         let blocked = mem::take(&mut self.blocked);
@@ -728,7 +722,6 @@ impl Loading {
     }
 }
 
-// A whole stored tensor that goes into its device's block as it is stored.
 #[cfg(feature = "cuda")]
 struct Blocked {
     id: usize,
@@ -745,17 +738,12 @@ impl Blocked {
     }
 }
 
-// Each blocked tensor's offset in the block, the tensors that upload on their own, and the block's length.
 #[cfg(feature = "cuda")]
 type Placement<'b> = (Vec<(&'b Blocked, usize)>, Vec<&'b Blocked>, usize);
 
-// Where each tensor starts in a block, each on a multiple of this many bytes, which every vectorized kernel and library accepts.
 #[cfg(feature = "cuda")]
 const BLOCK_ALIGNMENT: usize = 256;
 
-// Gives each entry its byte offset in the block, in the order their bytes lie in their files, and the block's length.
-// The members of a row group lie adjacent, in the group's order, so the projections a group joins are one tensor's rows from the start.
-// A member of a group the block cannot hold whole is left out, to upload on its own: joining copies it, and in the block its bytes would outlive the copy.
 #[cfg(feature = "cuda")]
 fn place<'b>(entries: &[&'b Blocked], row_groups: &[Vec<String>]) -> Result<Placement<'b>> {
     let by_target = entries
@@ -809,7 +797,6 @@ fn place<'b>(entries: &[&'b Blocked], row_groups: &[Vec<String>]) -> Result<Plac
     Ok((placed, separate, cursor))
 }
 
-// Fills `chunk`, the bytes of a block from `offset`, with the stored bytes of each tensor `placed` puts there, and zeros between them.
 #[cfg(feature = "cuda")]
 fn fill_block(
     shards: &[Shard<'_>],
@@ -844,7 +831,6 @@ fn fill_block(
 // How many bytes of two tied tensors compare at once.
 const COMPARED_BYTES: usize = 1 << 20;
 
-// Whether the tensor `tied` locates and `stored` in shard `shard` hold the same values as `target`.
 fn same_values(
     shards: &[Shard<'_>],
     (tied_shard, tied): &(usize, StoredTensor),

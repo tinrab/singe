@@ -1,12 +1,14 @@
 mod arg;
 mod basic;
 mod composed;
+mod cumulative;
 mod shape;
 
 pub use self::{
     arg::lower_arg_reduction,
     basic::lower_reduction,
     composed::{lower_composed_sum_reduction, lower_norm_reduction},
+    cumulative::lower_cumulative,
     shape::{reduction_axis_to_usize, reduction_shape},
 };
 

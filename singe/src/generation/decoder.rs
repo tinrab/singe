@@ -77,7 +77,6 @@ pub struct GenerationOptions {
 }
 
 impl GenerationOptions {
-    // The options a running batch's sequence takes from these.
     #[must_use]
     pub fn sequence(&self) -> SequenceOptions {
         SequenceOptions {
@@ -88,7 +87,6 @@ impl GenerationOptions {
     }
 }
 
-// What one sequence of a running batch generates, and when it stops.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SequenceOptions {
     pub max_new_tokens: usize,

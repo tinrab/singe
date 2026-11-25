@@ -16,22 +16,16 @@ use crate::{
     tensor::Tensor,
 };
 
-// What a recurrent layer computes at each step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RecurrentCell {
-    // `h' = tanh(W_ih x + b_ih + W_hh h + b_hh)`, as `torch.nn.RNN` computes it by default.
     Tanh,
-    // `h' = relu(W_ih x + b_ih + W_hh h + b_hh)`.
     Relu,
-    // Gates in PyTorch's order, input, forget, cell, output: `c' = σ(f) c + σ(i) tanh(g)` and `h' = σ(o) tanh(c')`.
     Lstm,
-    // Gates in PyTorch's order, reset, update, new: `n = tanh(W_in x + b_in + r (W_hn h + b_hn))` and `h' = (1 - z) n + z h`.
     Gru,
 }
 
 impl RecurrentCell {
-    // The gates whose rows each projection stacks.
     #[must_use]
     pub const fn gates(self) -> i64 {
         match self {
@@ -47,7 +41,6 @@ impl RecurrentCell {
     }
 }
 
-// The sizes of a recurrent layer, as `torch.nn.LSTM`'s arguments name them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecurrentConfig {
     pub cell: RecurrentCell,
@@ -56,7 +49,6 @@ pub struct RecurrentConfig {
     pub layers: i64,
     pub bidirectional: bool,
     pub biases: bool,
-    // An LSTM's projection of its hidden state, `proj_size`, which then is what each step outputs and feeds back.
     pub projection: Option<i64>,
 }
 
@@ -66,7 +58,6 @@ impl RecurrentConfig {
         if self.bidirectional { 2 } else { 1 }
     }
 
-    // The width of each direction's output and of the hidden state it feeds back.
     #[must_use]
     pub const fn output(&self) -> i64 {
         match self.projection {
@@ -75,7 +66,6 @@ impl RecurrentConfig {
         }
     }
 
-    // The width a layer reads: the input for the first, every direction's output for the rest.
     #[must_use]
     pub const fn layer_input(&self, layer: i64) -> i64 {
         if layer == 0 {
@@ -86,7 +76,6 @@ impl RecurrentConfig {
     }
 }
 
-// One direction of one layer: its input's projection, `[G · H, I]`, its hidden state's, `[G · H, O]`, and an LSTM's projection of its output, `[O, H]`.
 #[derive(Debug, Clone)]
 pub struct RecurrentDirection {
     pub input: Linear,
@@ -94,28 +83,24 @@ pub struct RecurrentDirection {
     pub projection: Option<Linear>,
 }
 
-// One layer: its forward direction, and its reverse one when bidirectional.
 #[derive(Debug, Clone)]
 pub struct RecurrentLayer {
     pub forward: RecurrentDirection,
     pub reverse: Option<RecurrentDirection>,
 }
 
-// A recurrent layer's state between steps: the hidden state, `[L · D, B, O]`, and an LSTM's cell state, `[L · D, B, H]`, ordered as PyTorch returns `h_n` and `c_n`.
 #[derive(Debug, Clone)]
 pub struct RecurrentState {
     pub hidden: Tensor,
     pub cell: Option<Tensor>,
 }
 
-// A stack of recurrent layers over sequences `[B, T, I]`, batch first.
 #[derive(Debug, Clone)]
 pub struct Recurrent {
     config: RecurrentConfig,
     layers: Vec<RecurrentLayer>,
 }
 
-// The state of one direction of one layer: the hidden state, `[B, O]`, and an LSTM's cell state, `[B, H]`.
 type CellState = (Tensor, Option<Tensor>);
 
 impl Recurrent {
@@ -160,7 +145,6 @@ impl Recurrent {
         &self.layers
     }
 
-    // The state before any step, all zeros, for a batch of `batch`.
     pub fn zeros(&self, batch: i64, device: Device, data_type: DataType) -> Result<RecurrentState> {
         let config = &self.config;
         let count = config.layers * config.directions();
@@ -179,7 +163,6 @@ impl Recurrent {
         })
     }
 
-    // One step of a unidirectional stack over `input`, `[B, I]`: each layer's output, `[B, O]`, feeds the next, and the last's is returned with the new state.
     pub fn step(
         &self,
         input: &Tensor,
@@ -207,8 +190,6 @@ impl Recurrent {
         Ok((input, stacked_state(&hidden, &cells)?))
     }
 
-    // Runs the stack over sequences `[B, T, I]` from `state`, or from zeros, and returns every step's output, `[B, T, D · O]`, and the final state.
-    // With `lengths`, an `I64` `[B]`, a sequence's steps from its length on leave its state as it was and output zeros, so each direction's state is that of the sequence's own steps, as packed sequences give it.
     pub fn forward_sequence(
         &self,
         input: &Tensor,
@@ -265,7 +246,6 @@ impl Recurrent {
         Ok((sequence, stacked_state(&hidden, &cells)?))
     }
 
-    // One direction over a whole sequence: the input's projections of every step as one matmul, then the recurrence step by step, backward when `reverse`.
     fn run_direction(
         &self,
         sequence: &Tensor,
@@ -316,7 +296,6 @@ impl Recurrent {
         Ok((Tensor::stack(&outputs, 1)?, state))
     }
 
-    // One cell's step from `gates`, the input's projection of this step, `[B, G · H]`, and the previous state.
     fn cell(
         &self,
         gates: &Tensor,
@@ -336,7 +315,6 @@ impl Recurrent {
 }
 
 impl Layer for Recurrent {
-    // Every step's output of sequences `[B, T, I]` from a zero state.
     fn forward(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
         Ok(self.forward_sequence(input, None, None, state)?.0)
     }
@@ -346,7 +324,6 @@ fn iter_directions(layer: &RecurrentLayer) -> impl Iterator<Item = &RecurrentDir
     iter::once(&layer.forward).chain(layer.reverse.as_ref())
 }
 
-// The state of the `index`th direction of the stack, `[B, O]` and `[B, H]`.
 fn layer_state(state: &RecurrentState, index: i64) -> Result<CellState> {
     Ok((
         state.hidden.select(0, index)?,
@@ -369,7 +346,6 @@ fn stacked_state(hidden: &[Tensor], cells: &[Tensor]) -> Result<RecurrentState> 
     })
 }
 
-// Each step's mask of the sequences it belongs to, `[B, 1]`: whether the step comes before the sequence's length.
 pub fn step_masks(lengths: &Tensor, steps: i64) -> Result<Vec<Tensor>> {
     let lengths = lengths.cast(DataType::I64)?.unsqueeze(1)?;
     (0..steps)
@@ -382,8 +358,6 @@ pub fn step_masks(lengths: &Tensor, steps: i64) -> Result<Vec<Tensor>> {
         .collect()
 }
 
-// One step of `cell`: `gates`, the input's projections `W_ih x + b_ih`, and `recurrent`, the hidden state's `W_hh h + b_hh`, each `[B, G · H]` with the gates in PyTorch's order, update the hidden state `hidden` and an LSTM's cell state `previous`.
-// It gives the new hidden state, before an LSTM's projection, and the new cell state.
 pub fn cell_step(
     cell: RecurrentCell,
     gates: &Tensor,

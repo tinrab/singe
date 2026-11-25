@@ -14,4 +14,5 @@ pub fn verify(session: &mut Session) {
     session.check::<AutomaticSpeechRecognitionPipeline>("tdt-12m");
     session.check::<AutomaticSpeechRecognitionPipeline>("rnnt");
     session.check::<AutomaticSpeechRecognitionPipeline>("ctc");
+    session.check_onnx_at("ctc", &[1, 400, 80]);
 }

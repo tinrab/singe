@@ -16,7 +16,6 @@ use crate::{
 };
 
 impl Importer {
-    // Whether every axis of each of `values` has one size in every run, as a lowering traced on the import-time shapes needs.
     pub(crate) fn have_fixed_shapes(&self, values: &[ValueId]) -> Result<bool> {
         for &value in values {
             let rank = self

@@ -3,6 +3,7 @@ use singe_onnx::Node;
 use crate::{
     backend::registry::Operation,
     data_type::DataType,
+    graph::{GraphOperationOutput, GraphOperationRequest},
     onnx::{
         error::{Error, Result},
         importer::{ImportedValue, Importer},
@@ -38,5 +39,25 @@ pub fn lower_comparison(importer: &mut Importer, node: &Node, operation: Operati
         importer,
         node,
         vec![ImportedValue::new(id, DataType::Bool, shape)],
+    )
+}
+
+pub fn lower_is_nan(importer: &mut Importer, node: &Node) -> Result<()> {
+    expect_input_count(importer, node, 1)?;
+    expect_outputs(importer, node, 1)?;
+    let input = importer.required_input(node, 0)?;
+    let device = importer.options().device;
+    let id = importer
+        .graph()
+        .add_operation_request(GraphOperationRequest::unary(
+            node_name(node),
+            Operation::IsNan,
+            input.node,
+            GraphOperationOutput::new(DataType::Bool, input.shape.clone(), device),
+        ))?;
+    register_node_outputs(
+        importer,
+        node,
+        vec![ImportedValue::new(id, DataType::Bool, input.shape)],
     )
 }

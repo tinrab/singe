@@ -12,7 +12,15 @@ use std::{
 use std::os::unix::fs::symlink;
 
 use prost::Message;
-use singe::{DataType, OnnxModel, OnnxOptions, onnx::Error};
+use singe::{
+    DataType, Device, OnnxModel, OnnxOptions, Shape, Tensor,
+    backend::registry::{Operation, OperationAttributes},
+    dispatch::call_one,
+    graph::Graph,
+    nn::StateBuilder,
+    onnx::{self, Error, WeightPlacement},
+    value::ValueSpec,
+};
 use singe_onnx::proto::onnx::{
     GraphProto, ModelProto, NodeProto, OperatorSetIdProto, StringStringEntryProto, TensorProto,
     TensorShapeProto, TypeProto, ValueInfoProto, tensor_proto,
@@ -165,6 +173,93 @@ fn test_external_data_offsets_lengths_truncation_and_reader_context_are_checked(
                 Some("8")
             )))
             .is_err()
+    );
+
+    // An export keeps weights under 1 KiB inline, writes the others beside the model with those over 1 MiB at a multiple of 64 KiB, and imports back unchanged.
+    let sizes = [("small", 2), ("medium", 256), ("large", 640 * 512 + 3)];
+    let mut builder = StateBuilder::new();
+    for (name, size) in sizes {
+        let values = (0..size).map(|value| value as f32).collect::<Vec<_>>();
+        let weight = Tensor::from_vec(Device::Cpu, Shape::create([size]).unwrap(), values);
+        builder.parameter(name, weight.unwrap()).unwrap();
+    }
+    let state = builder.finish().unwrap();
+    let meta = state.to(Device::Meta, None).unwrap();
+    let spec = ValueSpec::new(DataType::F32, Shape::create([2]).unwrap());
+    let program = state
+        .program(
+            &Graph::build([("x", spec)], meta.capture_bindings().unwrap(), |inputs| {
+                let mut outputs = vec![call_one(
+                    Operation::Add,
+                    OperationAttributes::None,
+                    &[&inputs[0], meta.named_tensor("small").unwrap()],
+                )?];
+                for name in ["medium", "large"] {
+                    let weight = meta.named_tensor(name).unwrap();
+                    outputs.push(call_one(
+                        Operation::Add,
+                        OperationAttributes::None,
+                        &[weight, weight],
+                    )?);
+                }
+                Ok(outputs)
+            })
+            .unwrap()
+            .with_output_names(["small", "medium", "large"].map(|name| format!("{name}.twice")))
+            .unwrap(),
+        )
+        .unwrap();
+    let inline = directory.0.join("inline.onnx");
+    onnx::export_file(
+        &program,
+        state.snapshot(),
+        &inline,
+        WeightPlacement::Automatic,
+    )
+    .unwrap();
+    assert!(!directory.0.join("inline.onnx_data").exists());
+    let path = directory.0.join("exported.onnx");
+    onnx::export_file(&program, state.snapshot(), &path, WeightPlacement::Beside).unwrap();
+    let written = ModelProto::decode(fs::read(&path).unwrap().as_slice()).unwrap();
+    for tensor in &written.graph.unwrap().initializer {
+        let entry = |key: &str| {
+            tensor
+                .external_data
+                .iter()
+                .find(|entry| entry.key == key)
+                .map(|entry| entry.value.as_str())
+        };
+        match tensor.name.as_str() {
+            "small" => assert!(tensor.external_data.is_empty() && !tensor.raw_data.is_empty()),
+            "medium" => assert_eq!(entry("location"), Some("exported.onnx_data")),
+            "large" => {
+                let offset = entry("offset").unwrap().parse::<u64>().unwrap();
+                assert_eq!((offset % 65_536, entry("length")), (0, Some("1310732")));
+            }
+            _ => {}
+        }
+    }
+    let imported = OnnxModel::create(&path, OnnxOptions::new()).unwrap();
+    for (name, _) in sizes {
+        assert_eq!(
+            imported
+                .initializers()
+                .tensor(name)
+                .unwrap()
+                .to_bytes()
+                .unwrap(),
+            state.named_tensor(name).unwrap().to_bytes().unwrap(),
+            "{name}"
+        );
+    }
+    let x = Tensor::from_vec(Device::Cpu, Shape::create([2]).unwrap(), vec![1_f32, 1.]).unwrap();
+    let outputs = imported
+        .run_ordered(&HashMap::from([("x".into(), x)]))
+        .unwrap();
+    assert_eq!(outputs[0].to_vec::<f32>().unwrap(), [1., 2.]);
+    assert_eq!(
+        outputs[2].to_vec::<f32>().unwrap()[640 * 512 + 2],
+        2. * (640. * 512. + 2.)
     );
 }
 

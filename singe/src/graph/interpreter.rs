@@ -19,8 +19,30 @@ pub fn execute_ir(
     requests: &HashMap<OperationId, CheckedOperationRequest>,
     release_after: &[Vec<ValueId>],
     symbols: &SymbolicShapeEnv,
-    mut values: HashMap<ValueId, Tensor>,
+    values: HashMap<ValueId, Tensor>,
 ) -> Result<(Vec<Tensor>, GraphRunStats)> {
+    let (values, stats) = execute_values(ir, order, requests, release_after, symbols, values)?;
+    let outputs = ir
+        .output_values()
+        .iter()
+        .map(|value| {
+            values
+                .get(value)
+                .cloned()
+                .ok_or_else(|| Error::missing_output("execute ir"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok((outputs, stats))
+}
+
+pub fn execute_values(
+    ir: &Graph,
+    order: &[OperationId],
+    requests: &HashMap<OperationId, CheckedOperationRequest>,
+    release_after: &[Vec<ValueId>],
+    symbols: &SymbolicShapeEnv,
+    mut values: HashMap<ValueId, Tensor>,
+) -> Result<(HashMap<ValueId, Tensor>, GraphRunStats)> {
     let mut stats = GraphRunStats {
         peak_live_values: values.len(),
         ..GraphRunStats::default()
@@ -91,17 +113,7 @@ pub fn execute_ir(
         }
     }
 
-    let outputs = ir
-        .output_values()
-        .iter()
-        .map(|value| {
-            values
-                .get(value)
-                .cloned()
-                .ok_or_else(|| Error::missing_output("execute ir"))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    Ok((outputs, stats))
+    Ok((values, stats))
 }
 
 /// Last-use releases are computed once for prepared execution.

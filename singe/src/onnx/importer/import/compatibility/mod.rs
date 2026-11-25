@@ -166,10 +166,10 @@ fn validate_schema(node: &Node, version: i64) -> Result<()> {
 }
 
 pub fn validated_opsets(model: &Model) -> Result<BTreeMap<Option<String>, i64>> {
-    if !(7..=10).contains(&model.ir_version) {
+    if !(7..=14).contains(&model.ir_version) {
         return Err(Error::InvalidModel {
             reason: format!(
-                "supported IR versions are 7 through 10, got {}",
+                "supported IR versions are 7 through 14, got {}",
                 model.ir_version
             ),
         });

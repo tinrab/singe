@@ -6,7 +6,6 @@ use crate::{
     dispatch::call_one,
     error::{Error, Result},
     nn::{Layer, LayerNorm, ModelState, PatchEmbedding, StateKey, TokenBatch},
-    shape::Shape,
     tensor::{InterpolateMode, Tensor},
 };
 
@@ -86,16 +85,25 @@ impl TokenEmbeddings {
 
 impl Layer<TokenBatch> for TokenEmbeddings {
     fn forward(&self, input: &TokenBatch, state: &ModelState) -> Result<Tensor> {
-        let mut hidden = input.tokens().apply(&self.words, state)?;
+        let tokens = input.tokens();
+        let mut hidden = tokens.apply(&self.words, state)?;
         if let Some(table) = &self.positions {
-            let &[_, length, ..] = input.tokens().shape().dimensions() else {
-                return Err(Error::invalid_argument("token embedding input"));
-            };
-            hidden = hidden.add(
-                &state
-                    .tensor(table)?
-                    .narrow(0, self.first_position, length)?,
-            )?;
+            // Each token's position counts the tokens before it, from tensors alone, so a program built with a run-time length reads as many rows as it has tokens.
+            let ones = tokens.equal(tokens)?.cast(DataType::I64)?;
+            let positions = ones.cumsum(1)?.sub(&ones)?;
+            let table = state.tensor(table)?;
+            let rows = table
+                .shape()
+                .dimensions()
+                .first()
+                .copied()
+                .ok_or_else(|| Error::invalid_argument("position table"))?;
+            let table = table.narrow(0, self.first_position, rows - self.first_position)?;
+            hidden = hidden.add(&call_one(
+                Operation::Embedding,
+                OperationAttributes::None,
+                &[&table, &positions],
+            )?)?;
         }
 
         if let Some(token_types) = &self.token_types {
@@ -155,18 +163,17 @@ impl PatchTokens {
 impl Layer for PatchTokens {
     fn forward(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
         let mut tokens = input.apply(&self.patches, state)?;
-        let &[batch, _, width] = tokens.shape().dimensions() else {
+        if tokens.shape().dimensions().len() != 3 {
             return Err(Error::invalid_argument("patch tokens"));
-        };
+        }
+
         if !self.leading.is_empty() {
+            // Zeros of one token per image, `[B, 1, W]`, broadcast each learned token to the batch from tensors alone, so a program built with a run-time batch follows it.
+            let zeros = tokens.narrow(1, 0, 1)?.mul_scalar(0.0)?;
             let mut parts = self
                 .leading
                 .iter()
-                .map(|token| {
-                    state
-                        .tensor(token)?
-                        .expand(Shape::create([batch, 1, width])?)
-                })
+                .map(|token| zeros.add(state.tensor(token)?))
                 .collect::<Result<Vec<_>>>()?;
             parts.push(tokens);
             tokens = Tensor::concat(&parts, 1)?;

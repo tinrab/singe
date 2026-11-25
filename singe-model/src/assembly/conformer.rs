@@ -267,13 +267,14 @@ impl ConvSubsampling {
             };
         }
 
-        let &[batch, channels, steps, frequencies] = hidden.shape().dimensions() else {
+        if hidden.shape().dimensions().len() != 4 {
             return Err(SingeError::invalid_argument("a subsampling's convolutions"));
-        };
+        }
+
         let hidden = hidden
             .transpose(1, 2)?
             .contiguous()?
-            .reshape([batch, steps, channels * frequencies])?
+            .flatten(2, 3)?
             .apply(&self.output, state)?;
         Ok((hidden, lengths))
     }

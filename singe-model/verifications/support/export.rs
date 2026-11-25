@@ -15,7 +15,7 @@ use singe::{
 };
 use singe_model::{
     Source,
-    export::{ExportOptions, export},
+    export::cuda::{ExportOptions, export},
     format::transformers::classifier_config,
     model::audio::whisper::{self, WhisperTask},
     processor::{audio::Audio, image::Image, text::TextTokenizer},

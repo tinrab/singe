@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use crate::{
     backend::{
-        registry::{Operation, OperationAttributes},
+        registry::{Operation, OperationAttributes, ScaledDotProductAttentionAttributes},
         spec,
     },
     error::{Error, Result},
@@ -23,19 +23,21 @@ use crate::{
     shape::Shape,
 };
 
-// Returns `graph` with all attention as matmuls around a softmax, for a consumer with no fused kernel to run it, such as ONNX export.
 #[cfg(feature = "onnx")]
-pub fn decompose_all_attention(graph: &Graph) -> Result<Graph> {
+pub fn decompose_attention(
+    graph: &Graph,
+    decomposes: impl Fn(&ScaledDotProductAttentionAttributes) -> bool,
+) -> Result<Graph> {
     let mut id_map = HashMap::with_capacity(graph.node_count());
     let mut nodes = Vec::with_capacity(graph.node_count());
     let mut decomposed = false;
     for index in 0..graph.node_count() {
         let id = ValueId::new(index);
         let node = graph.required_node(id)?;
-        let new_id = if matches!(
-            node.attributes(),
-            OperationAttributes::ScaledDotProductAttention(_)
-        ) && node.operation() == Some(Operation::ScaledDotProductAttention)
+        let new_id = if let OperationAttributes::ScaledDotProductAttention(attention) =
+            node.attributes()
+            && node.operation() == Some(Operation::ScaledDotProductAttention)
+            && decomposes(&attention)
         {
             decomposed = true;
             splice(graph, &node, &id_map, &mut nodes)?

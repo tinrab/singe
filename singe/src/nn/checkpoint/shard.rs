@@ -15,7 +15,6 @@ use crate::{
     utility::checked_mul,
 };
 
-// A tensor a checkpoint file stores: its type and shape, and where its bytes lie in the file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredTensor {
     pub data_type: DataType,
@@ -29,21 +28,17 @@ enum Source<'a> {
     File(File),
 }
 
-// A checkpoint file whose tensors are read where they lie, one range at a time, rather than held whole.
 pub struct Shard<'a> {
     source: Source<'a>,
-    // The stored tensors, in the order their bytes lie.
     tensors: Vec<(String, StoredTensor)>,
     positions: HashMap<String, usize>,
 }
 
 impl<'a> Shard<'a> {
-    // Reads safetensors `bytes`.
     pub fn from_bytes(bytes: &'a [u8]) -> Result<Self> {
         Self::create(Source::Bytes(bytes), safetensors::index_bytes(bytes)?)
     }
 
-    // Reads the index of the file at `path`, flashpack or safetensors, leaving its tensors where they are.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let file = File::open(path)?;
         let tensors = if flashpack::holds(&file)? {
@@ -95,7 +90,6 @@ impl<'a> Shard<'a> {
             .ok_or_else(|| Error::missing_input(format!("checkpoint tensor `{name}`")))
     }
 
-    // Fills `buffer` with `stored`'s values as `target`, from byte `offset` of them as `target`, reading on all cores.
     pub fn read_as(
         &self,
         stored: &StoredTensor,
@@ -106,7 +100,6 @@ impl<'a> Shard<'a> {
         self.read_with(stored, target, offset, buffer, Parallelism::Pool)
     }
 
-    // `read_as` on this thread alone, for callers that read several ranges at once.
     pub fn read_as_serial(
         &self,
         stored: &StoredTensor,
@@ -138,7 +131,6 @@ impl<'a> Shard<'a> {
         cast_floats(stored.data_type, bytes.as_ref(), target, buffer)
     }
 
-    // Returns the whole of `stored`'s tensor as `target` on the host.
     pub fn tensor_as(&self, stored: &StoredTensor, target: DataType) -> Result<Tensor> {
         let mut bytes = AlignedBytes::zeroed(checked_mul(
             stored.shape.element_count(),
@@ -149,7 +141,6 @@ impl<'a> Shard<'a> {
         Tensor::from_bytes(Device::Cpu, target, &stored.shape, bytes.as_ref())
     }
 
-    // Fills `buffer` with the stored bytes of `stored`'s tensor from byte `offset` of them.
     fn read_at(
         &self,
         stored: &StoredTensor,
@@ -176,7 +167,6 @@ impl<'a> Shard<'a> {
 // The bytes each thread reads of a larger range.
 const READ_PART: usize = 1 << 20;
 
-// Fills `buffer` from `file` at byte `at`, in parts of `READ_PART`, on all cores for `Parallelism::Pool`: a single thread copies from the page cache at about 3 GB/s, which was most of a warm load of Qwen3-0.6B.
 fn read_file_at(file: &File, at: u64, buffer: &mut [u8], parallelism: Parallelism) -> Result<()> {
     parallel::for_each_chunk_mut(buffer, READ_PART, parallelism, |index, part| {
         read_exact_at(file, at + (index * READ_PART) as u64, part)
@@ -245,7 +235,6 @@ pub fn to_usize_u64(value: u64) -> Result<usize> {
     usize::try_from(value).map_err(|_| Error::out_of_range("checkpoint offset"))
 }
 
-// Fills `buffer` from `file` at byte `at` on this thread, leaving the file's cursor alone, so threads may read one file at once.
 #[cfg(unix)]
 pub fn read_exact_at(file: &File, at: u64, buffer: &mut [u8]) -> Result<()> {
     Ok(file.read_exact_at(buffer, at)?)

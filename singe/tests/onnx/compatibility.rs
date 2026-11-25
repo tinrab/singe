@@ -126,10 +126,10 @@ fn test_old_softmax_and_unknown_future_schemas_fail_before_execution() {
     for (operator, version) in [
         ("Softmax", 11),
         ("LogSoftmax", 1),
-        ("Softmax", 26),
-        ("Attention", 24),
-        ("AveragePool", 21),
-        ("QuantizeLinear", 21),
+        ("Softmax", 29),
+        ("Attention", 29),
+        ("AveragePool", 29),
+        ("QuantizeLinear", 29),
     ] {
         assert!(
             matches!(import(&model(operator, version)), Err(Error::UnsupportedOperator { version: actual, .. }) if actual == version)
@@ -302,7 +302,7 @@ fn integer_attribute(name: &str, value: i64) -> AttributeProto {
 
 #[test]
 fn test_ir_versions_and_versioned_attributes_are_checked_before_lowering() {
-    for version in [0, 6, 11, i64::MAX] {
+    for version in [0, 6, 15, i64::MAX] {
         let mut source = model("Identity", 13);
         source.ir_version = version;
         assert!(matches!(import(&source), Err(Error::InvalidModel { .. })));
@@ -790,8 +790,7 @@ fn test_cast_19_saturation_is_irrelevant_to_supported_types_and_new_encodings_st
         )),
         Err(Error::UnsupportedOperator { .. })
     ));
-    assert!(matches!(
-        import(&cast(21, tensor_proto::DataType::Float16, 1)),
-        Err(Error::UnsupportedOperator { .. })
-    ));
+    assert!(import(&cast(21, tensor_proto::DataType::Float16, 1)).is_ok());
+    let float6 = import(&cast(28, tensor_proto::DataType::Float6e2m3, 0));
+    assert!(float6.is_err(), "{float6:?}");
 }

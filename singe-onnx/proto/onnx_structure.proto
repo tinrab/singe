@@ -141,6 +141,8 @@ message TensorProto {
     FLOAT8E8M0 = 24;
     UINT2 = 25;
     INT2 = 26;
+    FLOAT6E2M3 = 27;
+    FLOAT6E3M2 = 28;
   }
 
   message Segment {
@@ -205,12 +207,18 @@ message TypeProto {
     TensorShapeProto shape = 2;
   }
 
+  message Opaque {
+    string domain = 1;
+    string name = 2;
+  }
+
   oneof value {
     Tensor tensor_type = 1;
     Sequence sequence_type = 4;
     Map map_type = 5;
     SparseTensor sparse_tensor_type = 8;
     Optional optional_type = 9;
+    Opaque opaque_type = 7;
   }
 
   string denotation = 6;

@@ -290,6 +290,8 @@ pub enum TypeValue {
     Optional(Box<TypeOptional>),
     /// Sparse tensor type.
     SparseTensor(SparseTensorType),
+    /// Opaque type named by a domain and a name.
+    Opaque(OpaqueType),
 }
 
 /// Dense tensor type and optional shape.
@@ -335,6 +337,15 @@ pub struct SparseTensorType {
     pub element_type: TensorDataType,
     /// Optional dense shape represented by the sparse tensor.
     pub shape: Option<TensorShape>,
+}
+
+/// Opaque type, which ONNX identifies only by name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpaqueType {
+    /// Domain of the type's name; empty means the model's domain.
+    pub domain: String,
+    /// Name of the type within its domain.
+    pub name: String,
 }
 
 /// ONNX tensor shape.
@@ -521,6 +532,10 @@ pub enum TensorDataType {
     Uint2 = 25,
     /// 2-bit signed integer in range `[-2, 1]` using two's-complement representation.
     Int2 = 26,
+    /// 6-bit E2M3 floating point, finite values only.
+    Float6e2m3 = 27,
+    /// 6-bit E3M2 floating point, finite values only.
+    Float6e3m2 = 28,
 }
 
 /// ONNX tensor data storage location.
@@ -869,6 +884,10 @@ impl FromProto<onnx::type_proto::Value> for TypeValue {
             onnx::type_proto::Value::SparseTensorType(value) => {
                 Self::SparseTensor(value.parse_into()?)
             }
+            onnx::type_proto::Value::OpaqueType(value) => Self::Opaque(OpaqueType {
+                domain: value.domain,
+                name: value.name,
+            }),
         })
     }
 }
@@ -1183,6 +1202,12 @@ impl From<onnx_structure::type_proto::Value> for onnx::type_proto::Value {
             onnx_structure::type_proto::Value::OptionalType(value) => {
                 Self::OptionalType(Box::new((*value).into()))
             }
+            onnx_structure::type_proto::Value::OpaqueType(value) => {
+                Self::OpaqueType(onnx::type_proto::Opaque {
+                    domain: value.domain,
+                    name: value.name,
+                })
+            }
         }
     }
 }
@@ -1444,7 +1469,9 @@ fn parse_tensor_data(
         | TensorDataType::Float4e2m1
         | TensorDataType::Float8e8m0
         | TensorDataType::Uint2
-        | TensorDataType::Int2 => Ok((!value.int32_data.is_empty())
+        | TensorDataType::Int2
+        | TensorDataType::Float6e2m3
+        | TensorDataType::Float6e3m2 => Ok((!value.int32_data.is_empty())
             .then(|| TensorElements::Int32(take(&mut value.int32_data)))),
         TensorDataType::String => {
             if value.string_data.is_empty() {

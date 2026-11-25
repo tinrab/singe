@@ -460,6 +460,14 @@ wheels = [
 ]
 
 [[package]]
+name = "flatbuffers"
+version = "25.12.19"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e8/2d/d2a548598be01649e2d46231d151a6c56d10b964d94043a335ae56ea2d92/flatbuffers-25.12.19-py2.py3-none-any.whl", hash = "sha256:7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4", size = 26661, upload-time = "2025-12-19T23:16:13.622Z" },
+]
+
+[[package]]
 name = "fonttools"
 version = "4.68.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1118,7 +1126,7 @@ wheels = [
 
 [[package]]
 name = "onnx"
-version = "1.21.0"
+version = "1.23.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ml-dtypes", marker = "sys_platform == 'linux'" },
@@ -1126,12 +1134,13 @@ dependencies = [
     { name = "protobuf", marker = "sys_platform == 'linux'" },
     { name = "typing-extensions", marker = "sys_platform == 'linux'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c5/93/942d2a0f6a70538eea042ce0445c8aefd46559ad153469986f29a743c01c/onnx-1.21.0.tar.gz", hash = "sha256:4d8b67d0aaec5864c87633188b91cc520877477ec0254eda122bef8be43cd764", size = 12074608, upload-time = "2026-03-27T21:33:36.118Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3f/62/bc2dfadb63ecf04cb2d65a6b17751863039d36c65de51d6a3128ab35f1e7/onnx-1.23.2.tar.gz", hash = "sha256:008cb0467b2bbee41448acc7da8b6f4e704624cb0d327a2d5adafc7ce19bc5b8", size = 6023090, upload-time = "2026-10-06T04:25:58.681Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6f/b6/eeb5903586645ef8a49b4b7892580438741acc3df91d7a5bd0f3a59ea9cb/onnx-1.21.0-cp312-abi3-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9003d5206c01fa2ff4b46311566865d8e493e1a6998d4009ec6de39843f1b59b", size = 17531344, upload-time = "2026-03-27T21:32:50.837Z" },
-    { url = "https://files.pythonhosted.org/packages/a7/00/4823f06357892d1e60d6f34e7299d2ba4ed2108c487cc394f7ce85a3ff14/onnx-1.21.0-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a9261bd580fb8548c9c37b3c6750387eb8f21ea43c63880d37b2c622e1684285", size = 17613697, upload-time = "2026-03-27T21:32:54.222Z" },
-    { url = "https://files.pythonhosted.org/packages/61/28/f4e401e5199d1b9c8b76c7e7ae1169e050515258e877b58fa8bb49d3bdcc/onnx-1.21.0-cp314-cp314t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5489f25fe461e7f32128218251a466cabbeeaf1eaa791c79daebf1a80d5a2cc9", size = 17537430, upload-time = "2026-03-27T21:33:24.547Z" },
-    { url = "https://files.pythonhosted.org/packages/cf/cf/5d13320eb3660d5af360ea3b43aa9c63a70c92a9b4d1ea0d34501a32fcb8/onnx-1.21.0-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:db17fc0fec46180b6acbd1d5d8650a04e5527c02b09381da0b5b888d02a204c8", size = 17617662, upload-time = "2026-03-27T21:33:27.418Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/50/2e156ef2cae1c9f4ff01a41dffa43fc1eb7b969755055436bf6df1805d54/onnx-1.23.2-cp312-abi3-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:a203efdbaabbbe8f25e854e2b2921382d6fcf4c67895656f939044b0632974e8", size = 8640515, upload-time = "2026-10-06T04:25:36.727Z" },
+    { url = "https://files.pythonhosted.org/packages/87/56/21509a657f9a73ab0ca307d325043f49ca6c4ff6bf79edeb9e159190d44d/onnx-1.23.2-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7abf381d278f31ac62487fddedc9dd42da842dce94d5d43536836ee3efdf4a2b", size = 8881633, upload-time = "2026-10-06T04:25:38.868Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/ef/0a69093ffa0b999747b373c75d07182a812722a0e595d21f763a8d406260/onnx-1.23.2-cp312-abi3-pyemscripten_2026_0_wasm32.whl", hash = "sha256:e79e35e152d3095c6910ae81013bbc68679e32bfc0ca76f840968d4b6fdfb864", size = 7314844, upload-time = "2026-10-06T04:25:41.088Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/38/cbc9c5a72dbbc9d20f17e6855c643a2105053f756784cb167f69915c486d/onnx-1.23.2-cp314-cp314t-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:32fd9c92244c2aea2b2c9e0e7b18fedcf6000434124ab6fc8796e22baa602d30", size = 8647447, upload-time = "2026-10-06T04:25:50.901Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/24/36c505c2f8079186ac7c2d858a7fda3c5591418ae92d134e2bf56f6eee1f/onnx-1.23.2-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:77674dc4fda2bde9a13aee67fb9ff658080159eb516d3a5b3fb2418d44dc70be", size = 8886676, upload-time = "2026-10-06T04:25:52.852Z" },
 ]
 
 [[package]]
@@ -1148,6 +1157,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/35/e6/672fefb2f108d077f58181a7babf4c0f8d1182a30353ffc9c79c63afc5ee/onnx_ir-0.2.1.tar.gz", hash = "sha256:8b8b10a93f43e65962104de6070c43c5dacb0e3cdfefc7c8059dd83c9db64f35", size = 144279, upload-time = "2026-04-20T20:21:47.735Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8c/aa/f7a53321c60b9ad9ee184b6018292ed6b5389947592a2c8c09c736bb7f9e/onnx_ir-0.2.1-py3-none-any.whl", hash = "sha256:c7285da889312f91882de2092e298a9eeeefbfc1d1951c49d983992967eb09a7", size = 166792, upload-time = "2026-04-20T20:21:46.357Z" },
+]
+
+[[package]]
+name = "onnxruntime"
+version = "1.32.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flatbuffers", marker = "sys_platform == 'linux'" },
+    { name = "numpy", marker = "sys_platform == 'linux'" },
+    { name = "packaging", marker = "sys_platform == 'linux'" },
+    { name = "protobuf", marker = "sys_platform == 'linux'" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/04/69/325c7e39e7000eadbbbfe39c07b42a3d2958a095cd46eeeb44cc235b2ed9/onnxruntime-1.32.0-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:4135431395c1f37de0811f452c20a8b774f51812fda6c49611ed9899bbdbeeb4", size = 23197888, upload-time = "2026-11-13T11:06:55.119Z" },
+    { url = "https://files.pythonhosted.org/packages/94/b5/cd55e7f1dfcf2e5fbf3a6915a8c6b4cf81df091e81de2db40e58357ffba4/onnxruntime-1.32.0-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:48b878f9551d465aa79ee94ecaf49a1f6b5d27f2975efa775ded374db14d0af1", size = 27780528, upload-time = "2026-11-13T11:07:03.379Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/36/3a7a2333b88b7cb30b7b63185467f0476fd78e72ec33a51592edd3c3ead3/onnxruntime-1.32.0-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:2c4338c899144fd055a86c1d89424001db60e48a474e198c0fd0d1d577e4b663", size = 23204967, upload-time = "2026-11-13T11:07:12.639Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/db/80ef2ff511eb24c21eebea2649a4d2db611107fb35171bf4fd2515ae1070/onnxruntime-1.32.0-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:b224d11cfaecc95b85bdbd69f1673a984c7879af5823bb3ff377b9cb90b176fc", size = 27798510, upload-time = "2026-11-13T11:07:15.734Z" },
 ]
 
 [[package]]
@@ -1566,6 +1592,8 @@ dependencies = [
     { name = "jinja2", marker = "sys_platform == 'linux'" },
     { name = "librosa", marker = "sys_platform == 'linux'" },
     { name = "num2words", marker = "sys_platform == 'linux'" },
+    { name = "onnx", marker = "sys_platform == 'linux'" },
+    { name = "onnxruntime", marker = "sys_platform == 'linux'" },
     { name = "onnxscript", marker = "sys_platform == 'linux'" },
     { name = "pillow", marker = "sys_platform == 'linux'" },
     { name = "protobuf", marker = "sys_platform == 'linux'" },
@@ -1587,6 +1615,8 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "librosa", specifier = ">=1.0.1" },
     { name = "num2words", specifier = ">=0.5.14" },
+    { name = "onnx", specifier = "==1.23.2" },
+    { name = "onnxruntime", specifier = ">=1.32.0" },
     { name = "onnxscript", specifier = ">=0.7.0" },
     { name = "pillow", specifier = ">=13.0.0" },
     { name = "protobuf", specifier = ">=7.36.1" },

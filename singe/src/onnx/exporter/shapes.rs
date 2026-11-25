@@ -1,20 +1,24 @@
 use singe_onnx::proto::onnx::tensor_shape_proto::dimension::Value;
 
 use crate::{
+    backend::registry::{Operation, OperationAttributes, OperationRequest},
     graph::{
         Arithmetic, DimensionConstraint, DimensionExpr, DimensionExpression, ShapeValue,
         ir::{OperationNode, ValueId},
     },
     onnx::{
-        error::Result,
+        error::{Error, Result},
         export_contract::annotate_dimension,
         exporter::{
             Exporter,
             proto::{integer, unsupported, value_info},
         },
     },
-    shape::normalize_dim_usize,
+    shape::{Shape, normalize_dim_usize},
+    value::ValueSpec,
 };
+
+const GROWTH: [i64; 2] = [2, 3];
 
 pub fn fixed_dimensions(dimensions: &[i64]) -> Vec<Option<Value>> {
     dimensions
@@ -55,14 +59,21 @@ impl Exporter<'_> {
                 shape.dimensions()[axis] == 1
             }
         } else if self.dynamic
-            && source
-                .required_operation_for_value(input)?
-                .opcode()
-                .is_some()
+            && let Some(producer) = source.required_operation_for_value(input)?.opcode()
         {
-            return Err(unsupported(
-                "dynamic intermediate squeeze dimension is not proven invariant",
-            ));
+            let extent = shape.dimensions()[axis];
+            let stays = (0..GROWTH.len()).all(|growth| {
+                self.grown_shape(growth, input)
+                    .is_some_and(|grown| grown.dimensions().get(axis) == Some(&extent))
+            });
+            if !stays {
+                return Err(self.not_following(|| {
+                    format!(
+                        "squeeze of a dynamic {producer:?} result's axis {axis}, which does not stay {extent}"
+                    )
+                }));
+            }
+            extent == 1
         } else {
             shape.dimensions()[axis] == 1
         };
@@ -76,6 +87,181 @@ impl Exporter<'_> {
             self.node("Identity", inputs, output, vec![]);
         }
         Ok(())
+    }
+
+    fn grown_shape(&mut self, growth: usize, value: ValueId) -> Option<Shape> {
+        if let Some(shape) = self.grown[growth].get(&value) {
+            return shape.clone();
+        }
+
+        let shape = self.grow(growth, value);
+        self.grown[growth].insert(value, shape.clone());
+        shape
+    }
+
+    pub(crate) fn require_growth(&mut self, value: ValueId) -> Result<()> {
+        for growth in 0..GROWTH.len() {
+            if self.grown_shape(growth, value).is_none() {
+                return Err(self.not_following(|| {
+                    "a value whose shape does not follow the run-time axes".to_owned()
+                }));
+            }
+        }
+        Ok(())
+    }
+
+    fn not_following(&self, otherwise: impl FnOnce() -> String) -> Error {
+        unsupported(self.traced.as_ref().map_or_else(otherwise, |operation| {
+            format!(
+                "{operation} holds an extent of the traced size, so the export would not follow its run-time axes"
+            )
+        }))
+    }
+
+    fn grow(&mut self, growth: usize, value: ValueId) -> Option<Shape> {
+        let source = self.source;
+        let traced = source.required_value_shape(value).ok()?;
+        if let Some(name) = source.required_value(value).ok()?.binding().input_name() {
+            let dimensions = traced
+                .dimensions()
+                .iter()
+                .enumerate()
+                .map(|(axis, &extent)| {
+                    // The largest multiple of the traced extent within the axis's bound, which keeps any divisibility the model needs.
+                    source
+                        .input_dimension_guard(name, axis)
+                        .map_or(extent, |guard| {
+                            (2..=GROWTH[growth])
+                                .rev()
+                                .filter_map(|factor| extent.checked_mul(factor))
+                                .find(|&grown| guard.max().is_none_or(|max| grown <= max))
+                                .unwrap_or(extent)
+                        })
+                })
+                .collect::<Vec<_>>();
+            return Shape::create(dimensions).ok();
+        }
+
+        if source.constant_tensor(value).is_some() {
+            return Some(traced.clone());
+        }
+
+        if let Some(expression) = source.shape_program().reshapes.get(&value) {
+            let dimensions = expression.dimensions.clone();
+            return Shape::create(
+                dimensions
+                    .iter()
+                    .map(|dimension| self.grown_extent(growth, dimension))
+                    .collect::<Option<Vec<_>>>()?,
+            )
+            .ok();
+        }
+
+        let operation = source.required_operation_for_value(value).ok()?;
+        let opcode = operation.opcode()?;
+        let mut specs = Vec::new();
+        for &input in operation.inputs() {
+            let data_type = source.required_value_data_type(input).ok()?;
+            specs.push(ValueSpec::new(data_type, self.grown_shape(growth, input)?));
+        }
+
+        let attributes = self.exported_attributes(operation, &specs);
+        // A reshape's inference trusts its target, which must hold the grown input's elements.
+        if let (Some(Operation::Reshape), OperationAttributes::Shape(target), Some(input)) =
+            (operation.opcode(), &attributes, specs.first())
+            && target.element_count() != input.shape().element_count()
+        {
+            self.traced
+                .get_or_insert_with(|| format!("Reshape to {:?}", target.dimensions()));
+            return None;
+        }
+
+        let Ok(inference) = OperationRequest::new(opcode, attributes, specs).infer() else {
+            self.traced.get_or_insert_with(|| {
+                operation.source_location().map_or_else(
+                    || format!("{opcode:?} with {:?}", operation.attributes()),
+                    |location| format!("{opcode:?} at {location}"),
+                )
+            });
+            return None;
+        };
+        let index = operation
+            .results()
+            .iter()
+            .position(|result| result.value() == value)?;
+        Some(inference.outputs().get(index)?.shape().clone())
+    }
+
+    fn exported_attributes(
+        &self,
+        operation: &OperationNode,
+        specs: &[ValueSpec],
+    ) -> OperationAttributes {
+        let grown = specs.first().map(|spec| spec.shape().dimensions());
+        match (operation.attributes().clone(), grown) {
+            (OperationAttributes::LayerNormalization(mut norm), Some(grown))
+                if norm.normalized_shape.len() <= grown.len() =>
+            {
+                norm.normalized_shape = grown[grown.len() - norm.normalized_shape.len()..].to_vec();
+                OperationAttributes::LayerNormalization(norm)
+            }
+            (OperationAttributes::Shape(target), Some(grown))
+                if operation.opcode() == Some(Operation::Expand) =>
+            {
+                let traced = operation
+                    .inputs()
+                    .first()
+                    .and_then(|&input| self.source.required_value_shape(input).ok());
+                let (Some(traced), Ok(offset)) = (
+                    traced,
+                    usize::try_from(target.rank() - i64::try_from(grown.len()).unwrap_or(0)),
+                ) else {
+                    return OperationAttributes::Shape(target);
+                };
+                let dimensions = target
+                    .dimensions()
+                    .iter()
+                    .enumerate()
+                    .map(|(axis, &extent)| {
+                        axis.checked_sub(offset)
+                            .filter(|&input| traced.dimensions().get(input) == Some(&extent))
+                            .map_or(extent, |input| grown[input])
+                    })
+                    .collect::<Vec<_>>();
+                Shape::create(dimensions).map_or(
+                    OperationAttributes::Shape(target),
+                    OperationAttributes::Shape,
+                )
+            }
+            (attributes, _) => attributes,
+        }
+    }
+
+    fn grown_extent(&mut self, growth: usize, expression: &DimensionExpr) -> Option<i64> {
+        match expression.expression() {
+            DimensionExpression::Constant(value) => Some(*value),
+            DimensionExpression::Axis { value, axis, .. } => self
+                .grown_shape(growth, ValueId::new(*value))?
+                .dimensions()
+                .get(*axis)
+                .copied(),
+            DimensionExpression::Binary {
+                operation,
+                lhs,
+                rhs,
+            } => {
+                let (lhs, rhs) = (
+                    self.grown_extent(growth, lhs)?,
+                    self.grown_extent(growth, rhs)?,
+                );
+                match operation {
+                    Arithmetic::Add => lhs.checked_add(rhs),
+                    Arithmetic::Subtract => lhs.checked_sub(rhs),
+                    Arithmetic::Multiply => lhs.checked_mul(rhs),
+                    Arithmetic::Divide => lhs.checked_div(rhs),
+                }
+            }
+        }
     }
 
     pub(crate) fn dimension(&mut self, expression: &DimensionExpr) -> Result<String> {

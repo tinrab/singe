@@ -3,7 +3,6 @@
 use clap::ValueEnum;
 use singe_server::config::DataTypeChoice;
 
-// The type weights load in, as `--type` names it.
 #[derive(Clone, Copy, Default, ValueEnum)]
 pub enum TypeChoice {
     #[default]
