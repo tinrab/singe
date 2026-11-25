@@ -6,7 +6,7 @@ use crate::{
         error::{Error, Result},
         importer::Importer,
         ops::{
-            constant::{lower_constant, lower_constant_of_shape},
+            constant::{lower_constant, lower_constant_of_shape, lower_range},
             conv_pool::{lower_avg_pool, lower_conv, lower_global_avg_pool, lower_max_pool},
             conversion::{lower_cast, lower_dequantize_linear, lower_quantize_linear},
             elementwise::{
@@ -26,8 +26,8 @@ use crate::{
             },
             shape_ops::{
                 lower_concat, lower_expand, lower_flatten, lower_gather, lower_pad, lower_reshape,
-                lower_scatter_elements, lower_shape, lower_slice, lower_squeeze, lower_transpose,
-                lower_unsqueeze,
+                lower_resize, lower_scatter_elements, lower_shape, lower_slice, lower_squeeze,
+                lower_transpose, lower_unsqueeze,
             },
             signal::{OnnxWindow, lower_dft, lower_mel_weight_matrix, lower_stft, lower_window},
         },
@@ -64,6 +64,8 @@ pub fn lower_node(importer: &mut Importer, node: &Node) -> Result<()> {
         "Conv" => lower_conv(importer, node),
         "Constant" => lower_constant(importer, node),
         "ConstantOfShape" => lower_constant_of_shape(importer, node),
+        "Range" => lower_range(importer, node),
+        "Resize" => lower_resize(importer, node),
         "MaxPool" => lower_max_pool(importer, node),
         "AveragePool" => lower_avg_pool(importer, node),
         "GlobalAveragePool" => lower_global_avg_pool(importer, node),

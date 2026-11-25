@@ -5,7 +5,7 @@ use crate::{
     dispatch::{DispatchKey, excluded},
     error::{CaptureError, Error, Result},
     graph::{
-        CaptureBindings, CaptureOptions, DimensionExpr, Graph, GraphInputSpec,
+        CaptureBindings, CaptureOptions, DimensionExpr, Graph, GraphInputSpec, SymbolicAttributes,
         capture::recorder::CaptureSession,
     },
     tensor::Tensor,
@@ -201,33 +201,32 @@ pub fn dimension(tensor: &Tensor, axis: usize) -> Result<Option<DimensionExpr>> 
     Ok(expression)
 }
 
-// Evaluates `dimensions` under the capture recording this thread, or as constants when nothing records.
-pub fn evaluate_dimensions(dimensions: &[DimensionExpr]) -> Result<Vec<i64>> {
+// Evaluates `dimension` under the capture recording this thread, or as a constant when nothing records.
+pub fn evaluate_dimension(dimension: &DimensionExpr) -> Result<i64> {
     let mut evaluated = None;
     with_active_session(|session| {
-        evaluated = Some(session.evaluate_dimensions(dimensions)?);
+        evaluated = Some(session.evaluate_dimension(dimension)?);
         Ok(())
     })?;
     evaluated.map_or_else(
         || {
-            dimensions
-                .iter()
-                .map(|dimension| {
-                    dimension.evaluate(&mut |_, _| {
-                        Err(Error::invalid_argument(
-                            "graph dimension outside its capture",
-                        ))
-                    })
-                })
-                .collect()
+            dimension.evaluate(&mut |_, _| {
+                Err(Error::invalid_argument(
+                    "graph dimension outside its capture",
+                ))
+            })
         },
         Ok,
     )
 }
 
-// Records that `output` takes its shape from `dimensions` on each run, under the capture recording this thread.
-pub fn record_reshape(output: &Tensor, dimensions: &[DimensionExpr]) -> Result<()> {
-    with_active_session(|session| session.record_reshape(output, dimensions))
+pub fn evaluate_dimensions(dimensions: &[DimensionExpr]) -> Result<Vec<i64>> {
+    dimensions.iter().map(evaluate_dimension).collect()
+}
+
+// Records that the node computing `output` takes `attributes` on each run, under the capture recording this thread.
+pub fn record_attributes(output: &Tensor, attributes: &SymbolicAttributes) -> Result<()> {
+    with_active_session(|session| session.record_attributes(output, attributes))
 }
 
 pub fn register_constant(name: String, tensor: &Tensor) -> Result<Tensor> {

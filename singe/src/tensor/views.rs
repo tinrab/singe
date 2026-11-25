@@ -10,7 +10,7 @@ use crate::{
     },
     dispatch::call_one,
     error::{Error, Result},
-    graph::{DimensionExpr, capture},
+    graph::{DimensionExpr, SymbolicAttributes, capture},
     layout::Layout,
     shape::{Shape, normalize_dim_usize},
     tensor::{Tensor, TensorId, TensorInner},
@@ -37,6 +37,23 @@ impl Tensor {
             }),
             &[self],
         )
+    }
+
+    // Narrows to `length` elements from `start` along `dim`, which may depend on [`Self::dimension`], so a captured program's slice follows its run-time shapes.
+    pub fn narrow_with(
+        &self,
+        dim: i64,
+        start: impl Into<DimensionExpr>,
+        length: impl Into<DimensionExpr>,
+    ) -> Result<Self> {
+        let (start, length) = (start.into(), length.into());
+        let output = self.narrow(
+            dim,
+            capture::evaluate_dimension(&start)?,
+            capture::evaluate_dimension(&length)?,
+        )?;
+        capture::record_attributes(&output, &SymbolicAttributes::Slice { dim, start, length })?;
+        Ok(output)
     }
 
     // A view of `length` elements along `dim`, `step` apart from `start`.
@@ -260,7 +277,13 @@ impl Tensor {
     pub fn reshape_with(&self, dimensions: &[DimensionExpr]) -> Result<Self> {
         let shape = capture::evaluate_dimensions(dimensions)?;
         let output = self.reshape(shape)?;
-        capture::record_reshape(&output, dimensions)?;
+        capture::record_attributes(
+            &output,
+            &SymbolicAttributes::Reshape {
+                dimensions: dimensions.to_vec(),
+                allow_zero: true,
+            },
+        )?;
         Ok(output)
     }
 

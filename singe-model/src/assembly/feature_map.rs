@@ -7,8 +7,11 @@ pub fn to_tokens(map: &Tensor) -> SingeResult<Tensor> {
     map.flatten(2, 3)?.transpose(1, 2)
 }
 
-/// Returns tokens `[B, H · W, C]` as a map `[B, C, H, W]`.
-pub fn to_map(tokens: &Tensor, (height, width): (i64, i64)) -> SingeResult<Tensor> {
+/// Returns tokens `[B, H · W, C]` as a map `[B, C, H, W]`, whose height and width may follow a program's run-time axes.
+pub fn to_map(
+    tokens: &Tensor,
+    (height, width): (impl Into<DimensionExpr>, impl Into<DimensionExpr>),
+) -> SingeResult<Tensor> {
     if tokens.shape().dimensions().len() != 3 {
         return Err(SingeError::invalid_argument("tokens"));
     }
@@ -17,8 +20,8 @@ pub fn to_map(tokens: &Tensor, (height, width): (i64, i64)) -> SingeResult<Tenso
     channels.reshape_with(&[
         channels.dimension(0)?,
         channels.dimension(1)?,
-        DimensionExpr::constant(height),
-        DimensionExpr::constant(width),
+        height.into(),
+        width.into(),
     ])
 }
 
@@ -27,6 +30,12 @@ pub fn spatial(map: &Tensor) -> SingeResult<(i64, i64)> {
         return Err(SingeError::invalid_argument("feature map"));
     };
     Ok((height, width))
+}
+
+/// Returns a map's height and width as expressions, which follow a program's run-time axes.
+pub fn spatial_dimensions(map: &Tensor) -> SingeResult<(DimensionExpr, DimensionExpr)> {
+    spatial(map)?;
+    Ok((map.dimension(2)?, map.dimension(3)?))
 }
 
 /// Returns a map `[B, H, W, C]` as windows of `window × window` points, `[B · windows, window², C]`, row by row.

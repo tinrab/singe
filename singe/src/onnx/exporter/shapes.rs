@@ -2,8 +2,10 @@ use singe_onnx::proto::onnx::tensor_shape_proto::dimension::Value;
 
 use crate::{
     backend::registry::{Operation, OperationAttributes, OperationRequest},
+    error::Error as SingeError,
     graph::{
-        Arithmetic, DimensionConstraint, DimensionExpr, DimensionExpression, ShapeValue,
+        Arithmetic, DimensionConstraint, DimensionExpr, DimensionExpression, ResolvedAttributes,
+        ShapeValue, SymbolicAttributes,
         ir::{OperationNode, ValueId},
     },
     onnx::{
@@ -11,7 +13,7 @@ use crate::{
         export_contract::annotate_dimension,
         exporter::{
             Exporter,
-            proto::{integer, unsupported, value_info},
+            proto::{self, integer, unsupported, value_info},
         },
     },
     shape::{Shape, normalize_dim_usize},
@@ -142,19 +144,15 @@ impl Exporter<'_> {
             return Shape::create(dimensions).ok();
         }
 
+        let symbolic = source.shape_program().attributes.get(&value).cloned();
         if source.constant_tensor(value).is_some() {
-            return Some(traced.clone());
-        }
-
-        if let Some(expression) = source.shape_program().reshapes.get(&value) {
-            let dimensions = expression.dimensions.clone();
-            return Shape::create(
-                dimensions
-                    .iter()
-                    .map(|dimension| self.grown_extent(growth, dimension))
-                    .collect::<Option<Vec<_>>>()?,
-            )
-            .ok();
+            let Some(symbolic) = symbolic else {
+                return Some(traced.clone());
+            };
+            return match self.grown_attributes(growth, &symbolic, None)? {
+                ResolvedAttributes::Constant(tensor) => Some(tensor.shape().clone()),
+                ResolvedAttributes::Operation(_) => None,
+            };
         }
 
         let operation = source.required_operation_for_value(value).ok()?;
@@ -165,7 +163,42 @@ impl Exporter<'_> {
             specs.push(ValueSpec::new(data_type, self.grown_shape(growth, input)?));
         }
 
-        let attributes = self.exported_attributes(operation, &specs);
+        let attributes = if let Some(symbolic) = &symbolic {
+            let input = specs.first().map(|spec| spec.shape().clone());
+            match self.grown_attributes(growth, symbolic, input.as_ref())? {
+                ResolvedAttributes::Operation(attributes) => attributes,
+                ResolvedAttributes::Constant(..) => return None,
+            }
+        } else {
+            self.exported_attributes(operation, &specs)
+        };
+        // A slice with literal bounds that runs to the end of a growing axis would keep its traced extent.
+        if symbolic.is_none()
+            && let (OperationAttributes::Slice(slice), Some(input), Some(&operand)) =
+                (&attributes, specs.first(), operation.inputs().first())
+            && let Ok(traced) = source.required_value_shape(operand)
+            && let Ok(axis) = normalize_dim_usize(slice.dim, traced.rank().max(1))
+            && let (Some(&extent), Some(&grown)) = (
+                traced.dimensions().get(axis),
+                input.shape().dimensions().get(axis),
+            )
+            && grown != extent
+            && slice.length > 0
+            && slice
+                .length
+                .saturating_mul(slice.step)
+                .saturating_add(slice.start)
+                >= extent
+        {
+            self.traced.get_or_insert_with(|| {
+                format!(
+                    "Slice of {} elements from {} along axis {}",
+                    slice.length, slice.start, slice.dim
+                )
+            });
+            return None;
+        }
+
         // A reshape's inference trusts its target, which must hold the grown input's elements.
         if let (Some(Operation::Reshape), OperationAttributes::Shape(target), Some(input)) =
             (operation.opcode(), &attributes, specs.first())
@@ -190,6 +223,21 @@ impl Exporter<'_> {
             .iter()
             .position(|result| result.value() == value)?;
         Some(inference.outputs().get(index)?.shape().clone())
+    }
+
+    // Resolves `symbolic` at the grown extents of its axis references; `None` when one does not grow.
+    fn grown_attributes(
+        &mut self,
+        growth: usize,
+        symbolic: &SymbolicAttributes,
+        input: Option<&Shape>,
+    ) -> Option<ResolvedAttributes> {
+        symbolic
+            .resolve(input, |dim| {
+                self.grown_extent(growth, dim)
+                    .ok_or_else(|| SingeError::missing_input("grown extent"))
+            })
+            .ok()
     }
 
     fn exported_attributes(
@@ -306,6 +354,33 @@ impl Exporter<'_> {
             values.push(self.temporary("Unsqueeze", vec![value, axes.clone()], vec![]));
         }
         Ok(self.temporary("Concat", values, vec![integer("axis", 0)]))
+    }
+
+    // A constant whose values follow the run-time axes.
+    pub(crate) fn symbolic_constant(&mut self, attributes: &SymbolicAttributes) -> Result<String> {
+        match attributes {
+            SymbolicAttributes::Range { start, end } => {
+                let start = self.dimension(start)?;
+                let end = self.dimension(end)?;
+                let step = self.integers(vec![], &[1])?;
+                Ok(self.temporary("Range", vec![start, end, step], vec![]))
+            }
+            SymbolicAttributes::Dimensions(dimensions) => self.shape_vector(dimensions),
+            SymbolicAttributes::Fill { dimensions, value } => {
+                let name = self.fresh();
+                self.graph
+                    .initializer
+                    .push(proto::tensor(name.clone(), value)?);
+                let shape = self.shape_vector(dimensions)?;
+                Ok(self.temporary("Expand", vec![name, shape], vec![]))
+            }
+            SymbolicAttributes::Reshape { .. }
+            | SymbolicAttributes::Expand(_)
+            | SymbolicAttributes::Slice { .. }
+            | SymbolicAttributes::Resize { .. } => Err(unsupported(
+                "a constant with an operation's symbolic attributes",
+            )),
+        }
     }
 
     pub(crate) fn shape_value(&mut self, value: ShapeValue) -> Result<String> {

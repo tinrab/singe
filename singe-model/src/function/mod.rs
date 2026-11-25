@@ -21,10 +21,38 @@ use singe::{DataType, Device, Error as SingeError, Shape, Tensor};
 
 use crate::error::{Error, Result};
 
+/// The sizes of an ONNX file's named dimensions and inputs that its steps import at.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Shapes {
+    /// Each named dimension's sizes, a step per combination of them.
     pub dimensions: BTreeMap<String, Vec<i64>>,
+    /// The named dimensions every step follows at each run's size, within their range.
+    pub ranges: BTreeMap<String, DimensionRange>,
+    /// Inputs whose every axis is fixed.
     pub inputs: BTreeMap<String, Vec<i64>>,
+}
+
+/// The sizes a named dimension takes at run time: from `min`, which the file imports at, up to `max`, or without bound when `max` is `None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DimensionRange {
+    pub min: i64,
+    pub max: Option<i64>,
+}
+
+impl DimensionRange {
+    #[must_use]
+    pub fn holds(self, size: i64) -> bool {
+        size >= self.min && self.max.is_none_or(|max| size <= max)
+    }
+}
+
+impl Display for DimensionRange {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FormatResult {
+        match self.max {
+            Some(max) => write!(f, "{}..{max}", self.min),
+            None => write!(f, "{}..", self.min),
+        }
+    }
 }
 
 impl Shapes {
@@ -60,6 +88,9 @@ pub struct TensorSpec {
 pub struct Step {
     pub name: String,
     pub dimensions: BTreeMap<String, i64>,
+    /// The named dimensions the step follows at each run's size, which its specs hold at their least.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub ranges: BTreeMap<String, DimensionRange>,
     pub inputs: Vec<TensorSpec>,
     pub outputs: Vec<TensorSpec>,
     pub padded: BTreeSet<String>,
@@ -71,6 +102,11 @@ impl Display for Step {
             .dimensions
             .iter()
             .map(|(name, size)| format!("{name}={size}"))
+            .chain(
+                self.ranges
+                    .iter()
+                    .map(|(name, range)| format!("{name}={range}")),
+            )
             .collect::<Vec<_>>();
         write!(f, "{}", dimensions.join(" "))
     }
@@ -127,9 +163,10 @@ impl<R: StepRunner> Bucketed<R> {
             interface(&step.inputs) != interface(&first.inputs)
                 || interface(&step.outputs) != interface(&first.outputs)
                 || step.padded != first.padded
+                || step.ranges != first.ranges
         }) {
             return Err(Error::invalid(
-                "steps of one model with different inputs, outputs, named axes, or padded dimensions",
+                "steps of one model with different inputs, outputs, named axes, padded dimensions, or ranges",
             ));
         }
         Ok(Self { steps, runner })
@@ -194,8 +231,12 @@ impl<R: StepRunner> Bucketed<R> {
                 .sum::<f64>()
         };
         let holds = |step: &Step| {
-            sizes.iter().all(|(name, size)| {
-                step.dimensions.get(name).is_some_and(|step| {
+            sizes.iter().all(|(name, &size)| {
+                if let Some(range) = step.ranges.get(name) {
+                    return range.holds(size);
+                }
+
+                step.dimensions.get(name).is_some_and(|&step| {
                     if self.pads(name, narrowed_by_caller) {
                         size <= step
                     } else {
@@ -227,7 +268,9 @@ impl<R: StepRunner> Bucketed<R> {
             .join(", ");
         let exact = sizes
             .keys()
-            .filter(|name| !self.pads(name, narrowed_by_caller))
+            .filter(|name| {
+                !self.pads(name, narrowed_by_caller) && !self.steps[0].ranges.contains_key(*name)
+            })
             .map(String::as_str)
             .collect::<Vec<_>>();
         let rule = if exact.is_empty() {
@@ -263,7 +306,20 @@ impl<R: StepRunner> TensorFunction for Bucketed<R> {
             .iter()
             .map(|spec| {
                 let tensor = inputs[&spec.name].cast(spec.data_type)?;
-                padded(&tensor, &spec.shape, device)
+                // An axis of a ranged dimension takes the run's size rather than the step's.
+                let shape = spec
+                    .shape
+                    .iter()
+                    .zip(&spec.axes)
+                    .map(|(&size, name)| {
+                        name.as_ref()
+                            .filter(|name| step.ranges.contains_key(*name))
+                            .and_then(|name| sizes.get(name))
+                            .copied()
+                            .unwrap_or(size)
+                    })
+                    .collect::<Vec<_>>();
+                padded(&tensor, &shape, device)
             })
             .collect::<Result<Vec<_>>>()?;
         let outputs = self.runner.run_step(index, feeds)?;

@@ -15,6 +15,7 @@ use singe::{
     onnx::{self, Error},
     random::Generator,
     scalar::Scalar,
+    tensor::{InterpolateMode, Interpolation},
     value::ValueSpec,
 };
 use singe_onnx::proto::onnx::{
@@ -383,6 +384,19 @@ fn test_operations_export_as_onnx_operators_and_roundtrip() {
                 x[0].expm1()?,
                 x[0].mul_scalar(3.0)?.truncate()?,
                 x[0].lerp(&x[1], 0.3)?,
+            ])
+        }),
+        ("resize", vec![heads.clone()], |x| {
+            Ok(vec![
+                x[0].interpolate((6, 8), InterpolateMode::Nearest)?,
+                x[0].interpolate(
+                    (5, 3),
+                    Interpolation::new(InterpolateMode::Bilinear).with_align_corners(true),
+                )?,
+                x[0].interpolate(
+                    (2, 2),
+                    Interpolation::new(InterpolateMode::Bicubic).with_antialias(true),
+                )?,
             ])
         }),
         ("selection", vec![a.clone(), b.clone()], |x| {

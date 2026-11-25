@@ -9,6 +9,7 @@ use crate::{
     data_type::DataType,
     error::{Error, Result},
     layout::Layout,
+    shape::Shape,
     value::ValueSpec,
 };
 
@@ -97,6 +98,21 @@ pub fn pad(context: &InferenceContext<'_>) -> Result<OperationInference> {
     Ok(context.same_type(
         &spec::pad_problem(context.shape(), &pad.padding, "operation pad")?.output_shape,
     ))
+}
+
+// Replaces the extents of the last two axes.
+pub fn resize(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    let resize = context.attributes(OperationAttributes::resize)?;
+    let mut dimensions = context.shape().dimensions().to_vec();
+    let [.., height, width] = dimensions.as_mut_slice() else {
+        return Err(Error::invalid_argument("resize needs two axes"));
+    };
+    if resize.size.0 <= 0 || resize.size.1 <= 0 {
+        return Err(Error::invalid_argument("resize needs positive sizes"));
+    }
+
+    (*height, *width) = resize.size;
+    Ok(context.same_type(&Shape::create(dimensions)?))
 }
 
 /// Swaps two dimensions.

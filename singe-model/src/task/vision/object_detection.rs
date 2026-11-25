@@ -71,7 +71,7 @@ impl Pipeline for ObjectDetectionPipeline {
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
-            model: model::load(source, options)?,
+            model: model::load_served(source, options)?,
             processor: ImageTransforms::load(source)?,
             options,
         })

@@ -4,7 +4,7 @@ mod transformers;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Error as SingeError, Result as SingeResult, Shape, Tensor,
+    Error as SingeError, Result as SingeResult, Tensor,
     nn::{Activation, Layer, ModelState, PatchEmbedding, StateKey},
     tensor::InterpolateMode,
 };
@@ -66,7 +66,7 @@ impl YolosTokens {
 impl Layer for YolosTokens {
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let patches = input.apply(&self.patches, state)?;
-        let &[batch, _, width] = patches.shape().dimensions() else {
+        let &[_, _, width] = patches.shape().dimensions() else {
             return Err(SingeError::invalid_argument("patch tokens"));
         };
         let expand = |key: &StateKey| -> SingeResult<Tensor> {
@@ -74,7 +74,7 @@ impl Layer for YolosTokens {
             let &[_, count, _] = tensor.shape().dimensions() else {
                 return Err(SingeError::invalid_argument("learned tokens"));
             };
-            tensor.expand(Shape::create([batch, count, width])?)
+            tensor.expand_with(&[patches.dimension(0)?, count.into(), width.into()])
         };
         let detection = expand(&self.detection)?;
         let &[_, detections, _] = detection.shape().dimensions() else {
@@ -86,16 +86,20 @@ impl Layer for YolosTokens {
         let &[_, count, _] = positions.shape().dimensions() else {
             return Err(SingeError::invalid_argument("positions"));
         };
-        let &[.., height, image_width] = input.shape().dimensions() else {
+        if input.shape().rank() != 4 {
             return Err(SingeError::invalid_argument("images"));
-        };
+        }
+
         let [rows, columns] = self.grid;
-        let size = (height / self.patch_size, image_width / self.patch_size);
+        let size = (
+            input.dimension(2)? / self.patch_size,
+            input.dimension(3)? / self.patch_size,
+        );
         let patch_positions = positions
             .narrow(1, 1, count - 1 - detections)?
             .transpose(1, 2)?
             .reshape([1, width, rows, columns])?
-            .interpolate(size, InterpolateMode::Bicubic)?
+            .interpolate_with(size, InterpolateMode::Bicubic)?
             .flatten(2, 3)?
             .transpose(1, 2)?;
         let positions = Tensor::concat(
@@ -152,10 +156,15 @@ impl Layer for YolosDetectorLayers {
         let hidden = self
             .encoder
             .forward(&input.apply(&self.embeddings, state)?, state)?;
-        let &[_, count, _] = hidden.shape().dimensions() else {
+        if hidden.shape().rank() != 3 {
             return Err(SingeError::invalid_argument("encoder states"));
-        };
-        let detections = hidden.narrow(1, count - self.detection_tokens, self.detection_tokens)?;
+        }
+
+        let detections = hidden.narrow_with(
+            1,
+            hidden.dimension(1)? - self.detection_tokens,
+            self.detection_tokens,
+        )?;
         let scores = detections.apply(&self.classes, state)?;
         let boxes = detections
             .apply(&self.boxes, state)?

@@ -1,4 +1,5 @@
 use crate::{
+    backend::registry::OperationAttributes,
     device::Device,
     error::{Error, Result},
     graph::{
@@ -6,7 +7,6 @@ use crate::{
         node::{Node, NodeRef, kind::NodeKind},
     },
     layout::Layout,
-    shape::Shape,
     tensor::Tensor,
 };
 
@@ -79,12 +79,17 @@ impl Node {
 }
 
 impl NodeRef<'_> {
-    pub(crate) fn with_reshape_operation(&self, input: ValueId, shape: Shape) -> Node {
-        self.with_replaced_kind(NodeKind::reshape(input, shape))
+    pub(crate) fn with_attributes(&self, attributes: OperationAttributes) -> Result<Node> {
+        let operation = self
+            .operation()
+            .ok_or_else(|| Error::missing_node("operation attributes"))?;
+        Ok(self.with_replaced_kind(NodeKind::operation_invocation(
+            operation,
+            attributes,
+            self.inputs().to_vec(),
+        )))
     }
 }
-
-impl NodeRef<'_> {}
 
 impl NodeRef<'_> {
     pub(crate) fn with_input(&self, name: String) -> Node {

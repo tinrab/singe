@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use anyhow::{Result, bail};
 use clap::Args;
+use singe_model::function::DimensionRange;
 use singe_server::{
     config::{ModelConfig, ServerConfig},
     server,
@@ -13,7 +14,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::{
     arguments::TypeChoice,
-    export::{TuneArguments, named_shapes, parse_dim, parse_input},
+    export::{TuneArguments, named_ranges, named_shapes, parse_dim, parse_input, parse_range},
 };
 
 #[derive(Args)]
@@ -79,6 +80,9 @@ struct ModelArguments {
     /// An ONNX file's named dimension, as `sequence_length=128,512`: a step per combination, which requests pad up to.
     #[arg(long = "dim", value_parser = parse_dim)]
     dims: Vec<(String, Vec<i64>)>,
+    /// An ONNX file's named dimension that follows each request's size, as `height=224..1344` or `height=224..`; the file imports at the least size.
+    #[arg(long = "range", value_parser = parse_range)]
+    ranges: Vec<(String, DimensionRange)>,
     /// Fixes every axis of an ONNX file's input.
     #[arg(long = "input", value_parser = parse_input)]
     inputs: Vec<(String, Vec<i64>)>,
@@ -133,6 +137,7 @@ impl ModelArguments {
             ModelKind::Onnx => {
                 config.processor.clone_from(&self.processor);
                 config.dims = named_shapes("--dim", &self.dims)?;
+                config.ranges = named_ranges(&self.ranges)?;
                 config.inputs = named_shapes("--input", &self.inputs)?;
                 config.tune = self.tune.config();
             }
@@ -184,9 +189,12 @@ pub fn serve(arguments: ServeArguments) -> Result<()> {
     }
 
     if arguments.files.is_empty()
-        && (model.tune.tune || !model.dims.is_empty() || !model.inputs.is_empty())
+        && (model.tune.tune
+            || !model.dims.is_empty()
+            || !model.ranges.is_empty()
+            || !model.inputs.is_empty())
     {
-        bail!("--dim, --input, and --tune apply to --file models");
+        bail!("--dim, --range, --input, and --tune apply to --file models");
     }
 
     if arguments.programs.is_empty() && arguments.files.is_empty() && model.processor.is_some() {

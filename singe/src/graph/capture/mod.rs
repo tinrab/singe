@@ -4,7 +4,9 @@ mod recorder;
 use self::recorder::{with_active_session, with_session};
 
 pub use self::options::{CaptureBindings, CaptureInfo, CaptureOptions};
-pub(crate) use self::recorder::{dimension, evaluate_dimensions, is_active, record_reshape};
+pub(crate) use self::recorder::{
+    dimension, evaluate_dimension, evaluate_dimensions, is_active, record_attributes,
+};
 use crate::{
     backend::registry::{AliasBehavior, operation_schema},
     device::Device,
@@ -70,18 +72,32 @@ pub(crate) fn generator_input(
 /// On the meta device the literal is created on the CPU and kept as the host value of a meta tensor, so a graph traced on meta tensors can be placed on a device with values.
 pub fn literal(device: Device, create: impl FnOnce(Device) -> Result<Tensor>) -> Result<Tensor> {
     let tensor = if device.is_meta() {
-        let host = create(Device::Cpu)?;
-        let value = CpuStorage::from_bytes(host.data_type(), host.to_bytes()?)?;
-        Tensor::create(
-            MetaStorage::with_value(value),
-            host.data_type(),
-            host.shape().clone(),
-        )?
+        meta_with_value(&create(Device::Cpu)?)?
     } else {
         create(device)?
     };
     with_active_session(|session| session.record_literal(&tensor))?;
     Ok(tensor)
+}
+
+// A meta tensor of `host`'s type and shape that keeps its values, so a graph holding it can be placed on a device later.
+pub(crate) fn meta_with_value(host: &Tensor) -> Result<Tensor> {
+    let value = CpuStorage::from_bytes(host.data_type(), host.to_bytes()?)?;
+    Tensor::create(
+        MetaStorage::with_value(value),
+        host.data_type(),
+        host.shape().clone(),
+    )
+}
+
+// Whether the capture recording this thread builds a program with run-time axes, whose sizes a forward computes through `Tensor::dimension` rather than decides on the host.
+pub fn has_run_time_axes() -> Result<bool> {
+    let mut declared = false;
+    with_active_session(|session| {
+        declared = session.has_run_time_axes();
+        Ok(())
+    })?;
+    Ok(declared)
 }
 
 // Returns the leading rows of `bound` that the `I64` scalar `count` names, for an operation whose result extent depends on values.

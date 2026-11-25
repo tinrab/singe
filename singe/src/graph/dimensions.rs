@@ -170,17 +170,6 @@ impl DimensionExpr {
         Ok(())
     }
 
-    pub(crate) fn referenced_values(&self, values: &mut Vec<usize>) {
-        match self.0.as_ref() {
-            DimensionExpression::Constant(_) => {}
-            DimensionExpression::Axis { value, .. } => values.push(*value),
-            DimensionExpression::Binary { lhs, rhs, .. } => {
-                lhs.referenced_values(values);
-                rhs.referenced_values(values);
-            }
-        }
-    }
-
     fn binary(operation: Arithmetic, lhs: Self, rhs: Self) -> Self {
         Self(Arc::new(DimensionExpression::Binary {
             operation,
@@ -196,35 +185,35 @@ impl From<i64> for DimensionExpr {
     }
 }
 
-impl Add for DimensionExpr {
+impl<T: Into<Self>> Add<T> for DimensionExpr {
     type Output = Self;
 
-    fn add(self, rhs: Self) -> Self {
-        Self::binary(Arithmetic::Add, self, rhs)
+    fn add(self, rhs: T) -> Self {
+        Self::binary(Arithmetic::Add, self, rhs.into())
     }
 }
 
-impl Sub for DimensionExpr {
+impl<T: Into<Self>> Sub<T> for DimensionExpr {
     type Output = Self;
 
-    fn sub(self, rhs: Self) -> Self {
-        Self::binary(Arithmetic::Subtract, self, rhs)
+    fn sub(self, rhs: T) -> Self {
+        Self::binary(Arithmetic::Subtract, self, rhs.into())
     }
 }
 
-impl Mul for DimensionExpr {
+impl<T: Into<Self>> Mul<T> for DimensionExpr {
     type Output = Self;
 
-    fn mul(self, rhs: Self) -> Self {
-        Self::binary(Arithmetic::Multiply, self, rhs)
+    fn mul(self, rhs: T) -> Self {
+        Self::binary(Arithmetic::Multiply, self, rhs.into())
     }
 }
 
-impl Div for DimensionExpr {
+impl<T: Into<Self>> Div<T> for DimensionExpr {
     type Output = Self;
 
-    fn div(self, rhs: Self) -> Self {
-        Self::binary(Arithmetic::Divide, self, rhs)
+    fn div(self, rhs: T) -> Self {
+        Self::binary(Arithmetic::Divide, self, rhs.into())
     }
 }
 

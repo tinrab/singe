@@ -114,6 +114,12 @@ fn export_imported(
     source: String,
     task: Option<Task>,
 ) -> Result<FileExported> {
+    if let Some(name) = options.shapes.ranges.keys().next() {
+        return Err(Error::unsupported(format!(
+            "a program whose dimension {name} has a range, since a program's steps are fixed; give it sizes with --dim"
+        )));
+    }
+
     let imported = import(path, &options.shapes, options.device)?;
     let mut export = CudaExport::new(options.architecture)
         .with_fusion(options.fusion)

@@ -52,6 +52,12 @@ impl GraphPrepareOptions {
         self.numerics.precision
     }
 
+    #[must_use]
+    pub fn with_convolution_precision(mut self, precision: ComputePrecision) -> Self {
+        self.numerics.cudnn_precision = precision;
+        self
+    }
+
     /// Sets the requested determinism policy.
     #[must_use]
     pub fn with_determinism(mut self, determinism: Determinism) -> Self {

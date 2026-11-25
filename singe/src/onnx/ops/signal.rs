@@ -94,7 +94,8 @@ fn constant(
     data_type: DataType,
 ) -> Result<()> {
     let tensor = Tensor::from_vec(importer.options().device, shape, values)?.cast(data_type)?;
-    register_constant_tensor(importer, node, &tensor)
+    register_constant_tensor(importer, node, &tensor)?;
+    Ok(())
 }
 
 pub fn lower_window(importer: &mut Importer, node: &Node, window: OnnxWindow) -> Result<()> {

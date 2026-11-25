@@ -15,9 +15,9 @@ pub use self::{
         zero_point_initializer,
     },
     shape::{
-        axes_from_attribute_or_input, expand_output_shape, normalize_shape_bound,
-        normalize_slice_index, normalized_axes, normalized_unsqueeze_axes, onnx_padding,
-        padded_shape, shape_from_static_dimensions, shape_input_values, validate_permutation,
+        axes_from_attribute_or_input, expand_output_shape, normalize_shape_bound, normalized_axes,
+        normalized_unsqueeze_axes, onnx_padding, padded_shape, shape_from_static_dimensions,
+        shape_input_expressions, shape_input_values, validate_permutation,
     },
     validation::{expect_input_count, expect_input_range, expect_outputs, optional_input},
 };

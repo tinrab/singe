@@ -1,3 +1,14 @@
+// Grows the step's one workspace to `needed` bytes, which leaves the plans planned before it room enough.
+static cudaError_t singe_cudnn_workspace(void** workspace, int64_t* bytes, int64_t needed) {
+    if (needed <= *bytes) return cudaSuccess;
+    if (*workspace != nullptr) cudaFree(*workspace);
+    *workspace = nullptr;
+    *bytes = 0;
+    const cudaError_t status = cudaMalloc(workspace, static_cast<size_t>(needed));
+    if (status == cudaSuccess) *bytes = needed;
+    return status;
+}
+
 static cudnnStatus_t singe_cudnn_tensor(cudnnBackendDescriptor_t* tensor, int64_t uid, cudnnDataType_t type, int rank, const int64_t* dimensions, const int64_t* strides, int64_t alignment, bool is_virtual, cudnnBackendDescriptor_t ragged = nullptr, bool by_value = false) {
     cudnnStatus_t status = cudnnBackendCreateDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR, tensor);
     if (status != CUDNN_STATUS_SUCCESS) return status;

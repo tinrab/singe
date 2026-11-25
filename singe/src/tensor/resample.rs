@@ -1,9 +1,9 @@
 use crate::{
-    backend::registry::{Operation, OperationAttributes},
+    backend::registry::{Operation, OperationAttributes, ResizeAttributes},
     data_type::DataType,
     dispatch::call_one,
     error::{Error, Result},
-    graph::capture,
+    graph::{DimensionExpr, SymbolicAttributes, capture},
     shape::Shape,
     tensor::{Tensor, TensorDataType},
 };
@@ -116,9 +116,45 @@ impl Tensor {
         size: (i64, i64),
         interpolation: impl Into<Interpolation>,
     ) -> Result<Self> {
+        call_one(
+            Operation::Resize,
+            OperationAttributes::Resize(ResizeAttributes {
+                size,
+                interpolation: interpolation.into(),
+            }),
+            &[self],
+        )
+    }
+
+    // Resamples the last two axes to `size`, which may depend on [`Self::dimension`], so a captured program's resize follows its run-time shapes.
+    pub fn interpolate_with(
+        &self,
+        size: (DimensionExpr, DimensionExpr),
+        interpolation: impl Into<Interpolation>,
+    ) -> Result<Self> {
         let interpolation = interpolation.into();
-        self.resampled(-2, size.0, interpolation)?
-            .resampled(-1, size.1, interpolation)
+        let (height, width) = size;
+        let output = self.interpolate(
+            (
+                capture::evaluate_dimension(&height)?,
+                capture::evaluate_dimension(&width)?,
+            ),
+            interpolation,
+        )?;
+        capture::record_attributes(
+            &output,
+            &SymbolicAttributes::Resize {
+                size: [height, width],
+                interpolation,
+            },
+        )?;
+        Ok(output)
+    }
+
+    // The decomposition of `Operation::Resize`, along the height and then the width.
+    pub(crate) fn resampled(&self, size: (i64, i64), interpolation: Interpolation) -> Result<Self> {
+        self.resampled_axis(-2, size.0, interpolation)?
+            .resampled_axis(-1, size.1, interpolation)
     }
 
     // Takes the maximum of the last axis's windows, divided as `adaptive_avg_pool1d` divides them.
@@ -260,7 +296,7 @@ impl Tensor {
         Self::concat(&windows, dim)
     }
 
-    fn resampled(&self, dim: i64, size: i64, interpolation: Interpolation) -> Result<Self> {
+    fn resampled_axis(&self, dim: i64, size: i64, interpolation: Interpolation) -> Result<Self> {
         let extent = self.extent(dim)?;
         if size <= 0 || extent <= 0 {
             return Err(Error::invalid_argument(

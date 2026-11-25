@@ -8,7 +8,7 @@ impl Graph {
         self.output_names.get(index).and_then(Option::as_deref)
     }
 
-    /// Returns the symbolic shape values, reshape expressions, and constraints that compilation resolves.
+    /// Returns the symbolic shape values, node attributes, and constraints that compilation resolves.
     #[cfg(feature = "onnx")]
     pub(crate) fn shape_program(&self) -> &ShapeProgram {
         &self.shape_program

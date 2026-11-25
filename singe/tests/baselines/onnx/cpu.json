@@ -1344,6 +1344,24 @@
     "compiled": true
   },
   {
+    "name": "Range_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Range_27",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Range_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
     "name": "Reciprocal_13",
     "importable": true,
     "eager": true,
@@ -1603,6 +1621,30 @@
   },
   {
     "name": "Reshape_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Resize_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Resize_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Resize_19",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Resize_28",
     "importable": true,
     "eager": true,
     "compiled": true

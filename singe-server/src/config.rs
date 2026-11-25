@@ -12,6 +12,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 use singe::{DataType, Device};
 use singe_model::{
     Source,
+    function::DimensionRange,
     tune::{TuneLevel, TuneSettings, Tuning},
 };
 use toml::de::Error as TomlError;
@@ -79,6 +80,9 @@ pub struct ModelConfig {
     pub processor: Option<String>,
     #[serde(default)]
     pub dims: BTreeMap<String, Vec<i64>>,
+    /// Named dimensions that follow each request's size, as `height = { min = 224, max = 1344 }`.
+    #[serde(default)]
+    pub ranges: BTreeMap<String, DimensionRange>,
     #[serde(default)]
     pub inputs: BTreeMap<String, Vec<i64>>,
     #[serde(default)]
@@ -145,6 +149,7 @@ impl ModelConfig {
             file: None,
             processor: None,
             dims: BTreeMap::new(),
+            ranges: BTreeMap::new(),
             inputs: BTreeMap::new(),
             tune: TuneConfig::default(),
             name: None,
@@ -194,6 +199,7 @@ impl ModelConfig {
                 "program and file",
             ),
             ("dims", !self.dims.is_empty() && !file, "file"),
+            ("ranges", !self.ranges.is_empty() && !file, "file"),
             ("inputs", !self.inputs.is_empty() && !file, "file"),
             ("tune", self.tune != TuneConfig::default() && !file, "file"),
             (

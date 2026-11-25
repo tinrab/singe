@@ -12,6 +12,7 @@ use singe::{
     dispatch::call_one,
     graph::{CaptureBindings, Graph, GraphInputSpec, GraphPrepareOptions, GraphProgram},
     onnx::{self, Error},
+    tensor::InterpolateMode,
     value::ValueSpec,
 };
 
@@ -77,7 +78,7 @@ fn record_export(name: &str, bytes: &[u8], cases: &Value) {
 }
 
 #[test]
-fn test_dynamic_squeeze_exports_only_invariant_singleton_status() {
+fn test_dynamic_shapes_export_with_their_run_time_sizes() {
     for singleton in [false, true] {
         let (representative, min, max, axis) = if singleton {
             (2, Some(1), Some(4), 1)
@@ -135,6 +136,71 @@ fn test_dynamic_squeeze_exports_only_invariant_singleton_status() {
             &json!(cases),
         );
     }
+
+    // Slices, resizes, ranges, expansions, and dimension vectors sized by the run-time height and width export as ONNX shape arithmetic.
+    let spec = GraphInputSpec::new(ValueSpec::new(
+        DataType::F32,
+        Shape::create([1, 2, 3, 4]).unwrap(),
+    ))
+    .with_dimension(2, "height", Some(2), None)
+    .unwrap()
+    .with_dimension(3, "width", Some(2), None)
+    .unwrap();
+    let program = Graph::build([("x", spec)], CaptureBindings::new(), |inputs| {
+        let input = &inputs[0];
+        let device = input.device();
+        let (height, width) = (input.dimension(2)?, input.dimension(3)?);
+        let rows = height.clone() * 2;
+        let resized = input
+            .narrow_with(3, 1_i64, width.clone() - 1)?
+            .interpolate_with((rows.clone(), width.clone()), InterpolateMode::Bicubic)?;
+        let columns = Tensor::range(device, 0_i64, width.clone())?
+            .cast(DataType::F32)?
+            .unsqueeze(0)?
+            .expand_with(&[rows, width.clone()])?;
+        let width = Tensor::from_dimensions(device, &[height, width])?
+            .narrow(0, 1, 1)?
+            .cast(DataType::F32)?;
+        Ok(vec![resized.add(&columns)?.add(&width)?])
+    })
+    .unwrap()
+    .with_output_names(["y"])
+    .unwrap()
+    .program()
+    .unwrap();
+    let state = program.bind_state(&HashMap::new()).unwrap();
+    let bytes = onnx::export(&program, &state).unwrap();
+    let imported = OnnxModel::from_reader(bytes.as_slice(), OnnxOptions::new()).unwrap();
+    let mut native = program
+        .prepare(&state, GraphPrepareOptions::new(Device::Cpu))
+        .unwrap();
+    let mut cases = Vec::new();
+    for (height, width) in [(3, 4), (5, 7), (2, 2)] {
+        let shape = [1, 2, height, width];
+        let values = (0..2 * height * width)
+            .map(|value| (value as f32 * 0.7).sin())
+            .collect::<Vec<_>>();
+        let inputs = HashMap::from([(
+            "x".into(),
+            Tensor::from_vec(Device::Cpu, Shape::create(shape).unwrap(), values.clone()).unwrap(),
+        )]);
+        let expected = native.run(&inputs).unwrap().remove(0);
+        let output = imported.run_ordered(&inputs).unwrap().remove(0);
+        let output_shape = [1, 2, 2 * height, width];
+        assert_eq!(expected.shape().dimensions(), output_shape);
+        assert_eq!(output.shape().dimensions(), output_shape);
+        let expected = expected.to_vec::<f32>().unwrap();
+        for (output, expected) in output.to_vec::<f32>().unwrap().iter().zip(&expected) {
+            assert!((output - expected).abs() < 1e-5, "{height}x{width}");
+        }
+        cases.push(json!({
+            "input_shape": shape,
+            "input": values,
+            "output_shape": output_shape,
+            "output": expected,
+        }));
+    }
+    record_export("sized_dynamic", &bytes, &json!(cases));
 }
 
 #[test]

@@ -14,6 +14,7 @@ use crate::{
     layout::Layout,
     scalar::Scalar,
     shape::Shape,
+    tensor::Interpolation,
 };
 
 operation_attributes! {
@@ -88,6 +89,8 @@ operation_attributes! {
         Strided(StridedAttributes),
         /// Random sampling parameters.
         Random(RandomAttributes),
+        // Resized extents of the last two axes and how output points blend input points.
+        Resize(ResizeAttributes),
         /// Scalar attributes of a custom operation, in the order its kernels read them.
         Custom(Vec<Scalar>),
     }
@@ -409,6 +412,15 @@ attribute_struct! {
 }
 
 attribute_struct! {
+    // Output extents of the last two axes, as `Tensor::interpolate` takes them, and how output points blend input points.
+    #[derive(Debug, Clone, Copy)]
+    pub struct ResizeAttributes {
+        pub size: (i64, i64),
+        pub interpolation: Interpolation,
+    }
+}
+
+attribute_struct! {
     /// Clamp range.
 
     #[derive(Debug, Clone, Copy)]
@@ -452,6 +464,7 @@ attribute_conversions!(
     IndexPut(IndexPutAttributes),
     Strided(StridedAttributes),
     Random(RandomAttributes),
+    Resize(ResizeAttributes),
 );
 
 /// Generates accessors that borrow the attributes of one variant.
@@ -497,6 +510,8 @@ borrowed_accessors! {
     topk => TopK: TopKAttributes,
     /// Returns the pad attributes.
     pad => Pad: PadAttributes,
+    /// Returns the resize attributes.
+    resize => Resize: ResizeAttributes,
     /// Returns the transposed dimensions.
     transpose => Transpose: TransposeAttributes,
     /// Returns the permutation order.

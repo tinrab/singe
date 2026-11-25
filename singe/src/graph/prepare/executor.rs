@@ -461,8 +461,8 @@ impl GraphExecutor {
         if !shapes.is_empty() {
             emit!(
                 text,
-                "runtime shape program: {} reshape expressions, {} integer values, {} annotated values\nshape specialization: exact, metadata only",
-                shapes.reshapes.len(),
+                "runtime shape program: {} symbolic attributes, {} integer values, {} annotated values\nshape specialization: exact, metadata only",
+                shapes.attributes.len(),
                 shapes.values.len(),
                 shapes.constraints.len()
             );

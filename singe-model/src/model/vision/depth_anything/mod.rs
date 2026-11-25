@@ -5,12 +5,13 @@ mod transformers;
 use serde::{Deserialize, Serialize};
 use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
+    graph::DimensionExpr,
     nn::{Activation, Conv2d, ConvTranspose2d, ConvTransposeConfig, Layer, ModelState},
     tensor::{InterpolateMode, Interpolation},
 };
 
 use crate::{
-    assembly::{VisionTowerConfig, same_2d, spatial, to_map},
+    assembly::{VisionTowerConfig, same_2d, spatial, spatial_dimensions, to_map},
     error::Result,
     format::Loader,
     head::{Boxed, DepthEstimator, HeadLoader},
@@ -143,28 +144,37 @@ impl Fusion {
         &self,
         hidden: &Tensor,
         skip: Option<&Tensor>,
-        size: Option<(i64, i64)>,
+        size: Option<(DimensionExpr, DimensionExpr)>,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let mut hidden = hidden.clone();
         if let Some(skip) = skip {
+            // Each fusion before resizes to the size of the map it adds next, so the sizes differ only in how the program was built.
             let skip = if spatial(skip)? == spatial(&hidden)? {
                 skip.clone()
             } else {
-                bilinear(skip, spatial(&hidden)?, false)?
+                bilinear(skip, spatial_dimensions(&hidden)?, false)?
             };
             hidden = hidden.add(&skip.apply(&self.residual, state)?)?;
         }
 
         let hidden = hidden.apply(&self.refine, state)?;
-        let (height, width) = spatial(&hidden)?;
-        let size = size.unwrap_or((height * 2, width * 2));
+        let size = if let Some(size) = size {
+            size
+        } else {
+            let (height, width) = spatial_dimensions(&hidden)?;
+            (height * 2, width * 2)
+        };
         bilinear(&hidden, size, true)?.apply(&self.projection, state)
     }
 }
 
-fn bilinear(input: &Tensor, size: (i64, i64), align_corners: bool) -> SingeResult<Tensor> {
-    input.interpolate(
+fn bilinear(
+    input: &Tensor,
+    size: (DimensionExpr, DimensionExpr),
+    align_corners: bool,
+) -> SingeResult<Tensor> {
+    input.interpolate_with(
         size,
         Interpolation::new(InterpolateMode::Bilinear).with_align_corners(align_corners),
     )
@@ -237,7 +247,7 @@ impl DepthAnythingLayers {
 
 impl Layer for DepthAnythingLayers {
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let (height, width) = spatial(input)?;
+        let (height, width) = spatial_dimensions(input)?;
         let (rows, columns) = (height / self.patch_size, width / self.patch_size);
         let features = self.backbone.features(input, &self.stages, state)?;
         let maps = features
@@ -245,10 +255,12 @@ impl Layer for DepthAnythingLayers {
             .zip(&self.reassemble)
             .zip(&self.convolutions)
             .map(|((hidden, reassemble), convolution)| {
-                let &[_, tokens, _] = hidden.shape().dimensions() else {
+                if hidden.shape().rank() != 3 {
                     return Err(SingeError::invalid_argument("backbone features"));
-                };
-                to_map(&hidden.narrow(1, 1, tokens - 1)?, (rows, columns))?
+                }
+
+                let patches = hidden.narrow_with(1, 1_i64, hidden.dimension(1)? - 1)?;
+                to_map(&patches, (rows.clone(), columns.clone()))?
                     .apply(reassemble, state)?
                     .apply(convolution, state)
             })
@@ -258,7 +270,7 @@ impl Layer for DepthAnythingLayers {
         let mut fused: Option<Tensor> = None;
         for (index, (map, fusion)) in maps.iter().rev().zip(&self.fusions).enumerate() {
             let size = match maps.len().checked_sub(index + 2) {
-                Some(next) => Some(spatial(&maps[next])?),
+                Some(next) => Some(spatial_dimensions(&maps[next])?),
                 None => None,
             };
             fused = Some(match &fused {

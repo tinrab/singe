@@ -2,7 +2,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::{
     backend::registry::attributes::PackedFormat, data_type::DataType, device::Device,
-    scalar::Scalar, shape::Shape,
+    scalar::Scalar, shape::Shape, tensor::Interpolation,
 };
 
 /// Equality and hashing that compare floating values by their bits.
@@ -41,7 +41,8 @@ exact_bit_hash!(
     DataType,
     Device,
     Shape,
-    PackedFormat
+    PackedFormat,
+    Interpolation
 );
 
 impl BitHash for f32 {

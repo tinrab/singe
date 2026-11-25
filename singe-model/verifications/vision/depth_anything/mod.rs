@@ -6,5 +6,20 @@ use crate::support::Session;
 
 pub fn verify(session: &mut Session) {
     session.check::<DepthEstimationPipeline>("depth");
-    session.check_onnx_at("depth", &[1, 3, 518, 518]);
+    session.check_onnx("depth");
+    session.check_served::<DepthEstimationPipeline>(
+        "depth",
+        &[("batch_size", 1)],
+        &[("height", 224), ("width", 224)],
+    );
+    // A step for each image's processed size, since a program's steps are fixed.
+    session.check_cuda::<DepthEstimationPipeline>(
+        "depth",
+        &[
+            ("batch_size", 1),
+            ("height", 518),
+            ("width", 686),
+            ("width", 322),
+        ],
+    );
 }

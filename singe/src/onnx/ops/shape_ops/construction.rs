@@ -2,15 +2,15 @@ use singe_onnx::Node;
 
 use crate::{
     data_type::DataType,
-    graph::{DimensionExpr, ReshapeExpression, ShapeValue, node::NodeKind},
+    graph::{DimensionExpr, ShapeValue, SymbolicAttributes, node::NodeKind},
     onnx::{
         attributes::Attributes,
         error::{Error, Result},
         importer::{ImportedValue, Importer},
         ops::{
             expand_output_shape, expect_input_count, expect_input_range, expect_outputs,
-            normalize_shape_bound, register_node_outputs, shape_input_values,
-            shape_ops::onnx_dimension_to_usize,
+            normalize_shape_bound, register_node_outputs, shape_input_expressions,
+            shape_input_values, shape_ops::onnx_dimension_to_usize,
         },
         utility::{node_label, node_name},
     },
@@ -22,8 +22,25 @@ pub fn lower_expand(importer: &mut Importer, node: &Node) -> Result<()> {
     expect_input_count(importer, node, 2)?;
     expect_outputs(importer, node, 1)?;
     let input = importer.required_input(node, 0)?;
-    let dimensions = shape_input_values(importer, node, 1, "shape")?;
-    let shape = expand_output_shape(&node_label(node), &input.shape, dimensions)?;
+    let target = shape_input_expressions(importer, node, 1, "shape")?;
+    let dimensions = importer.evaluate_dimensions(&target)?;
+    let shape = expand_output_shape(&node_label(node), &input.shape, dimensions.clone())?;
+    // ONNX broadcasts both ways, so an output axis keeps the input's extent where the target holds one or -1.
+    let rank = shape.dimensions().len();
+    let input_rank = input.shape.dimensions().len();
+    let extents = (0..rank)
+        .map(|axis| {
+            let source = (axis + input_rank).checked_sub(rank);
+            let requested = (axis + target.len())
+                .checked_sub(rank)
+                .filter(|&index| !matches!(dimensions[index], 1 | -1));
+            match (requested, source) {
+                (Some(index), _) => Ok(target[index].clone()),
+                (None, Some(source)) => importer.metadata_dimension(input.node, source),
+                (None, None) => Ok(DimensionExpr::constant(1)),
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
     let device = importer.options().device;
     let id = importer.graph().add_named_operation(
         node_name(node),
@@ -32,6 +49,13 @@ pub fn lower_expand(importer: &mut Importer, node: &Node) -> Result<()> {
         shape.clone(),
         device,
     )?;
+    if !extents.iter().all(DimensionExpr::is_constant) {
+        importer
+            .graph()
+            .shape_program
+            .attributes
+            .insert(id, SymbolicAttributes::Expand(extents));
+    }
     register_node_outputs(
         importer,
         node,
@@ -54,7 +78,7 @@ pub fn lower_reshape(importer: &mut Importer, node: &Node) -> Result<()> {
     }
 
     let mut dimensions = if let Some(value) = &tracked {
-        importer.evaluate_shape_value(value)?
+        importer.evaluate_dimensions(value.elements())?
     } else {
         shape_input_values(importer, node, 1, "shape")?
     };
@@ -101,9 +125,9 @@ pub fn lower_reshape(importer: &mut Importer, node: &Node) -> Result<()> {
         shape.clone(),
         device,
     )?;
-    importer.graph().shape_program.reshapes.insert(
+    importer.graph().shape_program.attributes.insert(
         id,
-        ReshapeExpression {
+        SymbolicAttributes::Reshape {
             dimensions: expressions,
             allow_zero,
         },

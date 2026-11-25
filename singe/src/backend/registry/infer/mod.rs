@@ -24,8 +24,8 @@ pub use self::{
     reduction::{arg_reduction, argsort, cumulative, reduction, topk},
     shape::{
         as_strided, assign, concat, expand, flatten, index, index_put, index_select, index_write,
-        pad, permute, repeat_kv, resample_linear, reshape, slice, squeeze, strided_scatter, take,
-        transpose, unsqueeze,
+        pad, permute, repeat_kv, resample_linear, reshape, resize, slice, squeeze, strided_scatter,
+        take, transpose, unsqueeze,
     },
 };
 use crate::{

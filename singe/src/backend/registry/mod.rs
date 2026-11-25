@@ -25,8 +25,8 @@ pub use self::{
         Conv2dAttributes, Conv3dAttributes, FlattenAttributes, IndexPutAttributes,
         LayerNormalizationAttributes, OperationAttributeKind, OperationAttributes, PackedFormat,
         PadAttributes, Pool2dAttributes, QuantizationAttributes, RandomAttributes,
-        ReductionAttributes, ScaledDotProductAttentionAttributes, SliceAttributes, SortAttributes,
-        StridedAttributes, TopKAttributes, TransposeAttributes,
+        ReductionAttributes, ResizeAttributes, ScaledDotProductAttentionAttributes,
+        SliceAttributes, SortAttributes, StridedAttributes, TopKAttributes, TransposeAttributes,
     },
     operation_schema::{OperationSchema, operation_schema, operation_schema_for_attributes},
     request::{

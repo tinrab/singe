@@ -5,8 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    graph::capture,
+    DataType, Error as SingeError, Result as SingeResult, Tensor,
+    graph::{DimensionExpr, capture},
     nn::{
         Activation, BatchNorm, Conv1d, Conv1dConfig, Conv2d, Conv2dConfig, Layer, LayerNorm,
         Linear, LocalAttention, Mlp, ModelState, RelativeAttention, RelativeAttentionInput,
@@ -170,7 +170,7 @@ impl ConvSubsampling {
                 "a subsampling reads features, [batch, frames, mels]",
             ));
         };
-        let Some(span) = self.span(batch, frames, features.data_type()) else {
+        let Some(span) = self.span(batch, frames, features.data_type())? else {
             return self.subsample_span(features, lengths, state);
         };
 
@@ -213,20 +213,24 @@ impl ConvSubsampling {
         self.config.factor * (self.config.kernel - 1)
     }
 
-    /// Returns the frames of each span, a multiple of the factor, or `None` when the first convolution's output over every frame fits `SUBSAMPLING_BUDGET` or one span would hold every frame.
-    fn span(&self, batch: i64, frames: i64, data_type: DataType) -> Option<i64> {
+    /// Returns the frames of each span, a multiple of the factor, or `None` when the first convolution's output over every frame fits `SUBSAMPLING_BUDGET`, one span would hold every frame, or a program with run-time axes records the subsampling.
+    fn span(&self, batch: i64, frames: i64, data_type: DataType) -> SingeResult<Option<i64>> {
+        if capture::has_run_time_axes()? {
+            return Ok(None);
+        }
+
         let config = &self.config;
         // The first convolution's output per input frame, which halves the frames.
         let per_frame = (batch * config.channels * config.strided(config.mels)) as f64
             * data_type.size_bytes() as f64
             / 2.0;
         if per_frame * frames as f64 <= SUBSAMPLING_BUDGET {
-            return None;
+            return Ok(None);
         }
 
         let fitting = (SUBSAMPLING_BUDGET / per_frame) as i64 - 2 * self.overlap();
         let span = (fitting / config.factor * config.factor).max(8 * config.factor);
-        (span < frames).then_some(span)
+        Ok((span < frames).then_some(span))
     }
 
     fn subsample_span(
@@ -294,20 +298,14 @@ impl ConvSubsampling {
 
 /// Zeroes the steps of `hidden` along `axis` from each sequence's length on, `lengths` an `I64` `[B]`.
 fn mask_steps(hidden: &Tensor, lengths: &Tensor, axis: usize) -> SingeResult<Tensor> {
-    let dimensions = hidden.shape().dimensions();
-    let steps = dimensions[axis];
-    let batch = dimensions[0];
-    let mut shape = vec![1; dimensions.len()];
-    shape[0] = batch;
-    shape[axis] = steps;
-    let positions = capture::literal(hidden.device(), |device| {
-        Tensor::arange(device, 0_i64, steps, 1)
-    })?
-    .unsqueeze(0)?;
+    let mut shape = vec![DimensionExpr::from(1_i64); hidden.shape().dimensions().len()];
+    shape[0] = hidden.dimension(0)?;
+    shape[axis] = hidden.dimension(axis)?;
+    let positions = Tensor::range(hidden.device(), 0_i64, shape[axis].clone())?.unsqueeze(0)?;
     let kept = positions
         .less(&lengths.cast(DataType::I64)?.unsqueeze(1)?)?
         .cast(hidden.data_type())?
-        .reshape(shape)?;
+        .reshape_with(&shape)?;
     hidden.mul(&kept)
 }
 
@@ -448,8 +446,7 @@ impl ConformerBlock {
     }
 
     /// Returns the largest distance its attention reads over `steps` rows.
-    #[must_use]
-    pub const fn reach(&self, steps: i64) -> i64 {
+    pub fn reach(&self, steps: i64) -> SingeResult<i64> {
         self.attention.reach(steps)
     }
 
@@ -548,19 +545,18 @@ impl ConformerEncoder {
         }
 
         let steps = hidden.shape().dimensions()[1];
-        let columns = usize::try_from(width).map_err(|_| SingeError::out_of_range("width"))?;
-        let reach = self
-            .blocks
-            .first()
-            .map_or(steps - 1, |block| block.reach(steps));
-        let positions = capture::literal(hidden.device(), |device| {
-            Tensor::from_vec(
-                device,
-                Shape::create([2 * reach + 1, width])?,
-                relative_sinusoids(reach + 1, columns),
-            )
-        })?
-        .cast(hidden.data_type())?;
+        let reach = match self.blocks.first() {
+            Some(block) => block.reach(steps)?,
+            None => steps - 1,
+        };
+        // Reaching every other row follows the rows a program runs, and a local window stays as it is.
+        let reach = if reach == steps - 1 {
+            hidden.dimension(1)? - 1
+        } else {
+            reach.into()
+        };
+        let positions =
+            relative_sinusoids(hidden.device(), reach, width)?.cast(hidden.data_type())?;
         for block in &self.blocks {
             hidden = block.forward(&hidden, &positions, lengths.as_ref(), state)?;
         }

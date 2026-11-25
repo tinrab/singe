@@ -1,5 +1,10 @@
 //! Sinusoid features of a position, as `diffusers`' timestep embedding and the audio encoders' positions compute them.
 
+use singe::{
+    DataType, Device, Result, Shape, Tensor,
+    graph::{DimensionExpr, capture},
+};
+
 /// How the frequencies are computed, as each reference computes them.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SinusoidArithmetic {
@@ -49,20 +54,21 @@ pub fn sinusoids(
     }
 }
 
-/// Returns the sinusoids of the distances `length - 1` down to `-(length - 1)`, `[2 · length - 1, width]` row-major, each a sine and a cosine at each frequency `10000^(-2i / width)` in turn, in `F32`, as Transformer-XL's and `NeMo`'s relative positions compute them.
-#[must_use]
-pub fn relative_sinusoids(length: i64, width: usize) -> Vec<f32> {
-    let frequencies = (0..width / 2)
-        .map(|index| 1.0 / 10_000_f32.powf((2 * index) as f32 / width as f32))
-        .collect::<Vec<_>>();
-    (-(length - 1)..length)
-        .rev()
-        .flat_map(|distance| {
-            let distance = distance as f32;
-            frequencies.iter().flat_map(move |frequency| {
-                let angle = distance * frequency;
-                [angle.sin(), angle.cos()]
-            })
-        })
-        .collect()
+/// Returns the sinusoids of the distances `reach` down to `-reach`, `[2 · reach + 1, width]`, each a sine and a cosine at each frequency `10000^(-2i / width)` in turn, in `F32`, as Transformer-XL's and `NeMo`'s relative positions compute them.
+/// The distances are computed on `device` from `reach`, so a program with run-time axes holds as many as its rows need.
+pub fn relative_sinusoids(device: Device, reach: DimensionExpr, width: i64) -> Result<Tensor> {
+    let half = width / 2;
+    let frequencies = capture::literal(device, |device| {
+        let values = (0..half)
+            .map(|index| 1.0 / 10_000_f32.powf((2 * index) as f32 / width as f32))
+            .collect();
+        Tensor::from_vec(device, Shape::create([1, half])?, values)
+    })?;
+    let count = reach.clone() * 2 + 1;
+    let distances = Tensor::from_dimensions(device, &[reach])?
+        .sub(&Tensor::range(device, 0_i64, count)?)?
+        .cast(DataType::F32)?
+        .unsqueeze(1)?;
+    let angles = distances.mul(&frequencies)?;
+    Tensor::stack(&[angles.sin()?, angles.cos()?], -1)?.flatten(1, 2)
 }

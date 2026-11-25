@@ -7,8 +7,8 @@ use std::f32::consts::PI;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    graph::{ComputePrecision, capture, with_convolution_precision},
+    DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    graph::{ComputePrecision, DimensionExpr, capture, with_convolution_precision},
     nn::{Activation, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, Mlp, ModelState, StateKey},
 };
 
@@ -106,39 +106,41 @@ impl DecoderBlock {
     }
 }
 
-/// Returns the sine positions of each point of a `height × width` map, `[1, H · W, features]`, as `DetrSinePositionEmbedding` with normalization computes them.
+/// Returns the sine positions of each point of `map`, `[B, C, H, W]`, as `[1, H · W, features]`, as `DetrSinePositionEmbedding` with normalization computes them.
 ///
 /// Half the features encode the point's row and half its column, each from its coordinate counted from one and scaled to (0, 2π), over 10000 to the power of each feature pair's share.
-fn sine_positions(height: i64, width: i64, features: i64, device: Device) -> SingeResult<Tensor> {
+/// They are computed from the map's height and width, so a program with run-time axes follows each image's.
+fn sine_positions(map: &Tensor, features: i64) -> SingeResult<Tensor> {
     const SIDE_OFFSET: f32 = 1e-6;
-    let scale = 2.0 * PI;
+    let device = map.device();
     let half = features / 2;
-    let periods = (0..half)
-        .map(|index| 10_000_f32.powf((2 * (index / 2)) as f32 / half as f32))
-        .collect::<Vec<_>>();
-    let encode = |coordinate: f32, out: &mut Vec<f32>| {
-        for (index, period) in periods.iter().enumerate() {
-            let angle = coordinate / period;
-            out.push(if index % 2 == 0 {
-                angle.sin()
-            } else {
-                angle.cos()
-            });
-        }
+    // Each sine and the cosine after it share a period, `10000^(2k / half)` for pair `k`.
+    let periods = capture::literal(device, |device| {
+        let values = (0..half / 2)
+            .map(|pair| 10_000_f32.powf((2 * pair) as f32 / half as f32))
+            .collect();
+        Tensor::from_vec(device, Shape::create([1, half / 2])?, values)
+    })?;
+    // `[extent, half]`: each coordinate along an axis, its sine and cosine at each period in turn.
+    let encode = |extent: DimensionExpr| -> SingeResult<Tensor> {
+        let coordinates = Tensor::range(device, 1_i64, extent.clone() + 1)?.cast(DataType::F32)?;
+        let normalizer = Tensor::from_dimensions(device, &[extent])?
+            .cast(DataType::F32)?
+            .add_scalar(f64::from(SIDE_OFFSET))?;
+        let angles = coordinates
+            .div(&normalizer)?
+            .mul_scalar(f64::from(2.0 * PI))?
+            .unsqueeze(1)?
+            .div(&periods)?;
+        Tensor::stack(&[angles.sin()?, angles.cos()?], -1)?.flatten(1, 2)
     };
-    let mut values = Vec::new();
-    for row in 0..height {
-        for column in 0..width {
-            let y = (row + 1) as f32 / (height as f32 + SIDE_OFFSET) * scale;
-            let x = (column + 1) as f32 / (width as f32 + SIDE_OFFSET) * scale;
-            encode(y, &mut values);
-            encode(x, &mut values);
-        }
-    }
-
-    // A constant of the map's size, which a captured program holds as a literal.
-    let shape = Shape::create([1, height * width, half * 2])?;
-    capture::literal(device, |device| Tensor::from_vec(device, shape, values))
+    let (height, width) = (map.dimension(2)?, map.dimension(3)?);
+    let grid = [height.clone(), width.clone(), half.into()];
+    let rows = encode(height)?.unsqueeze(1)?.expand_with(&grid)?;
+    let columns = encode(width)?.unsqueeze(0)?.expand_with(&grid)?;
+    Tensor::concat(&[rows, columns], 2)?
+        .flatten(0, 1)?
+        .unsqueeze(0)
 }
 
 /// DETR and its heads: from images to each query's label scores and box, `[B, Q, labels + 1 + 4]`.
@@ -205,12 +207,10 @@ impl Layer for DetrLayers {
                 .apply(&self.backbone, state)?
                 .apply(&self.projection, state)
         })?;
-        let &[batch, width, height, columns] = map.shape().dimensions() else {
+        let &[_, width, _, _] = map.shape().dimensions() else {
             return Err(SingeError::invalid_argument("DETR feature map"));
         };
-        let positions = sine_positions(height, columns, width, input.device())?
-            .cast(map.data_type())?
-            .expand(Shape::create([batch, height * columns, width])?)?;
+        let positions = sine_positions(&map, width)?.cast(map.data_type())?;
         let mut memory = to_tokens(&map)?;
         for block in &self.encoder {
             let keyed = memory.add(&positions)?;
@@ -229,9 +229,10 @@ impl Layer for DetrLayers {
         let &[count, _] = queries.shape().dimensions() else {
             return Err(SingeError::invalid_argument("DETR queries"));
         };
-        let queries = queries
-            .unsqueeze(0)?
-            .expand(Shape::create([batch, count, width])?)?;
+        let queries =
+            queries
+                .unsqueeze(0)?
+                .expand_with(&[map.dimension(0)?, count.into(), width.into()])?;
         let keys = memory.add(&positions)?;
         let mut hidden = queries.mul_scalar(0.0)?;
         for block in &self.decoder {

@@ -158,6 +158,11 @@ impl External {
     }
 
     pub fn single(&self, input: &Tensor) -> Result<Tensor> {
+        stacked(self.single_outputs(input)?)
+    }
+
+    /// Returns each output the task reads, in the order it names them, from a run of `input` as the model's one input.
+    pub fn single_outputs(&self, input: &Tensor) -> Result<Vec<Tensor>> {
         let declared = &self.interface().inputs;
         let [spec] = declared.as_slice() else {
             return Err(Error::invalid(format!(
@@ -165,10 +170,14 @@ impl External {
                 declared.len()
             )));
         };
-        self.run(vec![(spec.name.as_str(), input.clone())])
+        self.outputs(vec![(spec.name.as_str(), input.clone())])
     }
 
     fn run(&self, feeds: Vec<(&str, Tensor)>) -> Result<Tensor> {
+        stacked(self.outputs(feeds)?)
+    }
+
+    fn outputs(&self, feeds: Vec<(&str, Tensor)>) -> Result<Vec<Tensor>> {
         let declared = &self.interface().inputs;
         let feeds = feeds
             .into_iter()
@@ -176,23 +185,29 @@ impl External {
             .map(|(name, tensor)| (name.to_owned(), tensor))
             .collect::<HashMap<_, _>>();
         let mut outputs = self.function.run(&feeds, &self.narrowed)?;
-        let mut tensors = self
-            .outputs
+        self.outputs
             .iter()
             .map(|name| {
                 outputs
                     .remove(name)
                     .ok_or_else(|| Error::invalid(format!("a run without the output {name}")))
             })
-            .collect::<Result<Vec<_>>>()?;
-        if tensors.len() == 1 {
-            return Ok(tensors.remove(0));
-        }
-
-        let axis = i64::try_from(tensors[0].shape().dimensions().len())
-            .map_err(|_| SingeError::out_of_range("output rank"))?;
-        Ok(Tensor::stack(&tensors, axis)?)
+            .collect()
     }
+}
+
+/// Returns one output as it is, and several stacked along a new last axis.
+fn stacked(mut tensors: Vec<Tensor>) -> Result<Tensor> {
+    if tensors.len() == 1 {
+        return Ok(tensors.remove(0));
+    }
+
+    let Some(first) = tensors.first() else {
+        return Err(Error::invalid("a run of no outputs"));
+    };
+    let axis = i64::try_from(first.shape().dimensions().len())
+        .map_err(|_| SingeError::out_of_range("output rank"))?;
+    Ok(Tensor::stack(&tensors, axis)?)
 }
 
 pub trait ExternalHead: Sized {

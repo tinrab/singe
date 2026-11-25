@@ -1446,6 +1446,20 @@ operation_table! {
         method: none,
         onnx: None,
     },
+    // Resizes the last two axes, as `Tensor::interpolate` computes it.
+    Resize {
+        name: "resize",
+        support: DecomposedInGraphs,
+        family: Shape,
+        elementwise: None,
+        attributes: Resize,
+        operands: OperandSchema::Fixed(UNARY_OPERANDS),
+        infer: resize,
+        outputs: VALUE_OUTPUT,
+        alias: None,
+        method: none,
+        onnx: None,
+    },
     /// Selects elements of consecutive axes with broadcast index tensors, one per indexed axis.
     Index {
         name: "index",

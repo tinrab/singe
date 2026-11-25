@@ -166,6 +166,8 @@ impl Task {
                 | Self::ImageClassification
                 | Self::ImageFeatureExtraction
                 | Self::ImageSegmentation
+                | Self::ObjectDetection
+                | Self::DepthEstimation
                 | Self::AudioClassification
                 | Self::AutomaticSpeechRecognition
         )

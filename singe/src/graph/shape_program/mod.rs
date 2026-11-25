@@ -1,3 +1,4 @@
+mod attributes;
 mod constraints;
 mod value;
 
@@ -5,37 +6,32 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 #[cfg(feature = "onnx")]
 pub use self::constraints::DimensionConstraint;
-pub use self::{constraints::ValueShapeConstraint, value::ShapeValue};
+pub use self::{
+    attributes::{ResolvedAttributes, SymbolicAttributes},
+    constraints::ValueShapeConstraint,
+    value::ShapeValue,
+};
 use crate::{
     backend::registry::{OperationAttributes, OperationRequest},
     device::Device,
     error::{Error, Result},
-    graph::{DimensionExpr, Graph, ir::ValueId, outputs::GraphOutput},
-    shape::Shape,
+    graph::{DimensionExpr, Graph, capture, ir::ValueId, outputs::GraphOutput},
     tensor::Tensor,
     value::ValueSpec,
 };
 
-/// Reshape attributes expressed in the integer metadata domain.
-/// `allow_zero` follows ONNX's explicit zero-copy switch; native module shapes use true.
-#[derive(Debug, Clone)]
-pub struct ReshapeExpression {
-    pub(crate) dimensions: Vec<DimensionExpr>,
-    pub(crate) allow_zero: bool,
-}
-
-/// Symbolic shape values, reshape expressions, and shape constraints, keyed by value.
+/// Symbolic shape values, node attributes, and shape constraints, keyed by value.
 /// Axis references inside expressions hold a value index.
 #[derive(Debug, Clone, Default)]
 pub struct ShapeProgram {
-    pub(crate) reshapes: BTreeMap<ValueId, ReshapeExpression>,
+    pub(crate) attributes: BTreeMap<ValueId, SymbolicAttributes>,
     pub(crate) values: BTreeMap<ValueId, ShapeValue>,
     pub(crate) constraints: BTreeMap<ValueId, Vec<ValueShapeConstraint>>,
 }
 
 impl ShapeProgram {
     pub(crate) fn is_empty(&self) -> bool {
-        self.reshapes.is_empty() && self.values.is_empty() && self.constraints.is_empty()
+        self.attributes.is_empty() && self.values.is_empty() && self.constraints.is_empty()
     }
 
     /// Rewrites every key through `key` and every axis reference through `index`.
@@ -51,17 +47,11 @@ impl ShapeProgram {
                 .collect::<Result<Vec<_>>>()
         };
         Ok(Self {
-            reshapes: self
-                .reshapes
+            attributes: self
+                .attributes
                 .iter()
-                .map(|(id, expression)| {
-                    Ok((
-                        key(*id)?,
-                        ReshapeExpression {
-                            dimensions: dimensions(&expression.dimensions)?,
-                            allow_zero: expression.allow_zero,
-                        },
-                    ))
+                .map(|(id, attributes)| {
+                    Ok((key(*id)?, attributes.map(|dim| dim.remap(None, index))?))
                 })
                 .collect::<Result<_>>()?,
             values: self
@@ -85,7 +75,7 @@ impl ShapeProgram {
 
     /// Removes the entries whose key fails `keep`.
     pub(crate) fn retain(&mut self, keep: impl Fn(ValueId) -> bool) {
-        self.reshapes.retain(|id, _| keep(*id));
+        self.attributes.retain(|id, _| keep(*id));
         self.values.retain(|id, _| keep(*id));
         self.constraints.retain(|id, _| keep(*id));
     }
@@ -93,8 +83,8 @@ impl ShapeProgram {
     /// Returns the key indices that the expressions of `id` read through axis references.
     pub(crate) fn references(&self, id: ValueId) -> Vec<usize> {
         let mut references = Vec::new();
-        if let Some(expression) = self.reshapes.get(&id) {
-            for dim in &expression.dimensions {
+        if let Some(attributes) = self.attributes.get(&id) {
+            for dim in attributes.expressions() {
                 dim.references(&mut references);
             }
         }
@@ -113,8 +103,8 @@ impl ShapeProgram {
             program: self,
             specs: vec![None; graph.node_count()],
             visiting: vec![false; graph.node_count()],
-            reshapes: HashMap::new(),
-            values: HashMap::new(),
+            attributes: HashMap::new(),
+            constants: HashMap::new(),
         };
         for output in graph.output_projections() {
             evaluator.spec(output.node())?;
@@ -143,34 +133,27 @@ impl ShapeProgram {
                 let values = value
                     .elements()
                     .iter()
-                    .map(|dim| {
-                        dim.evaluate(&mut |source, axis| {
-                            evaluator
-                                .spec(ValueId::new(source))?
-                                .shape()
-                                .dimensions()
-                                .get(axis)
-                                .copied()
-                                .ok_or_else(|| Error::dimension_out_of_bounds("shape program axis"))
-                        })
-                    })
+                    .map(|dim| dim.evaluate(&mut |source, axis| evaluator.axis(source, axis)))
                     .collect::<Result<Vec<_>>>()
                     .map_err(|error| error.with_graph_source(location))?;
-                evaluator.values.insert(id, (value.shape()?, values));
+                evaluator
+                    .constants
+                    .insert(id, Tensor::from_vec(Device::Cpu, value.shape()?, values)?);
             } else {
                 pending.extend(graph.required_node(id)?.inputs());
             }
         }
         Ok(ResolvedShapes {
-            reshapes: evaluator.reshapes,
-            values: evaluator.values,
+            attributes: evaluator.attributes,
+            constants: evaluator.constants,
         })
     }
 }
 
+// Each operation's concrete attributes, and each constant's host values, at one set of input shapes.
 struct ResolvedShapes {
-    reshapes: HashMap<ValueId, Shape>,
-    values: HashMap<ValueId, (Shape, Vec<i64>)>,
+    attributes: HashMap<ValueId, OperationAttributes>,
+    constants: HashMap<ValueId, Tensor>,
 }
 
 struct Evaluator<'a> {
@@ -178,8 +161,8 @@ struct Evaluator<'a> {
     program: &'a ShapeProgram,
     specs: Vec<Option<ValueSpec>>,
     visiting: Vec<bool>,
-    reshapes: HashMap<ValueId, Shape>,
-    values: HashMap<ValueId, (Shape, Vec<i64>)>,
+    attributes: HashMap<ValueId, OperationAttributes>,
+    constants: HashMap<ValueId, Tensor>,
 }
 
 impl Evaluator<'_> {
@@ -196,71 +179,90 @@ impl Evaluator<'_> {
         self.visiting[id.index()] = true;
         let spec = if let Some(value) = self.program.values.get(&id).cloned() {
             value.spec()?
-        } else if node.input_metadata().is_some() || node.constant_tensor(0).is_some() {
-            node.output_spec()
-        } else {
-            let operation = node
-                .operation()
-                .ok_or_else(|| Error::missing_node("spec"))?;
+        } else if let Some(symbolic) = self.program.attributes.get(&id).cloned() {
             let inputs = node
                 .inputs()
                 .iter()
                 .map(|&input| self.spec(input))
                 .collect::<Result<Vec<_>>>()?;
-            let attributes = if let Some(expression) = self.program.reshapes.get(&id).cloned() {
-                let mut dimensions =
-                    expression
-                        .dimensions
-                        .iter()
-                        .map(|dim| {
-                            dim.evaluate(&mut |source, axis| {
-                                let spec = self.spec(ValueId::new(source))?;
-                                spec.shape().dimensions().get(axis).copied().ok_or_else(|| {
-                                    Error::dimension_out_of_bounds("shape program axis")
-                                })
-                            })
-                        })
-                        .collect::<Result<Vec<_>>>()
-                        .map_err(|error| error.with_graph_source(node.source_location()))?;
-                let source = inputs.first().ok_or_else(|| Error::missing_input("spec"))?;
-                if !expression.allow_zero {
-                    for (axis, dim) in dimensions.iter_mut().enumerate() {
-                        if *dim == 0 {
-                            *dim = *source.shape().dimensions().get(axis).ok_or_else(|| {
-                                Error::dimension_out_of_bounds("shape program axis")
-                            })?;
-                        }
-                    }
-                } else if dimensions.contains(&0) && dimensions.contains(&-1) {
-                    return Err(Error::invalid_argument(
-                        "reshape zero dimensions cannot be combined with inference",
-                    ));
+            let resolved = symbolic
+                .resolve(inputs.first().map(ValueSpec::shape), |dim| {
+                    dim.evaluate(&mut |source, axis| self.axis(source, axis))
+                })
+                .map_err(|error| error.with_graph_source(node.source_location()))?;
+            match resolved {
+                ResolvedAttributes::Constant(tensor) => {
+                    let spec = ValueSpec::new(tensor.data_type(), tensor.shape().clone());
+                    self.constants.insert(id, tensor);
+                    spec
                 }
-
-                let shape = source
-                    .shape()
-                    .reshape(dimensions)
-                    .map_err(|error| error.with_graph_source(node.source_location()))?;
-                self.reshapes.insert(id, shape.clone());
-                OperationAttributes::Shape(shape)
-            } else {
-                node.attributes()
-            };
-            OperationRequest::new(operation, attributes, inputs)
-                .infer()
-                .map_err(|error| error.with_graph_source(node.source_location()))?
-                .outputs()
-                .first()
-                .cloned()
-                .ok_or_else(|| Error::missing_output("spec"))?
+                ResolvedAttributes::Operation(attributes) => {
+                    self.attributes.insert(id, attributes.clone());
+                    self.infer(id, attributes, inputs)?
+                }
+            }
+        } else if node.input_metadata().is_some() || node.constant_tensor(0).is_some() {
+            node.output_spec()
+        } else {
+            let inputs = node
+                .inputs()
+                .iter()
+                .map(|&input| self.spec(input))
+                .collect::<Result<Vec<_>>>()?;
+            self.infer(id, node.attributes(), inputs)?
         };
         self.visiting[id.index()] = false;
         self.specs[id.index()] = Some(spec.clone());
         Ok(spec)
     }
+
+    fn axis(&mut self, source: usize, axis: usize) -> Result<i64> {
+        self.spec(ValueId::new(source))?
+            .shape()
+            .dimensions()
+            .get(axis)
+            .copied()
+            .ok_or_else(|| Error::dimension_out_of_bounds("shape program axis"))
+    }
+
+    fn infer(
+        &self,
+        id: ValueId,
+        attributes: OperationAttributes,
+        inputs: Vec<ValueSpec>,
+    ) -> Result<ValueSpec> {
+        let node = self.graph.required_node(id)?;
+        let operation = node
+            .operation()
+            .ok_or_else(|| Error::missing_node("spec"))?;
+        OperationRequest::new(operation, attributes, inputs)
+            .infer()
+            .map_err(|error| error.with_graph_source(node.source_location()))?
+            .outputs()
+            .first()
+            .cloned()
+            .ok_or_else(|| Error::missing_output("spec"))
+    }
 }
 
 impl Graph {
+    // Resolves the shape stage with each input named in `inputs` taking that tensor's metadata.
+    pub(crate) fn resolve_shape_program_at(
+        &self,
+        inputs: &HashMap<String, Tensor>,
+    ) -> Result<Self> {
+        let mut graph = self.clone();
+        graph.rewrite_nodes(|_, mut node| {
+            if let Some((name, ..)) = node.view().input_metadata()
+                && let Some(tensor) = inputs.get(name)
+            {
+                node.update_input_metadata(tensor);
+            }
+            Ok(node)
+        })?;
+        graph.resolve_shape_program()
+    }
+
     /// Resolves the shape stage entirely from logical metadata.
     /// Layout inference and materialization run afterward on the resulting concrete requests.
     pub(crate) fn resolve_shape_program(&self) -> Result<Self> {
@@ -270,18 +272,18 @@ impl Graph {
 
         let mut graph = self.clone();
         let resolved = self.shape_program.resolve(self)?;
-        for (id, shape) in resolved.reshapes {
-            let node = &graph.required_node(id)?;
-            let input = *node
-                .inputs()
-                .first()
-                .ok_or_else(|| Error::missing_input("resolve shape program"))?;
-            graph.replace_node(id, node.with_reshape_operation(input, shape))?;
+        for (id, attributes) in resolved.attributes {
+            let node = graph.required_node(id)?.with_attributes(attributes)?;
+            graph.replace_node(id, node)?;
         }
 
-        for (id, (shape, values)) in resolved.values {
-            let tensor = Tensor::from_vec(Device::Cpu, shape, values)?
-                .to_device(graph.required_value_device(id)?)?;
+        for (id, tensor) in resolved.constants {
+            let device = graph.required_value_device(id)?;
+            let tensor = if device.is_meta() {
+                capture::meta_with_value(&tensor)?
+            } else {
+                tensor.to_device(device)?
+            };
             graph.update_node(id, |node| node.replace_with_constant(tensor))?;
         }
 

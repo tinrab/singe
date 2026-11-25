@@ -6,5 +6,14 @@ use crate::support::Session;
 
 pub fn verify(session: &mut Session) {
     session.check::<ObjectDetectionPipeline>("detection");
-    session.check_onnx_at("detection", &[1, 3, 512, 512]);
+    session.check_onnx("detection");
+    session.check_served::<ObjectDetectionPipeline>(
+        "detection",
+        &[("batch_size", 1)],
+        &[("height", 224), ("width", 224)],
+    );
+    session.check_cuda::<ObjectDetectionPipeline>(
+        "detection",
+        &[("batch_size", 1), ("height", 512), ("width", 672)],
+    );
 }

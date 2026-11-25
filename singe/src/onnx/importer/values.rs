@@ -84,7 +84,7 @@ impl Importer {
             return Ok(Some(Tensor::from_vec(
                 Device::Cpu,
                 metadata.shape()?,
-                self.evaluate_shape_value(metadata)?,
+                self.evaluate_dimensions(metadata.elements())?,
             )?));
         }
 
@@ -94,6 +94,22 @@ impl Importer {
         let mut pending = vec![value.node];
         while let Some(id) = pending.pop() {
             if needed.insert(id) {
+                // A value whose attributes follow run-time axes holds the extents of the traced size, not its run-time ones.
+                if self
+                    .graph
+                    .shape_program
+                    .attributes
+                    .get(&id)
+                    .is_some_and(|attributes| {
+                        !attributes
+                            .expressions()
+                            .iter()
+                            .all(|dimension| dimension.is_constant())
+                    })
+                {
+                    return Ok(None);
+                }
+
                 if self
                     .graph
                     .shape_program

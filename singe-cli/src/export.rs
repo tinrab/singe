@@ -30,7 +30,7 @@ use singe_model::{
         onnx as onnx_export,
         rewrite::{check_rewrite, rewrite},
     },
-    function::Shapes,
+    function::{DimensionRange, Shapes},
     task::Task,
     tune::{TuneLevel, Tuning},
 };
@@ -275,10 +275,23 @@ pub fn named_shapes(
     Ok(named)
 }
 
+pub fn named_ranges(
+    values: &[(String, DimensionRange)],
+) -> Result<BTreeMap<String, DimensionRange>> {
+    let mut named = BTreeMap::new();
+    for (name, range) in values {
+        if named.insert(name.clone(), *range).is_some() {
+            bail!("--range {name} given twice");
+        }
+    }
+    Ok(named)
+}
+
 fn shapes(arguments: &ExportArguments) -> Result<Shapes> {
     Ok(Shapes {
         dimensions: named_shapes("--dim", &arguments.dims)?,
         inputs: named_shapes("--input", &arguments.inputs)?,
+        ..Shapes::default()
     })
 }
 
@@ -305,6 +318,34 @@ pub fn parse_dim(text: &str) -> Result<(String, Vec<i64>)> {
         })
         .collect::<Result<Vec<_>>>()?;
     Ok((name.to_owned(), values))
+}
+
+pub fn parse_range(text: &str) -> Result<(String, DimensionRange)> {
+    let (name, range) = text.split_once('=').with_context(|| {
+        format!("dimension range {text}, rather than NAME=MIN.. or NAME=MIN..MAX")
+    })?;
+    let (min, max) = range
+        .split_once("..")
+        .with_context(|| format!("dimension range {range}, rather than MIN.. or MIN..MAX"))?;
+    let size = |text: &str| {
+        text.trim()
+            .parse::<i64>()
+            .ok()
+            .filter(|&size| size > 0)
+            .with_context(|| format!("dimension size {text}, rather than a positive integer"))
+    };
+    let range = DimensionRange {
+        min: size(min)?,
+        max: if max.trim().is_empty() {
+            None
+        } else {
+            Some(size(max)?)
+        },
+    };
+    if range.max.is_some_and(|max| max < range.min) {
+        bail!("dimension range {range}, whose end precedes its start");
+    }
+    Ok((name.to_owned(), range))
 }
 
 pub fn parse_input(text: &str) -> Result<(String, Vec<i64>)> {

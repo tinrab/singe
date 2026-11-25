@@ -1,3 +1,5 @@
+use std::array;
+
 use singe_onnx::proto::onnx::AttributeProto;
 
 use crate::{
@@ -5,14 +7,14 @@ use crate::{
         registry::{
             BatchNormalizationAttributes, ClampAttributes, Conv2dAttributes, Conv3dAttributes,
             FlattenAttributes, LayerNormalizationAttributes, Operation, OperationAttributes,
-            PadAttributes, Pool2dAttributes, ReductionAttributes, SliceAttributes,
-            StridedAttributes, TopKAttributes, TransposeAttributes,
+            PadAttributes, Pool2dAttributes, ReductionAttributes, ResizeAttributes,
+            SliceAttributes, StridedAttributes, TopKAttributes, TransposeAttributes,
         },
         spec::reduction_problem,
     },
     data_type::DataType,
     graph::{
-        DimensionExpr,
+        DimensionExpr, SymbolicAttributes,
         ir::{OperationNode, ValueId},
     },
     onnx::{
@@ -27,6 +29,8 @@ use crate::{
         Shape,
         transform::{normalize_dim_usize, transpose_order},
     },
+    tensor::{InterpolateMode, Interpolation},
+    utility::to_i64,
 };
 
 // What exporting one graph operation starts from.
@@ -106,6 +110,7 @@ impl Exporter<'_> {
             (Op::ArgMax | Op::ArgMin, Attr::Dimension(dim)) => self.arg_reduction(op, dim)?,
             (Op::Cumsum | Op::Cumprod, Attr::Dimension(dim)) => self.cumulative(op, dim)?,
             (Op::ResampleLinear, Attr::Dimension(dim)) => self.resample_linear(op, dim)?,
+            (Op::Resize, Attr::Resize(resize)) => self.resize(op, resize)?,
             (Op::TopKValues | Op::TopKIndices, Attr::TopK(topk)) => self.topk_result(op, topk)?,
             (Op::Rfft, Attr::None) => self.rfft(op)?,
             (Op::Irfft, Attr::Length(length)) => self.irfft(op, length)?,
@@ -484,25 +489,21 @@ impl Exporter<'_> {
             output,
             ..
         } = op;
-        let (dimensions, allow_zero) = self
-            .source
-            .shape_program()
-            .reshapes
-            .get(&value)
-            .map_or_else(
-                || {
-                    (
-                        shape
-                            .dimensions()
-                            .iter()
-                            .copied()
-                            .map(DimensionExpr::constant)
-                            .collect(),
-                        true,
-                    )
-                },
-                |expression| (expression.dimensions.clone(), expression.allow_zero),
-            );
+        let (dimensions, allow_zero) = match self.source.shape_program().attributes.get(&value) {
+            Some(SymbolicAttributes::Reshape {
+                dimensions,
+                allow_zero,
+            }) => (dimensions.clone(), *allow_zero),
+            _ => (
+                shape
+                    .dimensions()
+                    .iter()
+                    .copied()
+                    .map(DimensionExpr::constant)
+                    .collect(),
+                true,
+            ),
+        };
         inputs.push(self.shape_vector(&dimensions)?);
         self.node(
             "Reshape",
@@ -778,15 +779,89 @@ impl Exporter<'_> {
             step,
         } = slice;
         let OperationExport {
-            mut inputs, output, ..
+            value,
+            mut inputs,
+            output,
+            ..
         } = op;
-        let end = start + (length - 1).max(0) * step + i64::from(length > 0);
-        let starts = self.integers(vec![1], &[start])?;
-        let ends = self.integers(vec![1], &[end])?;
+        let (starts, ends) = if let Some(SymbolicAttributes::Slice { start, length, .. }) =
+            self.source.shape_program().attributes.get(&value)
+        {
+            let end = start.clone() + length.clone();
+            (
+                self.shape_vector(array::from_ref(start))?,
+                self.shape_vector(&[end])?,
+            )
+        } else {
+            let end = start + (length - 1).max(0) * step + i64::from(length > 0);
+            (
+                self.integers(vec![1], &[start])?,
+                self.integers(vec![1], &[end])?,
+            )
+        };
         let axes = self.integers(vec![1], &[dim])?;
         let steps = self.integers(vec![1], &[step])?;
         inputs.extend([starts, ends, axes, steps]);
         self.node("Slice", inputs, output, vec![]);
+        Ok(())
+    }
+
+    // PyTorch's resampling as ONNX `Resize` of the last two axes.
+    fn resize(&mut self, op: OperationExport<'_>, resize: ResizeAttributes) -> Result<()> {
+        let OperationExport {
+            value,
+            mut inputs,
+            output,
+            ..
+        } = op;
+        let Interpolation {
+            mode,
+            align_corners,
+            antialias,
+        } = resize.interpolation;
+        let size = match self.source.shape_program().attributes.get(&value) {
+            Some(SymbolicAttributes::Resize { size, .. }) => size.to_vec(),
+            _ => vec![
+                DimensionExpr::constant(resize.size.0),
+                DimensionExpr::constant(resize.size.1),
+            ],
+        };
+        let sizes = self.shape_vector(&size)?;
+        inputs.extend([String::new(), String::new(), sizes]);
+        // Positive axes, which ONNX's reference evaluator resizes correctly where it misplaces negative ones.
+        let rank = to_i64(
+            self.source.required_value_shape(value)?.rank(),
+            "resize rank",
+        )?;
+        let coordinates = if align_corners {
+            "align_corners"
+        } else if mode == InterpolateMode::Nearest {
+            "asymmetric"
+        } else {
+            "pytorch_half_pixel"
+        };
+        let mut attributes = vec![
+            integers("axes", vec![rank - 2, rank - 1]),
+            string("coordinate_transformation_mode", coordinates),
+            integer("antialias", i64::from(antialias)),
+        ];
+        match mode {
+            InterpolateMode::Nearest if align_corners || antialias => {
+                return Err(unsupported(
+                    "nearest interpolation that aligns corners or antialiases",
+                ));
+            }
+            InterpolateMode::Nearest => {
+                attributes.extend([string("mode", "nearest"), string("nearest_mode", "floor")]);
+            }
+            InterpolateMode::Bilinear => attributes.push(string("mode", "linear")),
+            InterpolateMode::Bicubic => attributes.extend([
+                string("mode", "cubic"),
+                float("cubic_coeff_a", if antialias { -0.5 } else { -0.75 }),
+            ]),
+        }
+
+        self.node("Resize", inputs, output, attributes);
         Ok(())
     }
 

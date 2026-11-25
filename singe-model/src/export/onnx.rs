@@ -33,6 +33,9 @@ const SEQUENCE: i64 = 16;
 /// The samples of a clip a waveform model builds with.
 const SAMPLES: i64 = 16_000;
 
+/// The log-mel frames of a clip a spectrogram model builds with, which a subsampling by eight leaves eight rows of.
+const FRAMES: i64 = 64;
+
 /// The settings of an ONNX export.
 #[derive(Debug, Clone)]
 pub struct ExportOptions {
@@ -41,7 +44,7 @@ pub struct ExportOptions {
     /// Where the weights go: by default in `model.onnx` up to 1.5 GiB of them, and in `model.onnx_data` beside it above.
     pub weights: WeightPlacement,
     /// The shape of the model's main input when the export reads that shape alone, every axis fixed: `[batch, sequence]` for text, `[batch, 3, height, width]` for images, `[batch, samples]` for waveforms, and `[batch, frames, mels]` for spectrograms.
-    /// A model whose forward computes sizes from its input's on the host, such as one interpolating positions to each image's size, exports only this way, and its caller resizes or crops inputs to the shape.
+    /// The export then runs only at that shape, and its caller resizes or crops inputs to it.
     /// `None`, the default, keeps the batch and the length or image axes dynamic.
     pub input_shape: Option<Vec<i64>>,
 }
@@ -173,7 +176,7 @@ pub fn program(
             let model: DepthEstimator = model::load(source, load)?;
             image(
                 source,
-                model.model(),
+                model.get_model()?,
                 options,
                 &["predicted_depth"],
                 forward,
@@ -185,7 +188,7 @@ pub fn program(
             let scores = model.config().label_count()? + 1;
             image(
                 source,
-                model.model(),
+                model.get_model()?,
                 options,
                 &["logits", "pred_boxes"],
                 |layer, pixels, state| {
@@ -223,15 +226,14 @@ pub fn program(
 
             let model: CtcRecognizer = model::load(source, load)?;
             if let CtcInput::LogMel(front_end) = model.input() {
-                if options.input_shape.is_none() {
-                    return Err(Error::unsupported(
-                        "exporting parakeet as onnx with dynamic axes, since its relative attention sizes its positions and shifts by the length on the host; export it at a fixed input shape",
-                    ));
-                }
-
                 // `transformers`' Parakeet reads `input_features`, `[B, frames, mels]`, which the layers read as `[B, mels, frames]`.
                 let mels = front_end.options().mels;
-                let spec = input_spec(options, data_type, &[BATCH, SEQUENCE, mels], &[])?;
+                let spec = input_spec(
+                    options,
+                    data_type,
+                    &[BATCH, FRAMES, mels],
+                    &[(0, "batch_size"), (1, "sequence_length")],
+                )?;
                 let graph = build(
                     model.get_model()?,
                     vec![("input_features", spec)],

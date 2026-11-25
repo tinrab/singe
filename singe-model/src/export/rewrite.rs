@@ -78,7 +78,7 @@ fn rewrite_options(shapes: &Shapes) -> Result<OnnxOptions> {
         };
         dimensions.insert(name.clone(), size);
     }
-    Ok(options(&dimensions, &shapes.inputs, Device::Cpu))
+    Ok(options(&dimensions, shapes, Device::Cpu))
 }
 
 fn nodes(path: &Path) -> Result<usize> {

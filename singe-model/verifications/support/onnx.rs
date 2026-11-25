@@ -45,12 +45,7 @@ struct Feed {
     values: Vec<f64>,
 }
 
-pub fn run(
-    case: &Case,
-    snapshot: &Path,
-    directory: &Path,
-    input_shape: Option<Vec<i64>>,
-) -> Result<(bool, Vec<String>)> {
+pub fn run(case: &Case, snapshot: &Path, directory: &Path) -> Result<(bool, Vec<String>)> {
     if directory.exists() {
         fs::remove_dir_all(directory)?;
     }
@@ -58,7 +53,6 @@ pub fn run(
     let task = Task::from_id(&case.task)?;
     let options = ExportOptions {
         data_type: case.data_type,
-        input_shape,
         ..ExportOptions::default()
     };
     let (exported, state) = program(&source, task, &options)?;
@@ -176,7 +170,10 @@ fn rewrites(path: &Path) -> Result<Vec<(&'static str, Shapes)>> {
             let size = match (name.as_str(), input.name.as_str()) {
                 ("batch_size", _) => 1,
                 ("sequence_length", "input_values") => 80_000,
+                ("sequence_length", "input_features") => 400,
                 ("sequence_length", _) => 32,
+                // A multiple of 14 and 16, so patches of either size tile it.
+                ("height" | "width", "pixel_values") => 448,
                 _ => bail!("dimension {name} of {}, which no rewrite fixes", input.name),
             };
             dimensions.entry(name.clone()).or_insert_with(|| vec![size]);
@@ -189,7 +186,7 @@ fn rewrites(path: &Path) -> Result<Vec<(&'static str, Shapes)>> {
             "at fixed shapes",
             Shapes {
                 dimensions,
-                inputs: BTreeMap::new(),
+                ..Shapes::default()
             },
         ));
     }

@@ -28,8 +28,11 @@ use singe::{
 };
 use singe_model::{
     LoadOptions, Source,
-    export::cuda::file::{Build, FileExport, export_snapshot},
-    function::{Shapes, program},
+    export::{
+        cuda::file::{Build, FileExport, export_snapshot},
+        onnx::{self as onnx_export, ExportOptions},
+    },
+    function::{self, DimensionRange, Shapes, program},
     processor::base64::file_value,
     task::{self, Pipeline, Task},
     tune::{TuneLevel, TuneSettings, Tuning},
@@ -169,14 +172,16 @@ impl Session {
         self.checked(&label, name, run_exported);
     }
 
+    // Exports the case's snapshot as a CUDA program with a step per combination of `dimensions`' sizes, a dimension named more than once taking each size, and runs the case through it.
     pub fn check_cuda<R: Runner>(&mut self, name: &str, dimensions: &[(&str, i64)]) {
         let label = format!("{}/{name}/cuda", self.name);
+        let mut sizes = BTreeMap::<String, Vec<i64>>::new();
+        for &(name, size) in dimensions {
+            sizes.entry(name.to_owned()).or_default().push(size);
+        }
         let shapes = Shapes {
-            dimensions: dimensions
-                .iter()
-                .map(|&(name, size)| (name.to_owned(), vec![size]))
-                .collect(),
-            inputs: BTreeMap::new(),
+            dimensions: sizes,
+            ..Shapes::default()
         };
         self.checked(&label, name, |case, snapshot, label| {
             run_cuda::<R>(case, snapshot, label, shapes)
@@ -185,15 +190,30 @@ impl Session {
 
     pub fn check_onnx(&mut self, name: &str) {
         let label = format!("{}/{name}/onnx", self.name);
-        self.checked(&label, name, |case, snapshot, label| {
-            run_onnx(case, snapshot, label, None)
-        });
+        self.checked(&label, name, run_onnx);
     }
 
-    pub fn check_onnx_at(&mut self, name: &str, shape: &[i64]) {
-        let label = format!("{}/{name}/onnx", self.name);
+    // Exports case `name`'s snapshot as ONNX with dynamic axes, serves the file with `dimensions` fixed and `ranges` following each input from its least size up, as `singe serve --file --dim --range` does, and runs the case through it.
+    pub fn check_served<R: Runner>(
+        &mut self,
+        name: &str,
+        dimensions: &[(&str, i64)],
+        ranges: &[(&str, i64)],
+    ) {
+        let label = format!("{}/{name}/served", self.name);
+        let shapes = Shapes {
+            dimensions: dimensions
+                .iter()
+                .map(|&(name, size)| (name.to_owned(), vec![size]))
+                .collect(),
+            ranges: ranges
+                .iter()
+                .map(|&(name, min)| (name.to_owned(), DimensionRange { min, max: None }))
+                .collect(),
+            ..Shapes::default()
+        };
         self.checked(&label, name, |case, snapshot, label| {
-            run_onnx(case, snapshot, label, Some(shape.to_vec()))
+            run_served::<R>(case, snapshot, label, &shapes)
         });
     }
 
@@ -378,16 +398,38 @@ fn run_cuda<R: Runner>(
     run::<R>(case, source, label)
 }
 
-fn run_onnx(
+fn run_served<R: Runner>(
     case: &Case,
     snapshot: &Path,
     label: &str,
-    input_shape: Option<Vec<i64>>,
+    shapes: &Shapes,
 ) -> Result<Outcome> {
+    if case.task != R::TASK {
+        bail!("a {} case run as {}", case.task, R::TASK);
+    }
+
+    let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("served")
+        .join(label.replace('/', "-"));
+    if directory.exists() {
+        fs::remove_dir_all(&directory)?;
+    }
+    let source = Source::open(snapshot)?;
+    let options = ExportOptions {
+        data_type: case.data_type,
+        ..ExportOptions::default()
+    };
+    let (program, state) = onnx_export::program(&source, Task::from_id(&case.task)?, &options)?;
+    onnx_export::write(&program, &state, &directory, options.weights)?;
+    let function = function::onnx::open(&directory.join("model.onnx"), shapes, DEVICE, None)?;
+    run::<R>(case, source.with_function(function), label)
+}
+
+fn run_onnx(case: &Case, snapshot: &Path, label: &str) -> Result<Outcome> {
     let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join("onnx")
         .join(label.replace('/', "-"));
-    let (matched, details) = onnx::run(case, snapshot, &directory, input_shape)?;
+    let (matched, details) = onnx::run(case, snapshot, &directory)?;
     Ok(verdict(label, matched, &details))
 }
 

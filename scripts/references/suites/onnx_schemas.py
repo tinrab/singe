@@ -16,7 +16,7 @@ OUTPUT = ROOT
 CATALOG = "singe/src/onnx/importer/import/compatibility/schemas.rs"
 RANGES = {
     **dict.fromkeys(
-        "Abs Acos Acosh Add ArgMax ArgMin Asin Asinh Atan Atanh BatchNormalization Ceil Clip Concat Constant ConstantOfShape Conv Cos Cosh Div Dropout Equal Erf Exp Expand Flatten Floor Gather Gemm GlobalAveragePool Greater GreaterOrEqual Identity LeakyRelu Less LessOrEqual Log LogSoftmax MatMul Max MaxPool Min Mul Neg Pad Pow Reciprocal ReduceL1 ReduceL2 ReduceLogSum ReduceLogSumExp ReduceMax ReduceMean ReduceMin ReduceProd ReduceSum ReduceSumSquare Relu Reshape Shape Sigmoid Sin Sinh Slice Softmax Sqrt Squeeze Sub Tan Tanh TopK Transpose Unsqueeze Where".split(),
+        "Abs Acos Acosh Add ArgMax ArgMin Asin Asinh Atan Atanh BatchNormalization Ceil Clip Concat Constant ConstantOfShape Conv Cos Cosh Div Dropout Equal Erf Exp Expand Flatten Floor Gather Gemm GlobalAveragePool Greater GreaterOrEqual Identity LeakyRelu Less LessOrEqual Log LogSoftmax MatMul Max MaxPool Min Mul Neg Pad Pow Range Reciprocal ReduceL1 ReduceL2 ReduceLogSum ReduceLogSumExp ReduceMax ReduceMean ReduceMin ReduceProd ReduceSum ReduceSumSquare Relu Reshape Resize Shape Sigmoid Sin Sinh Slice Softmax Sqrt Squeeze Sub Tan Tanh TopK Transpose Unsqueeze Where".split(),
         (13, 28),
     ),
     **dict.fromkeys("And BitShift IsNaN Mod Not Or Round Xor".split(), (13, 28)),

@@ -4,7 +4,7 @@ use std::{f64::consts::PI, fmt::Debug, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
     nn::{Layer, Model, ModelState},
     signal::LogMelSpectrogram,
 };
@@ -17,6 +17,7 @@ use crate::{
         forward::{External, ExternalHead, Forward},
     },
     head::{Boxed, Classifier, ContrastiveEncoder, upload},
+    model::audio::parakeet,
     processor::fbank::{FilterBankOptions, SpectrogramOptions, ast_features, clap_features},
     source::Source,
 };
@@ -84,26 +85,32 @@ impl CtcRecognizer {
                 self.model.upload([1, count], samples)?
             }
             CtcInput::LogMel(front_end) => {
-                let model = self.model.get_native()?;
                 let frames = front_end.own_frames(count);
                 if frames == 0 {
                     return Ok(Vec::new());
                 }
 
-                let samples = Tensor::from_vec(
-                    model.state().device()?,
-                    Shape::create([1, count])?,
-                    samples.to_vec(),
-                )?;
+                // An external function moves and casts its inputs itself.
+                let (device, data_type) = match &self.model {
+                    Forward::Native(model) => {
+                        (model.state().device()?, model.state().floating_type()?)
+                    }
+                    Forward::External(_) => (Device::Cpu, DataType::F32),
+                };
+                let samples =
+                    Tensor::from_vec(device, Shape::create([1, count])?, samples.to_vec())?;
                 // A clip alone needs no mask past its own frames, as a transducer's does not.
                 let (features, _) = front_end.features(&samples, None)?;
-                features
-                    .narrow(2, 0, frames)?
-                    .cast(model.state().floating_type()?)?
+                let features = features.narrow(2, 0, frames)?.cast(data_type)?;
+                match &self.model {
+                    Forward::Native(_) => features,
+                    // `transformers` reads `input_features` as `[B, frames, mels]`.
+                    Forward::External(_) => features.transpose(1, 2)?.contiguous()?,
+                }
             }
         };
         let mut scores = self.model.forward(&input)?;
-        if matches!(self.model, Forward::External(_)) {
+        if let (Forward::External(_), CtcInput::Samples { .. }) = (&self.model, &self.input) {
             let frames = self.convolutions.iter().fold(count, |length, convolution| {
                 ((length - convolution.kernel).div_euclid(convolution.stride) + 1).max(0)
             });
@@ -123,6 +130,18 @@ struct CtcFields {
 
 impl ExternalHead for CtcRecognizer {
     fn external(source: &Source, function: Arc<dyn TensorFunction>) -> Result<Self> {
+        let mut model = External::create(function, &["logits"])?;
+        // Parakeet's export reads log-mel features, whose frames a step holds exactly, since its attention reads every frame.
+        if model.input("input_features").is_some() {
+            let features = parakeet::features(source)?;
+            return Ok(Self {
+                model: Forward::External(model),
+                sample_rate: features.sample_rate,
+                input: CtcInput::LogMel(LogMelSpectrogram::create(features.log_mel())?),
+                convolutions: Vec::new(),
+            });
+        }
+
         let fields: CtcFields = source.json("config.json")?;
         let (Some(kernels), Some(strides)) = (fields.conv_kernel, fields.conv_stride) else {
             return Err(Error::unsupported(
@@ -136,7 +155,6 @@ impl ExternalHead for CtcRecognizer {
         }
 
         let extractor: SampleExtractor = source.json("preprocessor_config.json")?;
-        let mut model = External::create(function, &["logits"])?;
         // Clips pad to a step along the samples' named axis, and their frames are cut back here, as `transformers` pads clips for models without an attention mask.
         let samples = model
             .input("input_values")

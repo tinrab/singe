@@ -596,9 +596,10 @@ pub fn register_kernels(builder: &mut RegistryBuilder) {
         Operation::StridedScatter,
         Kernel::single(strided_scatter_composite),
     );
-    // Every backend pads, ranks values, and multiplies quantized operands as their decompositions do.
+    // Every backend pads, resizes, ranks values, and multiplies quantized operands as their decompositions do.
     for operation in [
         Operation::Pad,
+        Operation::Resize,
         Operation::TopK,
         Operation::TopKValues,
         Operation::TopKIndices,

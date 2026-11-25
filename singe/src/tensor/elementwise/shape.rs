@@ -2,6 +2,7 @@ use crate::{
     backend::registry::{Operation, OperationAttributes, PadAttributes},
     dispatch::call_one,
     error::Result,
+    graph::{DimensionExpr, SymbolicAttributes, capture},
     shape::Shape,
     tensor::Tensor,
 };
@@ -39,5 +40,13 @@ impl Tensor {
             OperationAttributes::Shape(shape.clone()),
             &[self],
         )
+    }
+
+    // Expands to `dimensions`, which may depend on [`Self::dimension`], so a captured program's expansion follows its run-time shapes.
+    pub fn expand_with(&self, dimensions: &[DimensionExpr]) -> Result<Self> {
+        let shape = Shape::create(capture::evaluate_dimensions(dimensions)?)?;
+        let output = self.expand(shape)?;
+        capture::record_attributes(&output, &SymbolicAttributes::Expand(dimensions.to_vec()))?;
+        Ok(output)
     }
 }

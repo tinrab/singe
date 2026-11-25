@@ -25,24 +25,18 @@ pub fn hash_shape_program(graph: &Graph, hasher: &mut StableHasher) -> Result<()
         }
 
         let node = &graph.required_node(id)?;
-        if let Some(value) = graph.shape_program.values.get(&id) {
-            let mut sources = Vec::new();
-            for dim in value.elements() {
-                dim.referenced_values(&mut sources);
-            }
-
-            pending.extend(sources.into_iter().map(ValueId::new));
-        } else {
+        // A shape value reads only the axes its expressions name.
+        if !graph.shape_program.values.contains_key(&id) {
             pending.extend(node.inputs());
         }
-        if let Some(expression) = graph.shape_program.reshapes.get(&id) {
-            let mut values = Vec::new();
-            for dim in &expression.dimensions {
-                dim.referenced_values(&mut values);
-            }
 
-            pending.extend(values.into_iter().map(ValueId::new));
-        }
+        pending.extend(
+            graph
+                .shape_program
+                .references(id)
+                .into_iter()
+                .map(ValueId::new),
+        );
     }
 
     let order = graph
@@ -55,21 +49,28 @@ pub fn hash_shape_program(graph: &Graph, hasher: &mut StableHasher) -> Result<()
         .enumerate()
         .map(|(index, id)| (*id, index))
         .collect::<HashMap<_, _>>();
+    let index = |index| {
+        values
+            .get(&ValueId::new(index))
+            .copied()
+            .ok_or_else(|| Error::missing_node("hash shape program"))
+    };
     order.len().hash(hasher);
     for id in order {
         let node = &graph.required_node(id)?;
         node.output_data_type().hash(hasher);
+        let attributes = graph.shape_program.attributes.get(&id);
         if let Some(value) = graph.shape_program.values.get(&id) {
             "shape value".hash(hasher);
             value.shape()?.dimensions().hash(hasher);
             for dim in value.elements() {
-                dim.hash_with(hasher, &|index| {
-                    values
-                        .get(&ValueId::new(index))
-                        .copied()
-                        .ok_or_else(|| Error::missing_node("hash shape program"))
-                })?;
+                dim.hash_with(hasher, &index)?;
             }
+        } else if let Some(attributes) = attributes
+            && node.constant_tensor(0).is_some()
+        {
+            "symbolic literal".hash(hasher);
+            attributes.hash_with(hasher, &index)?;
         } else if let Some((name, ..)) = node.input_metadata() {
             "input".hash(hasher);
             name.hash(hasher);
@@ -89,18 +90,9 @@ pub fn hash_shape_program(graph: &Graph, hasher: &mut StableHasher) -> Result<()
                     .hash(hasher);
             }
 
-            graph.shape_program.reshapes.contains_key(&id).hash(hasher);
-            if let Some(expression) = graph.shape_program.reshapes.get(&id) {
-                expression.allow_zero.hash(hasher);
-                expression.dimensions.len().hash(hasher);
-                for dim in &expression.dimensions {
-                    dim.hash_with(hasher, &|index| {
-                        values
-                            .get(&ValueId::new(index))
-                            .copied()
-                            .ok_or_else(|| Error::missing_node("hash shape program"))
-                    })?;
-                }
+            attributes.is_some().hash(hasher);
+            if let Some(attributes) = attributes {
+                attributes.hash_with(hasher, &index)?;
             } else {
                 node.attributes().bit_hash(hasher);
             }

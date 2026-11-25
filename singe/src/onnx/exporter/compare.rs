@@ -90,8 +90,9 @@ pub fn first_divergence<S: BuildHasher>(
         }
     }
 
-    // The program may have been built on metadata, which runs no kernel.
+    // The program may have been built on metadata, which runs no kernel, and at other shapes than the inputs'.
     let (ir, order, native) = source
+        .resolve_shape_program_at(&native_inputs)?
         .placed_on(Device::Cpu)?
         .run_keeping_values(&native_inputs)?;
     for id in order {

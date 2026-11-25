@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     data_type::DataType,
     error::{Error, Result},
-    graph::capture,
+    graph::{DimensionExpr, capture},
     nn::{Layer, Linear, ModelState, StateKey},
     scalar::Scalar,
     shape::Shape,
@@ -74,17 +74,30 @@ impl RelativeAttention {
         Ok(self)
     }
 
-    #[must_use]
-    pub const fn attends_locally(&self, steps: i64) -> bool {
-        matches!(self.local, Some(local) if steps > local.above)
+    // Whether the attention reads `steps` rows through its local window.
+    // A program with run-time axes does not know its rows while it records, so it attends to every row, as `transformers` does at any length; a window at every length has no such program.
+    pub fn attends_locally(&self, steps: i64) -> Result<bool> {
+        let Some(local) = self.local else {
+            return Ok(false);
+        };
+        if !capture::has_run_time_axes()? {
+            return Ok(steps > local.above);
+        }
+
+        if local.above == 0 {
+            return Err(Error::unsupported_operation_with_details(
+                "relative attention",
+                "a local window at every length under run-time axes",
+            ));
+        }
+        Ok(false)
     }
 
-    #[must_use]
-    pub const fn reach(&self, steps: i64) -> i64 {
-        match self.local {
-            Some(local) if self.attends_locally(steps) => local.window,
+    pub fn reach(&self, steps: i64) -> Result<i64> {
+        Ok(match self.local {
+            Some(local) if self.attends_locally(steps)? => local.window,
             _ => steps - 1,
-        }
+        })
     }
 
     #[must_use]
@@ -93,13 +106,19 @@ impl RelativeAttention {
     }
 
     fn heads(&self, tensor: &Tensor) -> Result<Tensor> {
-        let &[batch, steps, _] = tensor.shape().dimensions() else {
+        if tensor.shape().rank() != 3 {
             return Err(Error::invalid_argument(
                 "relative attention reads [batch, steps, width]",
             ));
-        };
+        }
+
         tensor
-            .reshape([batch, steps, self.heads, self.head_dim])?
+            .reshape_with(&[
+                tensor.dimension(0)?,
+                tensor.dimension(1)?,
+                self.heads.into(),
+                self.head_dim.into(),
+            ])?
             .transpose(1, 2)
     }
 
@@ -109,7 +128,12 @@ impl RelativeAttention {
             .reshape([1, self.heads, 1, self.head_dim])
     }
 
-    fn chunk_rows(&self, batch: i64, steps: i64, data_type: DataType) -> i64 {
+    // The query rows each chunk of scores holds, every row when they fit `SCORE_BUDGET` or the program has run-time axes.
+    fn chunk_rows(&self, batch: i64, steps: i64, data_type: DataType) -> Result<i64> {
+        if capture::has_run_time_axes()? {
+            return Ok(steps);
+        }
+
         let bytes = |rows: i64| {
             (batch * self.heads) as f64
                 * rows as f64
@@ -117,14 +141,14 @@ impl RelativeAttention {
                 * data_type.size_bytes() as f64
         };
         if bytes(steps) <= SCORE_BUDGET {
-            return steps;
+            return Ok(steps);
         }
 
         let mut rows = CHUNK_ROWS;
         while rows + CHUNK_ROWS < steps && bytes(rows + CHUNK_ROWS) <= SCORE_BUDGET {
             rows += CHUNK_ROWS;
         }
-        rows.min(steps)
+        Ok(rows.min(steps))
     }
 }
 
@@ -266,9 +290,8 @@ impl Layer<RelativeAttentionInput<'_>> for RelativeAttention {
                 "relative attention reads [batch, steps, width]",
             ));
         };
-        let reach = self.reach(steps);
-        let distances = 2 * reach + 1;
-        if input.positions.shape().dimensions() != [distances, width] {
+        let reach = self.reach(steps)?;
+        if input.positions.shape().dimensions() != [2 * reach + 1, width] {
             return Err(Error::invalid_argument(
                 "relative attention's positions, [2 · reach + 1, width]",
             ));
@@ -278,17 +301,21 @@ impl Layer<RelativeAttentionInput<'_>> for RelativeAttention {
         let key = self.heads(&hidden.apply(&layers.key, state)?)?;
         let value = self.heads(&hidden.apply(&layers.value, state)?)?;
         // The positions' projection per head, `[1, H, D, 2R + 1]`.
-        let positions = input
-            .positions
-            .apply(&layers.positions, state)?
-            .reshape([distances, self.heads, self.head_dim])?
+        let projected = input.positions.apply(&layers.positions, state)?;
+        let positions = projected
+            .reshape_with(&[
+                projected.dimension(0)?,
+                self.heads.into(),
+                self.head_dim.into(),
+            ])?
             .permute(&[1, 2, 0])?
             .contiguous()?
             .unsqueeze(0)?;
         let content = query.add(&self.bias(&layers.content_bias, state)?)?;
         let positional = query.add(&self.bias(&layers.position_bias, state)?)?;
         let scale = 1.0 / (self.head_dim as f64).sqrt();
-        if self.attends_locally(steps) {
+        let output_shape = [hidden.dimension(0)?, hidden.dimension(1)?, width.into()];
+        if self.attends_locally(steps)? {
             let attended = attend_local(
                 &LocalInput {
                     content: &content,
@@ -303,28 +330,39 @@ impl Layer<RelativeAttentionInput<'_>> for RelativeAttention {
             )?;
             return attended
                 .transpose(1, 2)?
-                .reshape([batch, steps, width])?
+                .reshape_with(&output_shape)?
                 .apply(&layers.output, state);
         }
 
         let padding = input
             .key_lengths
-            .map(|lengths| padding_mask(lengths, steps, hidden.data_type()))
+            .map(|lengths| padding_mask(lengths, hidden.dimension(1)?, hidden.data_type()))
             .transpose()?;
-        let rows = self.chunk_rows(batch, steps, hidden.data_type());
+        let rows = self.chunk_rows(batch, steps, hidden.data_type())?;
         let mut chunks = Vec::new();
         let mut start = 0;
         while start < steps {
             let length = rows.min(steps - start);
-            // The distances the chunk's queries have to the keys, `T - 1 - i + j` for query `i` and key `j`, are the columns from `T - length - start` on.
-            let distances = positions.narrow(3, steps - length - start, length + steps - 1)?;
-            let mut scores = rel_shift(&positional.narrow(2, start, length)?.matmul(&distances)?)?
-                .mul_scalar(scale)?;
+            // The distances the chunk's queries have to the keys, `T - 1 - i + j` for query `i` and key `j`, are the columns from `T - length - start` on, every column for a chunk of every row.
+            let (distances, queries) = if length == steps {
+                (positions.clone(), positional.clone())
+            } else {
+                (
+                    positions.narrow(3, steps - length - start, length + steps - 1)?,
+                    positional.narrow(2, start, length)?,
+                )
+            };
+            let mut scores = rel_shift(&queries.matmul(&distances)?)?.mul_scalar(scale)?;
             if let Some(padding) = &padding {
                 scores = scores.add(padding)?;
             }
 
-            chunks.push(content.narrow(2, start, length)?.attend(
+            let content = if length == steps {
+                content.clone()
+            } else {
+                content.narrow(2, start, length)?
+            };
+            chunks.push(content.attend(
                 &key,
                 &value,
                 Some(&scores),
@@ -344,7 +382,7 @@ impl Layer<RelativeAttentionInput<'_>> for RelativeAttention {
         };
         attended
             .transpose(1, 2)?
-            .reshape([batch, steps, width])?
+            .reshape_with(&output_shape)?
             .apply(&layers.output, state)
     }
 }
@@ -352,38 +390,34 @@ impl Layer<RelativeAttentionInput<'_>> for RelativeAttention {
 fn rel_shift(scores: &Tensor) -> Result<Tensor> {
     let dimensions = scores.shape().dimensions().to_vec();
     let rank = dimensions.len();
-    let (&[rows, columns], outer) = (
-        &dimensions[rank.saturating_sub(2)..],
-        &dimensions[..rank.saturating_sub(2)],
-    ) else {
-        return Err(Error::invalid_argument(
-            "relative scores, [..., queries, queries + keys - 1]",
-        ));
-    };
-    if columns < rows {
+    if rank < 2 || dimensions[rank - 1] < dimensions[rank - 2] {
         return Err(Error::invalid_argument(
             "relative scores, [..., queries, queries + keys - 1]",
         ));
     }
 
-    let keys = columns - rows + 1;
+    let extents = (0..rank)
+        .map(|axis| scores.dimension(axis))
+        .collect::<Result<Vec<_>>>()?;
+    let (outer, last) = extents.split_at(rank - 2);
+    let (rows, columns) = (last[0].clone(), last[1].clone());
+    let keys = columns.clone() - rows.clone() + 1;
     let mut padding = vec![(0, 0); rank];
     padding[rank - 1] = (1, 0);
-    let shape = |last: &[i64]| -> Vec<i64> { outer.iter().chain(last).copied().collect() };
+    let shape = |last: &[DimensionExpr]| outer.iter().chain(last).cloned().collect::<Vec<_>>();
     scores
         .pad(&padding, 0.0)?
         .contiguous()?
-        .reshape(shape(&[rows * (columns + 1)]))?
-        .narrow(-1, rows, rows * columns)?
+        .reshape_with(&shape(&[rows.clone() * (columns.clone() + 1)]))?
+        .narrow_with(-1, rows.clone(), rows.clone() * columns.clone())?
         .contiguous()?
-        .reshape(shape(&[rows, columns]))?
-        .narrow(-1, 0, keys)
+        .reshape_with(&shape(&[rows, columns]))?
+        .narrow_with(-1, 0_i64, keys)
 }
 
-fn padding_mask(lengths: &Tensor, steps: i64, data_type: DataType) -> Result<Tensor> {
+fn padding_mask(lengths: &Tensor, steps: DimensionExpr, data_type: DataType) -> Result<Tensor> {
     let device = lengths.device();
-    let positions =
-        capture::literal(device, |device| Tensor::arange(device, 0_i64, steps, 1))?.unsqueeze(0)?;
+    let positions = Tensor::range(device, 0_i64, steps)?.unsqueeze(0)?;
     let kept = positions.less(&lengths.cast(DataType::I64)?.unsqueeze(1)?)?;
     let additive = |value: f64| {
         capture::literal(device, |device| {

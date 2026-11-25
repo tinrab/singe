@@ -383,16 +383,7 @@ impl GraphProgram {
     /// Called after the executor's complete signature guards.
     /// Only tensor metadata enters the shape stage; placement and state binding follow it.
     pub(crate) fn resolve_runtime_shapes(&self, inputs: &HashMap<String, Tensor>) -> Result<Graph> {
-        let mut graph = self.logical_graph().clone();
-        graph.rewrite_nodes(|_, mut node| {
-            if let Some((name, ..)) = node.view().input_metadata()
-                && let Some(tensor) = inputs.get(name)
-            {
-                node.update_input_metadata(tensor);
-            }
-            Ok(node)
-        })?;
-        graph.resolve_shape_program()
+        self.logical_graph().resolve_shape_program_at(inputs)
     }
 
     pub(crate) fn validate_state_schema(&self, state: &StateSnapshot) -> Result<()> {

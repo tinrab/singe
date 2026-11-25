@@ -7,8 +7,8 @@ use std::{
 };
 
 pub use self::session::{
-    dimension, evaluate_dimensions, is_active, record_reshape, register_constant,
-    with_active_session, with_session,
+    dimension, evaluate_dimension, evaluate_dimensions, is_active, record_attributes,
+    register_constant, with_active_session, with_session,
 };
 
 use crate::{
@@ -20,8 +20,8 @@ use crate::{
     graph::{
         CaptureBindings, CaptureInfo, CaptureOptions, DimensionExpr, Graph, GraphOperationInputs,
         GraphOperationOutput, GraphOperationRequest, GraphOutput, InputDimensionGuard,
-        capture::options::CaptureBinding, generators::GraphGenerator, ir::ValueId,
-        shape_program::ReshapeExpression,
+        SymbolicAttributes, capture::options::CaptureBinding, generators::GraphGenerator,
+        ir::ValueId,
     },
     observation::{CaptureReadGuard, track_capture_storage},
     random::Generator,
@@ -202,33 +202,31 @@ impl CaptureSession {
     }
 
     // Evaluates `dimensions` against the shapes this capture has recorded, refusing another capture's expressions.
-    pub(crate) fn evaluate_dimensions(&self, dimensions: &[DimensionExpr]) -> Result<Vec<i64>> {
-        dimensions
-            .iter()
-            .map(|dimension| {
-                dimension
-                    .remap(Some(&self.owner), &Ok)?
-                    .evaluate(&mut |value, axis| {
-                        self.graph
-                            .required_value_shape(ValueId::new(value))?
-                            .dimensions()
-                            .get(axis)
-                            .copied()
-                            .ok_or_else(|| {
-                                Error::dimension_out_of_bounds("capture shape value axis")
-                            })
-                    })
+    pub(crate) fn evaluate_dimension(&self, dimension: &DimensionExpr) -> Result<i64> {
+        dimension
+            .remap(Some(&self.owner), &Ok)?
+            .evaluate(&mut |value, axis| {
+                self.graph
+                    .required_value_shape(ValueId::new(value))?
+                    .dimensions()
+                    .get(axis)
+                    .copied()
+                    .ok_or_else(|| Error::dimension_out_of_bounds("capture shape value axis"))
             })
-            .collect()
     }
 
-    // Records that `output`, a reshape's result, takes its shape from `dimensions` on each run.
-    pub(crate) fn record_reshape(
+    pub(crate) fn has_run_time_axes(&self) -> bool {
+        !self.graph.input_dimension_guards.is_empty()
+    }
+
+    // Records that the node computing `output` takes `attributes` on each run, resolved at the run's input shapes.
+    // A build without run-time axes runs only at its traced shapes, so it records nothing.
+    pub(crate) fn record_attributes(
         &mut self,
         output: &Tensor,
-        dimensions: &[DimensionExpr],
+        attributes: &SymbolicAttributes,
     ) -> Result<()> {
-        if self.graph.input_dimension_guards.is_empty() {
+        if !self.has_run_time_axes() {
             return Ok(());
         }
 
@@ -236,17 +234,23 @@ impl CaptureSession {
             .tensor_nodes
             .get(&output.id())
             .ok_or_else(|| Error::from(CaptureError::UnrecordedTensor))?;
-        let dimensions = dimensions
-            .iter()
-            .map(|dimension| dimension.remap(Some(&self.owner), &Ok))
-            .collect::<Result<Vec<_>>>()?;
-        self.graph.shape_program.reshapes.insert(
-            node,
-            ReshapeExpression {
-                dimensions,
-                allow_zero: true,
-            },
-        );
+        let expected = match attributes {
+            SymbolicAttributes::Reshape { .. } => Some(Operation::Reshape),
+            SymbolicAttributes::Expand(_) => Some(Operation::Expand),
+            SymbolicAttributes::Slice { .. } => Some(Operation::Slice),
+            SymbolicAttributes::Resize { .. } => Some(Operation::Resize),
+            SymbolicAttributes::Range { .. }
+            | SymbolicAttributes::Dimensions(_)
+            | SymbolicAttributes::Fill { .. } => None,
+        };
+        if self.graph.required_node(node)?.operation() != expected {
+            return Err(Error::invalid_argument(
+                "symbolic attributes of another operation",
+            ));
+        }
+
+        let attributes = attributes.map(|dimension| dimension.remap(Some(&self.owner), &Ok))?;
+        self.graph.shape_program.attributes.insert(node, attributes);
         Ok(())
     }
 

@@ -376,6 +376,10 @@ impl Exporter<'_> {
             name.to_owned()
         } else if let Some(shape) = source.shape_program().values.get(&value) {
             self.shape_value(shape.clone())?
+        } else if let Some(attributes) = source.shape_program().attributes.get(&value)
+            && source.constant_tensor(value).is_some()
+        {
+            self.symbolic_constant(attributes)?
         } else if let Some(tensor) = source.constant_tensor(value) {
             let name = self.fresh();
             self.graph

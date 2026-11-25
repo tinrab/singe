@@ -5,6 +5,7 @@ use crate::{
     data_type::DataType,
     dispatch::call_one,
     error::{Error, Result},
+    graph::capture,
     nn::{Layer, LayerNorm, ModelState, PatchEmbedding, StateKey, TokenBatch},
     tensor::{InterpolateMode, Tensor},
 };
@@ -199,6 +200,7 @@ impl Layer for PatchTokens {
 }
 
 // Positions `[1, leading + S · S, D]` resized to `images`' grid of `patch`-pixel patches, unless the grid is square and of the same size, as `transformers`' `interpolate_pos_encoding` computes them in `F32`.
+// A program with run-time axes resizes them at every size, as a traced `transformers` model does, which leaves a grid of the same size as it is.
 fn resized_positions(
     positions: &Tensor,
     images: &Tensor,
@@ -214,6 +216,11 @@ fn resized_positions(
         return Err(Error::invalid_argument("images of fewer than two axes"));
     };
     let (rows, columns) = (height / patch, image_width / patch);
+    let rank = images.shape().dimensions().len();
+    let size = (
+        images.dimension(rank - 2)? / patch,
+        images.dimension(rank - 1)? / patch,
+    );
     let stored = count - leading;
     let side = (stored as f64).sqrt() as i64;
     if side * side != stored {
@@ -222,7 +229,7 @@ fn resized_positions(
         ));
     }
 
-    if rows == columns && rows * columns == stored {
+    if rows == columns && rows * columns == stored && !capture::has_run_time_axes()? {
         return Ok(positions.clone());
     }
 
@@ -231,9 +238,9 @@ fn resized_positions(
         .reshape([1, side, side, width])?
         .permute(&[0, 3, 1, 2])?
         .cast(DataType::F32)?
-        .interpolate((rows, columns), InterpolateMode::Bicubic)?
+        .interpolate_with(size, InterpolateMode::Bicubic)?
         .cast(positions.data_type())?
         .permute(&[0, 2, 3, 1])?
-        .reshape([1, rows * columns, width])?;
+        .flatten(1, 2)?;
     Tensor::concat(&[positions.narrow(1, 0, leading)?, grid], 1)
 }

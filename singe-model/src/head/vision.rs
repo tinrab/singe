@@ -10,6 +10,7 @@ use singe::{
 
 use crate::{
     error::{Error, Result},
+    format::transformers::classifier_config,
     function::{
         TensorFunction,
         forward::{External, ExternalHead, Forward},
@@ -113,19 +114,21 @@ pub struct Detection {
 /// An object detector, as `*ForObjectDetection` heads are: its layers give each query's label scores, the last for no object, then its box, `[B, Q, labels + 1 + 4]`.
 #[derive(Debug)]
 pub struct ObjectDetector {
-    model: Model<Boxed<dyn Layer>>,
+    model: Forward<Boxed<dyn Layer>>,
     config: ClassifierConfig,
 }
 
 impl ObjectDetector {
     #[must_use]
     pub const fn new(model: Model<Boxed<dyn Layer>>, config: ClassifierConfig) -> Self {
-        Self { model, config }
+        Self {
+            model: Forward::Native(model),
+            config,
+        }
     }
 
-    #[must_use]
-    pub const fn model(&self) -> &Model<Boxed<dyn Layer>> {
-        &self.model
+    pub fn get_model(&self) -> Result<&Model<Boxed<dyn Layer>>> {
+        self.model.get_native()
     }
 
     #[must_use]
@@ -139,7 +142,11 @@ impl ObjectDetector {
     ///
     /// Returns an error if the model's output is not `[B, Q, N]`, or if running the model fails.
     pub fn detect(&self, pixels: &Tensor) -> Result<Vec<Vec<Detection>>> {
-        let output = self.model.forward(pixels)?;
+        let output = match &self.model {
+            Forward::Native(model) => model.forward(pixels)?,
+            // `optimum` names the label scores and the boxes as two outputs.
+            Forward::External(model) => Tensor::concat(&model.single_outputs(pixels)?, 2)?,
+        };
         let &[_, queries, _] = output.shape().dimensions() else {
             return Err(SingeError::invalid_argument("detections, [B, Q, N]").into());
         };
@@ -158,6 +165,28 @@ impl ObjectDetector {
             })
             .collect::<Vec<_>>();
         Ok(host::rows(&detections, queries))
+    }
+}
+
+impl ExternalHead for ObjectDetector {
+    fn external(source: &Source, function: Arc<dyn TensorFunction>) -> Result<Self> {
+        let config = classifier_config(source)?;
+        let model = External::create(function, &["logits", "pred_boxes"])?;
+        let scores = model
+            .output("logits")
+            .and_then(|spec| spec.shape.get(2).copied());
+        let labels = config.labels().len() + 1;
+        if scores.and_then(|scores| usize::try_from(scores).ok()) != Some(labels) {
+            return Err(Error::invalid(format!(
+                "output logits of {scores:?} scores per query, where the config names {} labels and no object",
+                labels - 1
+            )));
+        }
+
+        Ok(Self {
+            model: Forward::External(model),
+            config,
+        })
     }
 }
 
@@ -309,22 +338,31 @@ impl OpenVocabularyDetector {
 /// A depth estimator, as `*ForDepthEstimation` heads are: its layers give each pixel's depth at the size the model reads, `[B, H, W]`.
 #[derive(Debug)]
 pub struct DepthEstimator {
-    model: Model<Boxed<dyn Layer>>,
+    model: Forward<Boxed<dyn Layer>>,
 }
 
 impl DepthEstimator {
     #[must_use]
     pub const fn new(model: Model<Boxed<dyn Layer>>) -> Self {
-        Self { model }
+        Self {
+            model: Forward::Native(model),
+        }
     }
 
-    #[must_use]
-    pub const fn model(&self) -> &Model<Boxed<dyn Layer>> {
-        &self.model
+    pub fn get_model(&self) -> Result<&Model<Boxed<dyn Layer>>> {
+        self.model.get_native()
     }
 
     pub fn depth(&self, pixels: &Tensor) -> Result<Tensor> {
-        Ok(self.model.forward(pixels)?)
+        self.model.forward(pixels)
+    }
+}
+
+impl ExternalHead for DepthEstimator {
+    fn external(_source: &Source, function: Arc<dyn TensorFunction>) -> Result<Self> {
+        Ok(Self {
+            model: Forward::External(External::create(function, &["predicted_depth"])?),
+        })
     }
 }
 

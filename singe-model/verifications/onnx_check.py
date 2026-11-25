@@ -2,6 +2,7 @@
 
 `python onnx_check.py MODEL SNAPSHOT TASK INPUTS DTYPE` prints a JSON report: whether every output matched, what each comparison found, and the runtime.
 Each input runs alone, then all of them padded into one batch, so neither shape is the one the export was built at.
+Images of different sizes run only alone when the processor keeps each one's size and pads none, as DPT's does.
 A clip runs alone, its first half alone, and twice in one batch.
 Values at padded tokens are left out, since the two models need not agree there.
 An export whose first input has every axis fixed, as `ExportOptions::input_shape` writes it, runs only batches of its size, with images resized bilinearly to its height and width and log-mel features cut or padded to its frames, the reference reading the same adapted inputs.
@@ -299,7 +300,12 @@ def main():
             .eval()
         )
         images = [Image.open(item).convert("RGB") for item in inputs]
-        batches = [[image] for image in images] + [images]
+        batches = [[image] for image in images]
+        try:
+            processor(images=images, return_tensors="np")
+            batches.append(images)
+        except ValueError:
+            pass
 
         def feeds_of(batch):
             pixels = processor(images=batch, return_tensors="np")[

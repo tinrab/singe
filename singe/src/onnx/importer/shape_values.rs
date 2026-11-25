@@ -141,7 +141,7 @@ impl Importer {
         let tensor = Tensor::from_vec(
             Device::Cpu,
             shape.clone(),
-            self.evaluate_shape_value(&value)?,
+            self.evaluate_dimensions(value.elements())?,
         )?;
         let id = self.graph.add_constant(tensor);
         self.graph.shape_program.values.insert(id, value);
@@ -243,22 +243,24 @@ impl Importer {
         Ok(Some(value))
     }
 
-    pub(crate) fn evaluate_shape_value(&self, value: &ShapeValue) -> Result<Vec<i64>> {
-        value
-            .elements()
+    pub(crate) fn evaluate_dimensions(&self, dimensions: &[DimensionExpr]) -> Result<Vec<i64>> {
+        dimensions
             .iter()
-            .map(|dim| {
-                dim.evaluate(&mut |source, axis| {
-                    self.graph
-                        .required_value_shape(ValueId::new(source))?
-                        .dimensions()
-                        .get(axis)
-                        .copied()
-                        .ok_or_else(|| SingeError::dimension_out_of_bounds("onnx shape value axis"))
-                })
-                .map_err(Into::into)
-            })
+            .map(|dim| self.evaluate_dimension(dim))
             .collect()
+    }
+
+    // Evaluates `dim` at the traced shapes.
+    pub(crate) fn evaluate_dimension(&self, dim: &DimensionExpr) -> Result<i64> {
+        dim.evaluate(&mut |source, axis| {
+            self.graph
+                .required_value_shape(ValueId::new(source))?
+                .dimensions()
+                .get(axis)
+                .copied()
+                .ok_or_else(|| SingeError::dimension_out_of_bounds("onnx shape value axis"))
+        })
+        .map_err(Into::into)
     }
 
     pub(crate) fn propagate_shape_value(&mut self, node: &Node) -> Result<()> {

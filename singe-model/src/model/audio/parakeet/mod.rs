@@ -16,7 +16,7 @@ use crate::{
     head::{Boxed, CtcInput, CtcRecognizer, HeadLoader},
     model::{ModelEntry, audio::transducer::TransducerModel},
     schema::Schema,
-    source::Format,
+    source::{Format, Source},
 };
 
 /// The settings of `transformers`' `ParakeetFeatureExtractor`.
@@ -140,6 +140,15 @@ pub fn load(loader: &mut Loader<'_>) -> Result<Parakeet> {
         (&encoder, &transformers::encoder_rules()),
         (&decoder, &transformers::decoder_rules()),
     )
+}
+
+/// Returns the settings of a Parakeet snapshot's feature extractor, which a served export reads its log-mel features with.
+///
+/// # Errors
+///
+/// Returns an error if the snapshot's config does not read as a Parakeet's.
+pub fn features(source: &Source) -> Result<ParakeetFeatures> {
+    Ok(transformers::config(source)?.features)
 }
 
 /// Loads a CTC Parakeet's encoder and head.

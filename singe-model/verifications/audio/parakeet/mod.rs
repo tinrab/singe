@@ -14,5 +14,15 @@ pub fn verify(session: &mut Session) {
     session.check::<AutomaticSpeechRecognitionPipeline>("tdt-12m");
     session.check::<AutomaticSpeechRecognitionPipeline>("rnnt");
     session.check::<AutomaticSpeechRecognitionPipeline>("ctc");
-    session.check_onnx_at("ctc", &[1, 400, 80]);
+    session.check_onnx("ctc");
+    session.check_served::<AutomaticSpeechRecognitionPipeline>(
+        "ctc",
+        &[("batch_size", 1)],
+        &[("sequence_length", 64)],
+    );
+    // The clip's 481 log-mel frames, which a step holds exactly, since the encoder attends to every frame.
+    session.check_cuda::<AutomaticSpeechRecognitionPipeline>(
+        "ctc",
+        &[("batch_size", 1), ("sequence_length", 481)],
+    );
 }

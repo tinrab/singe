@@ -441,11 +441,9 @@ pub fn cudnn_engine_choices(
     Ok(choices)
 }
 
-// The plans one eager graph keeps to time, the heuristics' first among them.
 const EAGER_CANDIDATES: usize = 4;
-
-// A candidate needing far more workspace than the first is passed over, since timing allocates the largest: one of InstructPix2Pix's asked for 7 GB.
 const CANDIDATE_WORKSPACE_BYTES: usize = 256 << 20;
+const GRAPH_WORKSPACE_BYTES: usize = 256 << 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PlanSelection {
@@ -477,6 +475,8 @@ fn cudnn_execution_plan(
     let mut last_error = None;
     // Engines without the native CUDA graph API are recorded through stream capture instead.
     let mut captured_fallback = None;
+    // The plan with the least workspace above `GRAPH_WORKSPACE_BYTES`, for a graph no engine runs within it.
+    let mut oversized: Option<(usize, CudnnExecutionPlan)> = None;
 
     'modes: for mode in HEURISTIC_MODES {
         let heuristics = match CudnnEngineHeuristics::create(
@@ -555,14 +555,30 @@ fn cudnn_execution_plan(
                 continue;
             }
             match CudnnExecutionPlan::create(cudnn, &config, None, None) {
-                Ok(plan) if native => return Ok((plan, candidates)),
-                Ok(plan) => captured_fallback = Some(plan),
+                Ok(plan) => {
+                    let workspace_size = plan.workspace_size().unwrap_or(usize::MAX);
+                    if workspace_size > GRAPH_WORKSPACE_BYTES {
+                        if oversized
+                            .as_ref()
+                            .is_none_or(|(smallest, _)| workspace_size < *smallest)
+                        {
+                            oversized = Some((workspace_size, plan));
+                        }
+                    } else if native {
+                        return Ok((plan, candidates));
+                    } else {
+                        captured_fallback = Some(plan);
+                    }
+                }
                 Err(error) => last_error = Some(Error::from(error)),
             }
         }
     }
 
-    if let Some(plan) = chosen.or(captured_fallback) {
+    if let Some(plan) = chosen
+        .or(captured_fallback)
+        .or_else(|| oversized.map(|(_, plan)| plan))
+    {
         return Ok((plan, candidates));
     }
 

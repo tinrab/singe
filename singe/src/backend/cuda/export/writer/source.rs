@@ -81,11 +81,12 @@ fn library_setup(library: Library, numerics: NumericalPolicy) -> LibrarySetup {
         },
         Library::Cudnn => LibrarySetup {
             include: "#include <cudnn.h>\n#include <limits>\n#include <vector>\n",
-            members: "    cudnnHandle_t cudnn;\n    std::vector<cudnnBackendDescriptor_t> cudnn_retained;\n",
+            // The plans of a step run one after another on its stream, so they share one workspace, as large as the largest asks.
+            members: "    cudnnHandle_t cudnn;\n    std::vector<cudnnBackendDescriptor_t> cudnn_retained;\n    void* dnn_workspace;\n    int64_t dnn_workspace_bytes;\n",
             create: format!(
                 "    if (static_cast<int>(cudnnGetVersion() / 10000) != CUDNN_MAJOR) return singe_failed({LIBRARY_VERSION}, \"cudnnGetVersion\");\n    SINGE_LIBRARY({CUDNN_BASE}, cudnnCreate(&s->cudnn));\n"
             ),
-            destroy: "    for (cudnnBackendDescriptor_t retained : s->cudnn_retained) cudnnBackendDestroyDescriptor(retained);\n    if (s->cudnn != nullptr) cudnnDestroy(s->cudnn);\n",
+            destroy: "    for (cudnnBackendDescriptor_t retained : s->cudnn_retained) cudnnBackendDestroyDescriptor(retained);\n    if (s->dnn_workspace != nullptr) cudaFree(s->dnn_workspace);\n    if (s->cudnn != nullptr) cudnnDestroy(s->cudnn);\n",
             helpers: include_str!("cudnn_helpers.cu"),
         },
         // cuFFT counts its version in thousands, unlike the other libraries.

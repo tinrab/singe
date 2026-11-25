@@ -39,9 +39,10 @@ pub(crate) mod test_support;
 
 #[cfg(feature = "onnx")]
 pub(crate) use self::passes::decompose_attention;
+pub(crate) use self::shape_program::SymbolicAttributes;
 #[cfg(feature = "onnx")]
 pub(crate) use self::shape_program::{
-    DimensionConstraint, ReshapeExpression, ShapeValue, ValueShapeConstraint,
+    DimensionConstraint, ResolvedAttributes, ShapeValue, ValueShapeConstraint,
 };
 
 #[cfg(feature = "cuda")]

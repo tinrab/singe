@@ -32,6 +32,7 @@ pub fn has_decomposition(operation: Operation) -> bool {
             | Operation::RotaryEmbedding
             | Operation::RotaryHalves
             | Operation::ResampleLinear
+            | Operation::Resize
             | Operation::ScaledDotProductAttention
             | Operation::Contraction
             | Operation::BatchNorm
@@ -86,6 +87,7 @@ pub fn decomposes_in_graphs(
             | Operation::RotaryEmbedding
             | Operation::RotaryHalves
             | Operation::ResampleLinear
+            | Operation::Resize
             | Operation::QuantizedMatMul
     ) || replaces_kernels(operation, attributes, data_type)
 }
@@ -112,6 +114,10 @@ pub fn decompose(
         Operation::Pad => {
             let pad = attributes.pad().ok_or_else(attribute_error)?;
             Ok(vec![pad_of(input, &pad.padding, pad.value)?])
+        }
+        Operation::Resize => {
+            let resize = attributes.resize().ok_or_else(attribute_error)?;
+            Ok(vec![input.resampled(resize.size, resize.interpolation)?])
         }
         Operation::RotaryEmbedding => {
             let [_, cos, sin] = inputs else {

@@ -3,6 +3,7 @@ use num_traits::ToPrimitive;
 use crate::{
     device::Device,
     error::{Error, Result},
+    graph::{DimensionExpr, SymbolicAttributes, capture},
     shape::Shape,
     tensor::{Tensor, TensorDataType},
     utility::{to_i64, to_usize},
@@ -34,6 +35,34 @@ impl Tensor {
             data.push(T::range_value(start, step, index)?);
         }
         Self::from_vec(device, shape, data)
+    }
+
+    // An `I64` vector counting from `start` up to, but not including, `end`, which may depend on [`Self::dimension`], so a captured program's range follows its run-time shapes.
+    pub fn range(
+        device: Device,
+        start: impl Into<DimensionExpr>,
+        end: impl Into<DimensionExpr>,
+    ) -> Result<Self> {
+        let (start, end) = (start.into(), end.into());
+        let (first, last) = (
+            capture::evaluate_dimension(&start)?,
+            capture::evaluate_dimension(&end)?,
+        );
+        let output = capture::literal(device, |device| Self::arange(device, first, last, 1))?;
+        capture::record_attributes(&output, &SymbolicAttributes::Range { start, end })?;
+        Ok(output)
+    }
+
+    // An `I64` vector of `dimensions`, which may depend on [`Self::dimension`], so a captured program computes with its run-time sizes.
+    pub fn from_dimensions(device: Device, dimensions: &[DimensionExpr]) -> Result<Self> {
+        let values = capture::evaluate_dimensions(dimensions)?;
+        let shape = Shape::create([to_i64(values.len(), "dimension count")?])?;
+        let output = capture::literal(device, |device| Self::from_vec(device, shape, values))?;
+        capture::record_attributes(
+            &output,
+            &SymbolicAttributes::Dimensions(dimensions.to_vec()),
+        )?;
+        Ok(output)
     }
 
     /// Creates a typed vector of `steps` evenly spaced values including both endpoints.

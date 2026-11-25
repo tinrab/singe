@@ -15,10 +15,9 @@ pub use self::{
     lowering::{
         add_binary_intermediate, add_scale, add_transpose, add_unary_intermediate,
         axes_from_attribute_or_input, expand_output_shape, expect_input_count, expect_input_range,
-        expect_outputs, normalize_shape_bound, normalize_slice_index, normalized_axes,
-        normalized_unsqueeze_axes, onnx_padding, optional_input, optional_quantization_zero_point,
-        optional_static_f32_scalar, padded_shape, quantization_scale, register_node_outputs,
-        shape_from_static_dimensions, shape_input_values, validate_permutation,
-        zero_point_initializer,
+        expect_outputs, normalize_shape_bound, normalized_axes, normalized_unsqueeze_axes,
+        onnx_padding, optional_input, optional_quantization_zero_point, optional_static_f32_scalar,
+        padded_shape, quantization_scale, register_node_outputs, shape_from_static_dimensions,
+        shape_input_expressions, shape_input_values, validate_permutation, zero_point_initializer,
     },
 };

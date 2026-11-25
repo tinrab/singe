@@ -2,6 +2,7 @@ use singe_onnx::{Node, TensorDataType};
 
 use crate::{
     data_type::DataType,
+    graph::DimensionExpr,
     onnx::{
         attributes::Attributes,
         error::{Error, Result},
@@ -42,14 +43,6 @@ pub fn normalize_shape_bound(value: i64, rank: i64) -> i64 {
         (rank + value).clamp(0, rank)
     } else {
         value.min(rank)
-    }
-}
-
-pub fn normalize_slice_index(value: i64, dimension: i64) -> i64 {
-    if value < 0 {
-        (dimension + value).clamp(0, dimension)
-    } else {
-        value.min(dimension)
     }
 }
 
@@ -153,6 +146,32 @@ pub fn shape_input_values(
         ));
     }
     static_i64_values(&input_name, &tensor)
+}
+
+// The integer operand `index` as expressions: those it tracks from shapes, or its static values as constants.
+pub fn shape_input_expressions(
+    importer: &Importer,
+    node: &Node,
+    index: usize,
+    label: &str,
+) -> Result<Vec<DimensionExpr>> {
+    if let Some(name) = node.inputs.get(index).filter(|name| !name.is_empty())
+        && let Some(value) = importer.metadata_shape_value(name)?
+    {
+        return Ok(value.elements().to_vec());
+    }
+
+    let (input_name, tensor) = importer.required_static_input_tensor(node, index, label)?;
+    if tensor.shape().rank() > 1 {
+        return Err(Error::invalid_initializer(
+            &input_name,
+            "shape and index operands must have rank zero or one",
+        ));
+    }
+    Ok(static_i64_values(&input_name, &tensor)?
+        .into_iter()
+        .map(DimensionExpr::constant)
+        .collect())
 }
 
 fn static_i64_values(name: &str, tensor: &Tensor) -> Result<Vec<i64>> {

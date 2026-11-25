@@ -197,6 +197,24 @@ const TYPES_27: &[DataType] = &[
 ];
 
 const TYPES_28: &[DataType] = &[
+    DataType::F32,
+    DataType::F64,
+    DataType::I16,
+    DataType::I32,
+    DataType::I64,
+];
+
+const TYPES_29: &[DataType] = &[
+    DataType::Bf16,
+    DataType::F16,
+    DataType::F32,
+    DataType::F64,
+    DataType::I16,
+    DataType::I32,
+    DataType::I64,
+];
+
+const TYPES_30: &[DataType] = &[
     DataType::Bf16,
     DataType::F16,
     DataType::F32,
@@ -209,7 +227,7 @@ const TYPES_28: &[DataType] = &[
     DataType::U8,
 ];
 
-const TYPES_29: &[DataType] = &[
+const TYPES_31: &[DataType] = &[
     DataType::Bf16,
     DataType::Bool,
     DataType::F16,
@@ -223,7 +241,7 @@ const TYPES_29: &[DataType] = &[
     DataType::U8,
 ];
 
-const TYPES_30: &[DataType] = &[
+const TYPES_32: &[DataType] = &[
     DataType::Bool,
     DataType::F16,
     DataType::F32,
@@ -2632,6 +2650,38 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         ],
     },
     OperatorSchema {
+        operator: "Range",
+        min_opset: 13,
+        max_opset: 26,
+        schema_version: 11,
+        input_range: (3, 3),
+        output_range: (1, 1),
+        required_inputs: &[0, 1, 2],
+        required_outputs: &[0],
+        input_types: &[
+            ("T", TYPES_28, true),
+            ("T", TYPES_28, true),
+            ("T", TYPES_28, true),
+        ],
+        attributes: &[],
+    },
+    OperatorSchema {
+        operator: "Range",
+        min_opset: 27,
+        max_opset: 28,
+        schema_version: 27,
+        input_range: (3, 3),
+        output_range: (1, 1),
+        required_inputs: &[0, 1, 2],
+        required_outputs: &[0],
+        input_types: &[
+            ("T", TYPES_29, true),
+            ("T", TYPES_29, true),
+            ("T", TYPES_29, true),
+        ],
+        attributes: &[("stash_type", AttributeType::Int, false)],
+    },
+    OperatorSchema {
         operator: "Reciprocal",
         min_opset: 13,
         max_opset: 28,
@@ -2802,7 +2852,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_28, true)],
+        input_types: &[("T", TYPES_30, true)],
         attributes: &[
             ("axes", AttributeType::Ints, false),
             ("keepdims", AttributeType::Int, false),
@@ -2817,7 +2867,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_28, true), ("tensor(int64)", TYPES_6, true)],
+        input_types: &[("T", TYPES_30, true), ("tensor(int64)", TYPES_6, true)],
         attributes: &[
             ("keepdims", AttributeType::Int, false),
             ("noop_with_empty_axes", AttributeType::Int, false),
@@ -2832,7 +2882,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_29, true), ("tensor(int64)", TYPES_6, true)],
+        input_types: &[("T", TYPES_31, true), ("tensor(int64)", TYPES_6, true)],
         attributes: &[
             ("keepdims", AttributeType::Int, false),
             ("noop_with_empty_axes", AttributeType::Int, false),
@@ -2877,7 +2927,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_28, true)],
+        input_types: &[("T", TYPES_30, true)],
         attributes: &[
             ("axes", AttributeType::Ints, false),
             ("keepdims", AttributeType::Int, false),
@@ -2892,7 +2942,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_28, true), ("tensor(int64)", TYPES_6, true)],
+        input_types: &[("T", TYPES_30, true), ("tensor(int64)", TYPES_6, true)],
         attributes: &[
             ("keepdims", AttributeType::Int, false),
             ("noop_with_empty_axes", AttributeType::Int, false),
@@ -2907,7 +2957,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_29, true), ("tensor(int64)", TYPES_6, true)],
+        input_types: &[("T", TYPES_31, true), ("tensor(int64)", TYPES_6, true)],
         attributes: &[
             ("keepdims", AttributeType::Int, false),
             ("noop_with_empty_axes", AttributeType::Int, false),
@@ -3095,6 +3145,96 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_outputs: &[0],
         input_types: &[("T", TYPES_10, true), ("tensor(int64)", TYPES_6, true)],
         attributes: &[("allowzero", AttributeType::Int, false)],
+    },
+    OperatorSchema {
+        operator: "Resize",
+        min_opset: 13,
+        max_opset: 17,
+        schema_version: 13,
+        input_range: (1, 4),
+        output_range: (1, 1),
+        required_inputs: &[0],
+        required_outputs: &[0],
+        input_types: &[
+            ("T1", TYPES_5, true),
+            ("T2", TYPES_1, true),
+            ("tensor(float)", TYPES_12, true),
+            ("tensor(int64)", TYPES_6, true),
+        ],
+        attributes: &[
+            (
+                "coordinate_transformation_mode",
+                AttributeType::String,
+                false,
+            ),
+            ("cubic_coeff_a", AttributeType::Float, false),
+            ("exclude_outside", AttributeType::Int, false),
+            ("extrapolation_value", AttributeType::Float, false),
+            ("mode", AttributeType::String, false),
+            ("nearest_mode", AttributeType::String, false),
+        ],
+    },
+    OperatorSchema {
+        operator: "Resize",
+        min_opset: 18,
+        max_opset: 18,
+        schema_version: 18,
+        input_range: (1, 4),
+        output_range: (1, 1),
+        required_inputs: &[0],
+        required_outputs: &[0],
+        input_types: &[
+            ("T1", TYPES_5, true),
+            ("T2", TYPES_1, true),
+            ("tensor(float)", TYPES_12, true),
+            ("tensor(int64)", TYPES_6, true),
+        ],
+        attributes: &[
+            ("antialias", AttributeType::Int, false),
+            ("axes", AttributeType::Ints, false),
+            (
+                "coordinate_transformation_mode",
+                AttributeType::String,
+                false,
+            ),
+            ("cubic_coeff_a", AttributeType::Float, false),
+            ("exclude_outside", AttributeType::Int, false),
+            ("extrapolation_value", AttributeType::Float, false),
+            ("keep_aspect_ratio_policy", AttributeType::String, false),
+            ("mode", AttributeType::String, false),
+            ("nearest_mode", AttributeType::String, false),
+        ],
+    },
+    OperatorSchema {
+        operator: "Resize",
+        min_opset: 19,
+        max_opset: 28,
+        schema_version: 19,
+        input_range: (1, 4),
+        output_range: (1, 1),
+        required_inputs: &[0],
+        required_outputs: &[0],
+        input_types: &[
+            ("T1", TYPES_5, true),
+            ("T2", TYPES_1, true),
+            ("tensor(float)", TYPES_12, true),
+            ("tensor(int64)", TYPES_6, true),
+        ],
+        attributes: &[
+            ("antialias", AttributeType::Int, false),
+            ("axes", AttributeType::Ints, false),
+            (
+                "coordinate_transformation_mode",
+                AttributeType::String,
+                false,
+            ),
+            ("cubic_coeff_a", AttributeType::Float, false),
+            ("exclude_outside", AttributeType::Int, false),
+            ("extrapolation_value", AttributeType::Float, false),
+            ("keep_aspect_ratio_policy", AttributeType::String, false),
+            ("mode", AttributeType::String, false),
+            ("nearest_mode", AttributeType::String, false),
+        ],
     },
     OperatorSchema {
         operator: "RotaryEmbedding",
@@ -3707,8 +3847,8 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_outputs: &[0],
         input_types: &[
             ("B", TYPES_4, true),
-            ("T", TYPES_30, true),
-            ("T", TYPES_30, true),
+            ("T", TYPES_32, true),
+            ("T", TYPES_32, true),
         ],
         attributes: &[],
     },

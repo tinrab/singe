@@ -145,6 +145,19 @@ def fixture(op, version, variant="", constant=False):
     elif op == "ConstantOfShape":
         runtime = {}
         inputs = [const("shape", [2, 3], np.int64)]
+    elif op == "Range":
+        runtime = {}
+        inputs = [
+            const("start", 1, np.int64),
+            const("limit", 8, np.int64),
+            const("delta", 2, np.int64),
+        ]
+    elif op == "Resize":
+        runtime["x"] = x.reshape(1, 1, 2, 3)
+        inputs += ["", ""]
+        extra("sizes", [1, 1, 3, 5], np.int64)
+        attrs["mode"] = "linear"
+        attrs["coordinate_transformation_mode"] = "half_pixel"
     elif op in {
         "Conv",
         "MaxPool",

@@ -3,6 +3,7 @@ use crate::{
     dispatch::call_one,
     error::{Error, Result},
     tensor::Tensor,
+    utility::to_i64,
 };
 
 // Transposed convolutions compose 2D convolution, padding, and slices.
@@ -41,11 +42,12 @@ impl Tensor {
         dilation: (i64, i64),
         groups: i64,
     ) -> Result<Self> {
-        let &[batch, _, height, width] = self.shape().dimensions() else {
+        if self.shape().rank() != 4 {
             return Err(Error::invalid_argument(
                 "transposed convolution needs [N, C, H, W] input",
             ));
-        };
+        }
+
         let &[inputs, per_group, kernel_height, kernel_width] = weight.shape().dimensions() else {
             return Err(Error::invalid_argument(
                 "transposed convolution needs [C, O / groups, KH, KW] weights",
@@ -67,7 +69,6 @@ impl Tensor {
             return self.convolution_transpose2d_by_blocks(
                 weight,
                 bias,
-                [batch, height, width],
                 [inputs, per_group, kernel_height, kernel_width],
             );
         }
@@ -99,15 +100,17 @@ impl Tensor {
         ] {
             let before = dilation * (kernel - 1) - pad;
             let after = before + extra;
-            let extent = spread.shape().dimensions()[axis];
             let crop_before = (-before).max(0);
             let crop_after = (-after).max(0);
-            spread = spread.narrow(
-                i64::try_from(axis)
-                    .map_err(|_| Error::dimension_out_of_bounds("transposed convolution axis"))?,
-                crop_before,
-                extent - crop_before - crop_after,
-            )?;
+            if crop_before > 0 || crop_after > 0 {
+                let length = spread.dimension(axis)? - (crop_before + crop_after);
+                spread = spread.narrow_with(
+                    to_i64(axis, "transposed convolution axis")?,
+                    crop_before,
+                    length,
+                )?;
+            }
+
             margins.push((before.max(0), after.max(0)));
         }
         spread.convolution2d(
@@ -148,18 +151,29 @@ impl Tensor {
         &self,
         weight: &Self,
         bias: Option<&Self>,
-        [batch, height, width]: [i64; 3],
         [inputs, outputs, kernel_height, kernel_width]: [i64; 4],
     ) -> Result<Self> {
+        let (batch, height, width) = (self.dimension(0)?, self.dimension(2)?, self.dimension(3)?);
         let blocks = self
             .permute(&[0, 2, 3, 1])?
             .contiguous()?
-            .reshape([batch * height * width, inputs])?
             .matmul(&weight.reshape([inputs, outputs * kernel_height * kernel_width])?)?
-            .reshape([batch, height, width, outputs, kernel_height, kernel_width])?
+            .reshape_with(&[
+                batch.clone(),
+                height.clone(),
+                width.clone(),
+                outputs.into(),
+                kernel_height.into(),
+                kernel_width.into(),
+            ])?
             .permute(&[0, 3, 1, 4, 2, 5])?
             .contiguous()?
-            .reshape([batch, outputs, height * kernel_height, width * kernel_width])?;
+            .reshape_with(&[
+                batch,
+                outputs.into(),
+                height * kernel_height,
+                width * kernel_width,
+            ])?;
         match bias {
             Some(bias) => blocks.add(&bias.reshape([1, outputs, 1, 1])?),
             None => Ok(blocks),
@@ -174,21 +188,22 @@ impl Tensor {
             ));
         }
 
-        let dimensions = self.shape().dimensions();
-        let extent = dimensions[dim];
-        if stride == 1 || extent == 0 {
+        let rank = self.shape().dimensions().len();
+        if stride == 1 || self.shape().dimensions()[dim] == 0 {
             return Ok(self.clone());
         }
 
-        let axis =
-            i64::try_from(dim).map_err(|_| Error::dimension_out_of_bounds("zero insertion dim"))?;
-        let mut padding = vec![(0, 0); dimensions.len() + 1];
+        let axis = to_i64(dim, "zero insertion dim")?;
+        let mut padding = vec![(0, 0); rank + 1];
         padding[dim + 1] = (0, stride - 1);
-        let mut merged = dimensions.to_vec();
-        merged[dim] = extent * stride;
+        let mut merged = (0..rank)
+            .map(|axis| self.dimension(axis))
+            .collect::<Result<Vec<_>>>()?;
+        let extent = merged[dim].clone();
+        merged[dim] = extent.clone() * stride;
         self.unsqueeze(axis + 1)?
             .pad(&padding, 0.0)?
-            .reshape(merged)?
-            .narrow(axis, 0, (extent - 1) * stride + 1)
+            .reshape_with(&merged)?
+            .narrow_with(axis, 0_i64, (extent - 1) * stride + 1)
     }
 }

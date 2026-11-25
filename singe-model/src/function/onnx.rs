@@ -25,7 +25,7 @@ use singe::{
         LoweringPolicy,
         tuning::{GraphTuneOptions, Measurement, TuningRecords, tune_graph},
     },
-    graph::GraphCudaOptions,
+    graph::{ComputePrecision, GraphCudaOptions},
 };
 
 use crate::{
@@ -119,7 +119,7 @@ fn axes(
 
 pub(crate) fn options(
     dimensions: &BTreeMap<String, i64>,
-    inputs: &BTreeMap<String, Vec<i64>>,
+    shapes: &Shapes,
     device: Device,
 ) -> OnnxOptions {
     let mut options = OnnxOptions::new().with_device(device);
@@ -127,7 +127,16 @@ pub(crate) fn options(
         options = options.with_symbolic_dimension_range(name.clone(), size, Some(size), Some(size));
     }
 
-    for (name, shape) in inputs {
+    for (name, range) in &shapes.ranges {
+        options = options.with_symbolic_dimension_range(
+            name.clone(),
+            range.min,
+            Some(range.min),
+            range.max,
+        );
+    }
+
+    for (name, shape) in &shapes.inputs {
         options = options.with_input_shape(name.clone(), shape.clone());
     }
     options
@@ -171,7 +180,32 @@ fn check_shapes(inputs: &[(&ValueInfo, Option<DeclaredAxes>)], shapes: &Shapes) 
             _ => None,
         })
         .collect::<BTreeSet<_>>();
-    if let Some(name) = shapes.dimensions.keys().find(|name| !named.contains(name)) {
+    if let Some((name, range)) = shapes
+        .ranges
+        .iter()
+        .find(|(_, range)| range.min < 1 || range.max.is_some_and(|max| max < range.min))
+    {
+        return Err(Error::invalid(format!(
+            "dimension {name} of the range {range}, which holds no size or a size below 1"
+        )));
+    }
+
+    if let Some(name) = shapes
+        .ranges
+        .keys()
+        .find(|name| shapes.dimensions.contains_key(*name))
+    {
+        return Err(Error::invalid(format!(
+            "dimension {name} given both sizes and a range"
+        )));
+    }
+
+    if let Some(name) = shapes
+        .dimensions
+        .keys()
+        .chain(shapes.ranges.keys())
+        .find(|name| !named.contains(name))
+    {
         return Err(Error::invalid(format!(
             "dimension {name}, which no input has; the inputs' named dimensions are {named:?}"
         )));
@@ -200,10 +234,12 @@ fn check_shapes(inputs: &[(&ValueInfo, Option<DeclaredAxes>)], shapes: &Shapes) 
         for (axis, value) in axes.iter().enumerate() {
             match value {
                 Some(DimensionValue::Value(_)) => {}
-                Some(DimensionValue::Parameter(name)) if shapes.dimensions.contains_key(name) => {}
+                Some(DimensionValue::Parameter(name))
+                    if shapes.dimensions.contains_key(name) || shapes.ranges.contains_key(name) => {
+                }
                 Some(DimensionValue::Parameter(name)) => {
                     unfixed.push(format!(
-                        "{} axis {axis}, which --dim {name}=N fixes",
+                        "{} axis {axis}, which --dim {name}=N fixes, or which singe serve's --range {name}=MIN..MAX follows",
                         info.name
                     ));
                 }
@@ -264,7 +300,7 @@ fn outputs(
         let size = dimensions[name];
         let mut doubled = dimensions.clone();
         doubled.insert(name.clone(), size * 2);
-        let probe = OnnxModel::create(path, options(&doubled, &shapes.inputs, Device::Cpu));
+        let probe = OnnxModel::create(path, options(&doubled, shapes, Device::Cpu));
         let Ok(probe) = probe else {
             derived.insert(name.clone());
             continue;
@@ -318,16 +354,24 @@ pub fn import(path: &Path, shapes: &Shapes, device: Device) -> Result<Vec<Import
         .iter()
         .map(|(info, declared)| (info.name.as_str(), declared.as_ref()))
         .collect::<HashMap<_, _>>();
+    // A ranged dimension names its axes as a stepped one does, at its least size.
     let input_axes = |info: &OnnxValueInfo, dimensions: &BTreeMap<String, i64>| {
         let declared = declared_inputs.get(info.name.as_str()).copied().flatten();
-        axes(info, declared, dimensions)
+        let mut named = dimensions.clone();
+        named.extend(
+            shapes
+                .ranges
+                .iter()
+                .map(|(name, range)| (name.clone(), range.min)),
+        );
+        axes(info, declared, &named)
     };
 
     let models = shapes
         .combinations()
         .into_iter()
         .map(|dimensions| {
-            let model = OnnxModel::create(path, options(&dimensions, &shapes.inputs, device))?;
+            let model = OnnxModel::create(path, options(&dimensions, shapes, device))?;
             Ok((dimensions, model))
         })
         .collect::<Result<Vec<_>>>()?;
@@ -338,7 +382,9 @@ pub fn import(path: &Path, shapes: &Shapes, device: Device) -> Result<Vec<Import
         .filter(|info| !info.has_initializer)
         .map(|info| (info.name.as_str(), input_axes(info, first_dimensions)))
         .collect::<Vec<_>>();
-    let candidates = padding_candidates(&fed);
+    // A ranged dimension runs at each request's size, so it never pads.
+    let mut candidates = padding_candidates(&fed);
+    candidates.retain(|name| !shapes.ranges.contains_key(name));
     let Outputs {
         axes: output_axes,
         derived,
@@ -366,6 +412,7 @@ pub fn import(path: &Path, shapes: &Shapes, device: Device) -> Result<Vec<Import
                 .map(|(info, axes)| spec(info, axes.clone()))
                 .collect(),
             dimensions,
+            ranges: shapes.ranges.clone(),
             padded: padded.clone(),
         };
         if !names.insert(step.name.clone()) {
@@ -484,7 +531,9 @@ pub fn open(
     tuning: Option<&Tuning>,
 ) -> Result<Arc<dyn TensorFunction>> {
     let imported = import(path, shapes, device)?;
-    let mut options = GraphPrepareOptions::new(device);
+    // A file does not say which convolutions its model needs at full precision, as DETR's backbone does, so all of them run so, as in an exported program.
+    let mut options =
+        GraphPrepareOptions::new(device).with_convolution_precision(ComputePrecision::Full);
     if let Some(tuning) = tuning {
         let records = if let Some(path) = &tuning.records {
             read_records(path, None, Measurement::GraphReplay)?

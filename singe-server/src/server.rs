@@ -136,6 +136,7 @@ pub fn load_model(config: &ModelConfig) -> Result<ServedModel, ServerError> {
             let file = file.to_owned();
             let shapes = Shapes {
                 dimensions: config.dims.clone(),
+                ranges: config.ranges.clone(),
                 inputs: config.inputs.clone(),
             };
             let tuning = config

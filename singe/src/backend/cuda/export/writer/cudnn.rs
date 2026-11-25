@@ -53,15 +53,15 @@ fn plan_code(index: usize, create: String, pointers: &[String], bound_count: usi
         .join(", ");
     LibraryCode {
         members: format!(
-            "    cudnnBackendDescriptor_t dnn_plan_{index};\n    cudnnBackendDescriptor_t dnn_pack_{index};\n    void* dnn_workspace_{index};\n    int64_t dnn_workspace_bytes_{index};\n"
+            "    cudnnBackendDescriptor_t dnn_plan_{index};\n    cudnnBackendDescriptor_t dnn_pack_{index};\n"
         ),
         create,
         run: format!(
-            "    {{\n        // A variant pack finalizes once, so each run has its own, which lives until the next run has no use for the last.\n        if (s->dnn_pack_{index} != nullptr) cudnnBackendDestroyDescriptor(s->dnn_pack_{index});\n        s->dnn_pack_{index} = nullptr;\n        const int64_t uids[] = {{{uids}}};\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendCreateDescriptor(CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &s->dnn_pack_{index}));\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendSetAttribute(s->dnn_pack_{index}, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS, CUDNN_TYPE_INT64, {bound_count}, uids));\n        void* pointers[] = {{{pointers}}};\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendSetAttribute(s->dnn_pack_{index}, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS, CUDNN_TYPE_VOID_PTR, {bound_count}, pointers));\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendSetAttribute(s->dnn_pack_{index}, CUDNN_ATTR_VARIANT_PACK_WORKSPACE, CUDNN_TYPE_VOID_PTR, 1, &s->dnn_workspace_{index}));\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendFinalize(s->dnn_pack_{index}));\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnSetStream(s->cudnn, stream));\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendExecute(s->cudnn, s->dnn_plan_{index}, s->dnn_pack_{index}));\n    }}\n",
+            "    {{\n        // A variant pack finalizes once, so each run has its own, which lives until the next run has no use for the last.\n        if (s->dnn_pack_{index} != nullptr) cudnnBackendDestroyDescriptor(s->dnn_pack_{index});\n        s->dnn_pack_{index} = nullptr;\n        const int64_t uids[] = {{{uids}}};\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendCreateDescriptor(CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR, &s->dnn_pack_{index}));\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendSetAttribute(s->dnn_pack_{index}, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS, CUDNN_TYPE_INT64, {bound_count}, uids));\n        void* pointers[] = {{{pointers}}};\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendSetAttribute(s->dnn_pack_{index}, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS, CUDNN_TYPE_VOID_PTR, {bound_count}, pointers));\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendSetAttribute(s->dnn_pack_{index}, CUDNN_ATTR_VARIANT_PACK_WORKSPACE, CUDNN_TYPE_VOID_PTR, 1, &s->dnn_workspace));\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendFinalize(s->dnn_pack_{index}));\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnSetStream(s->cudnn, stream));\n        SINGE_LIBRARY({CUDNN_BASE}, cudnnBackendExecute(s->cudnn, s->dnn_plan_{index}, s->dnn_pack_{index}));\n    }}\n",
             pointers = pointers.join(", "),
         ),
         destroy: format!(
-            "    if (s->dnn_workspace_{index} != nullptr) cudaFree(s->dnn_workspace_{index});\n    if (s->dnn_pack_{index} != nullptr) cudnnBackendDestroyDescriptor(s->dnn_pack_{index});\n    if (s->dnn_plan_{index} != nullptr) cudnnBackendDestroyDescriptor(s->dnn_plan_{index});\n"
+            "    if (s->dnn_pack_{index} != nullptr) cudnnBackendDestroyDescriptor(s->dnn_pack_{index});\n    if (s->dnn_plan_{index} != nullptr) cudnnBackendDestroyDescriptor(s->dnn_plan_{index});\n"
         ),
     }
 }
@@ -211,7 +211,7 @@ impl Renderer<'_> {
         let (forced_engine, forced_knobs) = self.forced_engine_arguments(engine);
         emit!(
             create,
-            "        cudnnBackendDescriptor_t operations[] = {{{operations}}};\n        for (cudnnBackendDescriptor_t retained : {{{retained}}}) s->cudnn_retained.push_back(retained);\n        SINGE_CUDNN_PLAN(singe_cudnn_plan(s->cudnn, operations, sizeof(operations) / sizeof(operations[0]), {tensor_core}, {deterministic}, {no_default_engine}, {forced_engine}, {forced_knobs}, &s->cudnn_retained, &s->dnn_plan_{index}, &s->dnn_workspace_bytes_{index}));\n        if (s->dnn_workspace_bytes_{index} > 0) SINGE_CHECK(cudaMalloc(&s->dnn_workspace_{index}, s->dnn_workspace_bytes_{index}));\n    }}",
+            "        cudnnBackendDescriptor_t operations[] = {{{operations}}};\n        for (cudnnBackendDescriptor_t retained : {{{retained}}}) s->cudnn_retained.push_back(retained);\n        int64_t workspace = 0;\n        SINGE_CUDNN_PLAN(singe_cudnn_plan(s->cudnn, operations, sizeof(operations) / sizeof(operations[0]), {tensor_core}, {deterministic}, {no_default_engine}, {forced_engine}, {forced_knobs}, &s->cudnn_retained, &s->dnn_plan_{index}, &workspace));\n        SINGE_CHECK(singe_cudnn_workspace(&s->dnn_workspace, &s->dnn_workspace_bytes, workspace));\n    }}",
             operations = operations.join(", ")
         );
         Ok(plan_code(index, create, &pointers, bound_count))
@@ -477,7 +477,7 @@ impl Renderer<'_> {
         let (forced_engine, forced_knobs) = self.forced_engine_arguments(engine.as_ref());
         emit!(
             create,
-            "        cudnnBackendDescriptor_t operations[] = {{attention}};\n        for (cudnnBackendDescriptor_t retained : {{{retained}}}) s->cudnn_retained.push_back(retained);\n        SINGE_CUDNN_PLAN(singe_cudnn_plan(s->cudnn, operations, 1, {tensor_core}, {deterministic}, false, {forced_engine}, {forced_knobs}, &s->cudnn_retained, &s->dnn_plan_{index}, &s->dnn_workspace_bytes_{index}));\n        if (s->dnn_workspace_bytes_{index} > 0) SINGE_CHECK(cudaMalloc(&s->dnn_workspace_{index}, s->dnn_workspace_bytes_{index}));\n    }}",
+            "        cudnnBackendDescriptor_t operations[] = {{attention}};\n        for (cudnnBackendDescriptor_t retained : {{{retained}}}) s->cudnn_retained.push_back(retained);\n        int64_t workspace = 0;\n        SINGE_CUDNN_PLAN(singe_cudnn_plan(s->cudnn, operations, 1, {tensor_core}, {deterministic}, false, {forced_engine}, {forced_knobs}, &s->cudnn_retained, &s->dnn_plan_{index}, &workspace));\n        SINGE_CHECK(singe_cudnn_workspace(&s->dnn_workspace, &s->dnn_workspace_bytes, workspace));\n    }}",
             retained = names.join(", ")
         );
         let mut code = plan_code(index, create, &pointers, bound_count);

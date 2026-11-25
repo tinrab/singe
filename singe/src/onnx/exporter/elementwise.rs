@@ -3,7 +3,7 @@ use singe_onnx::proto::onnx::AttributeProto;
 use crate::{
     backend::registry::{Operation, OperationRequest, TopKAttributes},
     data_type::DataType,
-    graph::DimensionExpr,
+    graph::{DimensionExpr, SymbolicAttributes},
     onnx::{
         error::Result,
         exporter::{
@@ -324,12 +324,7 @@ impl Exporter<'_> {
         let copies = self.integers(vec![5], &[1, 1, repeats, 1, 1])?;
         let expanded = self.temporary("Expand", vec![unsqueezed, copies], vec![]);
         let axis = |axis| DimensionExpr::axis(None, source.index(), axis);
-        let shape = self.shape_vector(&[
-            axis(0),
-            axis(1) * DimensionExpr::constant(repeats),
-            axis(2),
-            axis(3),
-        ])?;
+        let shape = self.shape_vector(&[axis(0), axis(1) * repeats, axis(2), axis(3)])?;
         self.node(
             "Reshape",
             vec![expanded, shape],
@@ -340,6 +335,16 @@ impl Exporter<'_> {
     }
 
     pub(crate) fn expand(&mut self, op: OperationExport<'_>, shape: &Shape) -> Result<()> {
+        if let Some(SymbolicAttributes::Expand(dimensions)) =
+            self.source.shape_program().attributes.get(&op.value)
+        {
+            let dimensions = self.shape_vector(dimensions)?;
+            let mut inputs = op.inputs;
+            inputs.push(dimensions);
+            self.node("Expand", inputs, op.output, vec![]);
+            return Ok(());
+        }
+
         let input = self
             .source
             .required_value_shape(op.node.inputs()[0])?

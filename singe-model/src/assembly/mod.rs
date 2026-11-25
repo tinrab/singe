@@ -38,7 +38,9 @@ pub use self::{
         BartDecoder, BartEncoder, BartStackConfig, bart_stack_rules, embedding_scale,
     },
     expert::{ExpertRouting, ExpertsConfig, expert_rules, mixture_of_experts},
-    feature_map::{merge_windows, partition_windows, spatial, to_map, to_tokens},
+    feature_map::{
+        merge_windows, partition_windows, spatial, spatial_dimensions, to_map, to_tokens,
+    },
     feed_forward::LinearStack,
     normalization::unit_vectors,
     post_norm_encoder::{
