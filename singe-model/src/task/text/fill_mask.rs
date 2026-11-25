@@ -66,7 +66,7 @@ impl Pipeline for FillMaskPipeline {
             .mask_id()
             .ok_or_else(|| Error::unsupported("a tokenizer without a mask token"))?;
         Ok(Self {
-            model: model::load(source, options)?,
+            model: model::load_served(source, options)?,
             tokenizer,
             mask,
             options,

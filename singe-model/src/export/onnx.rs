@@ -65,38 +65,36 @@ impl ExportOptions {
     }
 }
 
-/// Writes `source`'s model for `task` to `directory` as `model.onnx`, with its weights in `model.onnx_data` when [`ExportOptions::weights`] places them there.
-///
-/// Text models read `input_ids`, `attention_mask`, and `token_type_ids` when the model reads token types, each `[batch_size, sequence_length]` of `I64`.
-/// Vision models read `pixel_values`, `[batch_size, 3, H, W]` at the size the processor gives every image, or with `height` and `width` axes when the processor keeps each image's aspect ratio; waveform models read `input_values`, `[batch_size, sequence_length]`, and spectrogram classifiers `input_values`, `[batch_size, frames, mels]`.
-/// Outputs are named as `optimum`'s `_TASK_TO_COMMON_OUTPUTS` names them: `logits` for classifiers, taggers, fill-mask, segmentation, and CTC, `last_hidden_state` for feature extraction, `start_logits` and `end_logits` for question answering, `logits` and `pred_boxes` for detection, `predicted_depth` for depth, and `token_embeddings` and `sentence_embedding` for a `sentence-transformers` model.
+/// Writes `program`, reading `state`, as `model.onnx` under `directory`, with its weights in `model.onnx_data` when `weights` places them there.
 ///
 /// # Errors
 ///
-/// Returns an error if exporting does not support `task`, if the model does not load for `task` or does not build on metadata, if ONNX has no operator for one of the model's operations, or if writing the file fails.
-pub fn export(
-    source: &Source,
-    task: Task,
-    directory: impl AsRef<Path>,
-    options: &ExportOptions,
+/// Returns an error if the directory or the file cannot be written.
+pub fn write(
+    program: &GraphProgram,
+    state: &ModelState,
+    directory: &Path,
+    weights: WeightPlacement,
 ) -> Result<()> {
-    let (program, state) = program(source, task, options)?;
-    let directory = directory.as_ref();
     fs::create_dir_all(directory).map_err(Error::io(directory))?;
     export_file(
-        &program,
+        program,
         state.snapshot(),
         &directory.join("model.onnx"),
-        options.weights,
+        weights,
     )?;
     Ok(())
 }
 
-/// Returns `source`'s program for `task`, with named inputs, outputs, and dynamic axes, and the state it reads.
+/// Returns `source`'s program for `task`, with named inputs, outputs, and dynamic axes, and the state it reads, which [`write`] writes as an ONNX file.
+///
+/// Text models read `input_ids`, `attention_mask`, and `token_type_ids` when the model reads token types, each `[batch_size, sequence_length]` of `I64`.
+/// Vision models read `pixel_values`, `[batch_size, 3, H, W]` at the size the processor gives every image, or with `height` and `width` axes when the processor keeps each image's aspect ratio; waveform models read `input_values`, `[batch_size, sequence_length]`, and spectrogram classifiers `input_values`, `[batch_size, frames, mels]`.
+/// Outputs are named as `optimum`'s `_TASK_TO_COMMON_OUTPUTS` names them: `logits` for classifiers, taggers, fill-mask, segmentation, audio classification, and CTC, `last_hidden_state` for feature extraction, with `pooler_output` beside it for an image encoder that pools, `start_logits` and `end_logits` for question answering, `logits` and `pred_boxes` for detection, `predicted_depth` for depth, and `token_embeddings` and `sentence_embedding` for a `sentence-transformers` model.
 ///
 /// # Errors
 ///
-/// Returns an error as [`export`] does, except for writing.
+/// Returns an error if exporting does not support `task`, if the model does not load for `task` or does not build on metadata, or if ONNX has no operator for one of the model's operations.
 pub fn program(
     source: &Source,
     task: Task,
@@ -111,21 +109,21 @@ pub fn program(
         }
         Task::TextClassification | Task::TextRanking | Task::ZeroShotClassification => {
             let model: SequenceClassifier = model::load(source, load)?;
-            text(options, model.model(), &["logits"], forward)
+            text(options, model.get_model()?, &["logits"], forward)
         }
         Task::TokenClassification => {
             let model: TokenClassifier = model::load(source, load)?;
-            text(options, model.model(), &["logits"], forward)
+            text(options, model.get_model()?, &["logits"], forward)
         }
         Task::FillMask => {
             let model: MaskedLm = model::load(source, load)?;
-            text(options, model.model(), &["logits"], forward)
+            text(options, model.get_model()?, &["logits"], forward)
         }
         Task::QuestionAnswering => {
             let model: QuestionAnswerer = model::load(source, load)?;
             text(
                 options,
-                model.model(),
+                model.get_model()?,
                 &["start_logits", "end_logits"],
                 |layer, batch, state| {
                     let scores = layer.forward(batch, state)?;
@@ -137,22 +135,39 @@ pub fn program(
             let model = SentenceEmbedder::load(source, load)?;
             text(
                 options,
-                model.model(),
+                model.get_model()?,
                 &["token_embeddings", "sentence_embedding"],
                 |layer, batch, state| Ok(layer.embeddings(batch, state)?.to_vec()),
             )
         }
         Task::ImageClassification => {
             let ImageClassifier(classifier) = model::load(source, load)?;
-            image(source, classifier.model(), options, &["logits"], forward)
+            image(
+                source,
+                classifier.get_model()?,
+                options,
+                &["logits"],
+                forward,
+            )
         }
         Task::ImageFeatureExtraction => {
             let model: ImageEncoder = model::load(source, load)?;
-            image(source, &model, options, &["last_hidden_state"], forward)
+            // `pooler_output` is what `pool=True` returns, as `optimum` exports it beside the hidden states.
+            image(
+                source,
+                &model,
+                options,
+                &["last_hidden_state", "pooler_output"],
+                |layer, pixels, state| {
+                    let hidden = layer.forward(pixels, state)?;
+                    let pooled = layer.pooled(&hidden)?;
+                    Ok(vec![hidden, pooled])
+                },
+            )
         }
         Task::ImageSegmentation => {
             let model: SemanticSegmenter = model::load(source, load)?;
-            image(source, model.model(), options, &["logits"], forward)
+            image(source, model.get_model()?, options, &["logits"], forward)
         }
         Task::DepthEstimation => {
             let model: DepthEstimator = model::load(source, load)?;
@@ -192,7 +207,12 @@ pub fn program(
                 &[BATCH, frames?, mels?],
                 &[(0, "batch_size")],
             )?;
-            single(model.classifier.model(), "input_values", spec, &["logits"])
+            single(
+                model.classifier.get_model()?,
+                "input_values",
+                spec,
+                &["logits"],
+            )
         }
         Task::AutomaticSpeechRecognition => {
             if model::default_head(source)? != Head::Ctc {
@@ -213,12 +233,12 @@ pub fn program(
                 let mels = front_end.options().mels;
                 let spec = input_spec(options, data_type, &[BATCH, SEQUENCE, mels], &[])?;
                 let graph = build(
-                    model.model(),
+                    model.get_model()?,
                     vec![("input_features", spec)],
                     &["logits"],
                     |layer, tensors, state| forward(layer, &tensors[0].transpose(1, 2)?, state),
                 )?;
-                let state = model.model().state();
+                let state = model.get_model()?.state();
                 return Ok((state.program(&graph)?, state.clone()));
             }
 
@@ -228,7 +248,7 @@ pub fn program(
                 &[BATCH, SAMPLES],
                 &[(0, "batch_size"), (1, "sequence_length")],
             )?;
-            single(model.model(), "input_values", spec, &["logits"])
+            single(model.get_model()?, "input_values", spec, &["logits"])
         }
         other => Err(Error::unsupported(format!(
             "exporting task {} as onnx",

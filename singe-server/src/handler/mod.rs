@@ -10,6 +10,7 @@ pub mod model;
 pub mod rerank;
 pub mod stream;
 pub mod task;
+pub mod tensor;
 pub mod tokenize;
 
 use axum::{
@@ -40,6 +41,7 @@ where
         .merge(audio_router())
         .merge(image_router())
         .merge(task_router())
+        .merge(tensor_router())
         .merge(model_router())
         .merge(tokenize_router())
         .merge(health_router())
@@ -98,6 +100,16 @@ where
     Router::new()
         .route("/v1/tasks", get(task::list))
         .route("/v1/tasks/{task}", post(task::run))
+}
+
+pub fn tensor_router<S>() -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+    Served: FromRef<S>,
+{
+    Router::new()
+        .route("/v2/models/{model}/infer", post(tensor::infer))
+        .route("/v2/models/{model}", get(tensor::metadata))
 }
 
 /// Returns a router of `/v1/models` and `/v1/models/{model}`.

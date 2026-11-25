@@ -1,4 +1,7 @@
-use std::fmt::{self, Display, Formatter};
+use std::{
+    fmt::{self, Display, Formatter},
+    str::FromStr,
+};
 
 pub use half::{bf16, f16};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -191,6 +194,32 @@ impl DataType {
             (Self::U8, signed) | (signed, Self::U8) => signed,
             _ if self.size_bytes() >= other.size_bytes() => self,
             _ => other,
+        })
+    }
+}
+
+impl FromStr for DataType {
+    type Err = Error;
+
+    fn from_str(name: &str) -> Result<Self> {
+        Ok(match name {
+            "bool" => Self::Bool,
+            "u8" => Self::U8,
+            "i8" => Self::I8,
+            "u16" => Self::U16,
+            "i16" => Self::I16,
+            "u32" => Self::U32,
+            "i32" => Self::I32,
+            "u64" => Self::U64,
+            "i64" => Self::I64,
+            "f16" => Self::F16,
+            "bf16" => Self::Bf16,
+            "f32" => Self::F32,
+            "f64" => Self::F64,
+            "f8e4m3" => Self::F8E4M3,
+            "f8e5m2" => Self::F8E5M2,
+            "f4e2m1" => Self::F4E2M1,
+            _ => return Err(Error::invalid_argument("data type name")),
         })
     }
 }

@@ -44,9 +44,8 @@ pub struct SentenceSimilarityOutput {
 }
 
 impl SentenceSimilarityPipeline {
-    #[must_use]
-    pub const fn model(&self) -> &Model<SentenceLayers> {
-        self.model.model()
+    pub fn get_model(&self) -> Result<&Model<SentenceLayers>> {
+        self.model.get_model()
     }
 
     /// Returns each text's vector, `[B, W]` of `F32`, truncated to `max_length` tokens, or to the snapshot's limit for `None`.

@@ -16,10 +16,11 @@ cuda_13_4 = ["singe-model/cuda_13_4", "singe-server/cuda_13_4"]
 [dependencies]
 anyhow.workspace = true
 bytesize.workspace = true
+humantime.workspace = true
 clap = { workspace = true, features = ["env"] }
-singe.workspace = true
-singe-model.workspace = true
-singe-server.workspace = true
+singe = { workspace = true, features = ["onnx"] }
+singe-model = { workspace = true, features = ["onnx"] }
+singe-server = { workspace = true, features = ["onnx"] }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tracing-subscriber.workspace = true
 

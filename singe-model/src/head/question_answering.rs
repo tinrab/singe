@@ -1,6 +1,8 @@
 //! Extractive question answering, as `transformers`' `*ForQuestionAnswering` heads: every token's hidden state to the scores of an answer starting and ending there, `[B, T, 2]`.
 //! It is written once for every model; its state is `span.output`.
 
+use std::sync::Arc;
+
 use singe::{
     DataType, Error as SingeError, Result as SingeResult,
     nn::{Model, TokenBatch},
@@ -9,6 +11,10 @@ use singe::{
 use crate::{
     assembly::PostNormEncoder,
     error::Result,
+    function::{
+        TensorFunction,
+        forward::{External, ExternalHead, Forward},
+    },
     head::{EncoderHead, HeadLayouts, TokenScoreLayers},
     schema::Schema,
     source::Source,
@@ -17,13 +23,12 @@ use crate::{
 /// A loaded question answerer, whose scores' last axis holds each token's start score, then its end score.
 #[derive(Debug)]
 pub struct QuestionAnswerer {
-    model: Model<TokenScoreLayers>,
+    model: Forward<TokenScoreLayers>,
 }
 
 impl QuestionAnswerer {
-    #[must_use]
-    pub const fn model(&self) -> &Model<TokenScoreLayers> {
-        &self.model
+    pub fn get_model(&self) -> Result<&Model<TokenScoreLayers>> {
+        self.model.get_native()
     }
 
     /// Returns each row's tokens' start and end scores, padded tokens included.
@@ -68,6 +73,16 @@ impl EncoderHead for QuestionAnswerer {
     }
 
     fn new(model: Model<TokenScoreLayers>, (): ()) -> Self {
-        Self { model }
+        Self {
+            model: Forward::Native(model),
+        }
+    }
+}
+
+impl ExternalHead for QuestionAnswerer {
+    fn external(_source: &Source, function: Arc<dyn TensorFunction>) -> Result<Self> {
+        Ok(Self {
+            model: Forward::External(External::create(function, &["start_logits", "end_logits"])?),
+        })
     }
 }

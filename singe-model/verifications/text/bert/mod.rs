@@ -62,6 +62,10 @@ pub fn verify(session: &mut Session) {
     session.check::<TextClassificationPipeline>("spam");
     session.check_exported("spam");
     session.check_onnx("spam");
+    session.check_cuda::<TextClassificationPipeline>(
+        "spam",
+        &[("batch_size", 2), ("sequence_length", 64)],
+    );
     session.check_onnx("toxicity");
     session.check::<TextClassificationPipeline>("toxicity-bf16");
     session.check::<TextRankingPipeline>("ranking");
@@ -71,10 +75,19 @@ pub fn verify(session: &mut Session) {
     }
     session.check::<FeatureExtractionPipeline>("features");
     session.check_onnx("features");
+    session.check_cuda::<FeatureExtractionPipeline>(
+        "features",
+        &[("batch_size", 1), ("sequence_length", 64)],
+    );
     session.check::<SentenceSimilarityPipeline>("similarity");
     session.check_onnx("similarity");
     session.check::<SentenceEmbeddings>("embeddings-sqrt");
     session.check::<FillMaskPipeline>("fill");
     session.check_onnx("fill");
+    session.check_cuda::<FillMaskPipeline>("fill", &[("batch_size", 2), ("sequence_length", 64)]);
     session.check_onnx("entities-none");
+    session.check_cuda::<TokenClassificationPipeline>(
+        "entities-none",
+        &[("batch_size", 2), ("sequence_length", 64)],
+    );
 }

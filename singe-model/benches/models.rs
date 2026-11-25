@@ -58,7 +58,11 @@ fn minilm(benches: &mut Benches) {
             LoadOptions::new(DEVICE, data_type),
         )
         .unwrap();
-        let (graph, _) = pipeline.model().capture_group(&tokens).unwrap();
+        let (graph, _) = pipeline
+            .get_model()
+            .unwrap()
+            .capture_group(&tokens)
+            .unwrap();
         let mut executor = graph.prepare(GraphPrepareOptions::new(DEVICE)).unwrap();
         benches.run(&name, || {
             wait(&executor.run(&inputs).unwrap()[0]).unwrap();

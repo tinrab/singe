@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use serde::Deserialize;
 use singe::{
@@ -8,6 +8,7 @@ use singe::{
 
 use crate::{
     error::{Error, Result},
+    function::forward::{External, Forward},
     head::{Boxed, TextEncoder},
     model,
     source::{LoadOptions, Source},
@@ -48,11 +49,20 @@ impl Layer<TokenBatch> for SentenceLayers {
 
 #[derive(Debug)]
 pub struct SentenceEmbedder {
-    model: Model<SentenceLayers>,
+    model: Forward<SentenceLayers>,
 }
 
 impl SentenceEmbedder {
     pub fn load(source: &Source, options: LoadOptions) -> Result<Self> {
+        if let Some(function) = source.function() {
+            return Ok(Self {
+                model: Forward::External(External::create(
+                    Arc::clone(function),
+                    &["sentence_embedding"],
+                )?),
+            });
+        }
+
         let pooling = pooling(source)?;
         let encoder: TextEncoder = model::load(source, options)?;
         let layers = SentenceLayers {
@@ -60,13 +70,12 @@ impl SentenceEmbedder {
             pooling,
         };
         Ok(Self {
-            model: Model::new(layers, encoder.state().clone()),
+            model: Forward::Native(Model::new(layers, encoder.state().clone())),
         })
     }
 
-    #[must_use]
-    pub const fn model(&self) -> &Model<SentenceLayers> {
-        &self.model
+    pub fn get_model(&self) -> Result<&Model<SentenceLayers>> {
+        self.model.get_native()
     }
 
     pub fn embed(&self, batch: &TokenBatch) -> Result<Tensor> {

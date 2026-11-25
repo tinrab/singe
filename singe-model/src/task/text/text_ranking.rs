@@ -52,7 +52,7 @@ impl Pipeline for TextRankingPipeline {
     type Output = Vec<RankedText>;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
-        let model: SequenceClassifier = model::load(source, options)?;
+        let model: SequenceClassifier = model::load_served(source, options)?;
         if model.config().labels().len() != 1 {
             return Err(Error::unsupported(
                 "ranking with a classifier of other than one label",

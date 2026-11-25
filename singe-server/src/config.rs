@@ -1,13 +1,19 @@
 //! What a server serves and how: read from a TOML file, from the command line, or built in code.
 
 use std::{
+    collections::BTreeMap,
     fs, io,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
-use serde::{Deserialize, Serialize};
+use bytesize::ByteSize;
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 use singe::{DataType, Device};
-use singe_model::Source;
+use singe_model::{
+    Source,
+    tune::{TuneLevel, TuneSettings, Tuning},
+};
 use toml::de::Error as TomlError;
 
 /// A server's settings and models, as its TOML file has them; every field has a default.
@@ -67,8 +73,17 @@ impl ServerConfig {
 #[serde(deny_unknown_fields)]
 pub struct ModelConfig {
     /// A model directory, or a Hugging Face repository the local cache holds, as `owner/name` or `owner/name@revision`.
-    pub model: String,
-    /// The name requests use, or else `model` as given.
+    pub model: Option<String>,
+    pub program: Option<PathBuf>,
+    pub file: Option<PathBuf>,
+    pub processor: Option<String>,
+    #[serde(default)]
+    pub dims: BTreeMap<String, Vec<i64>>,
+    #[serde(default)]
+    pub inputs: BTreeMap<String, Vec<i64>>,
+    #[serde(default)]
+    pub tune: TuneConfig,
+    /// The name requests use, or else `model` as given, the program directory's name, or the file's stem.
     pub name: Option<String>,
     /// The task to serve, or else the snapshot's default.
     pub task: Option<String>,
@@ -96,11 +111,42 @@ pub struct ModelConfig {
 }
 
 impl ModelConfig {
-    /// Creates a config for `model` with every other field at its default.
+    /// Creates a config for the snapshot `model` with every other field at its default.
     #[must_use]
     pub fn new(model: &str) -> Self {
         Self {
-            model: model.to_owned(),
+            model: Some(model.to_owned()),
+            ..Self::empty()
+        }
+    }
+
+    /// Creates a config for the exported program in `directory` with every other field at its default.
+    #[must_use]
+    pub fn program(directory: PathBuf) -> Self {
+        Self {
+            program: Some(directory),
+            ..Self::empty()
+        }
+    }
+
+    /// Creates a config for the ONNX file at `path` with every other field at its default.
+    #[must_use]
+    pub fn file(path: PathBuf) -> Self {
+        Self {
+            file: Some(path),
+            ..Self::empty()
+        }
+    }
+
+    fn empty() -> Self {
+        Self {
+            model: None,
+            program: None,
+            file: None,
+            processor: None,
+            dims: BTreeMap::new(),
+            inputs: BTreeMap::new(),
+            tune: TuneConfig::default(),
             name: None,
             task: None,
             data_type: DataTypeChoice::default(),
@@ -114,10 +160,69 @@ impl ModelConfig {
         }
     }
 
-    /// Returns the name requests use: `name`, or else `model`.
+    /// Returns the name requests use: `name`, or else `model` as given, the program directory's name, or the file's stem.
     #[must_use]
-    pub fn served_name(&self) -> &str {
-        self.name.as_deref().unwrap_or(&self.model)
+    pub fn served_name(&self) -> String {
+        if let Some(name) = &self.name {
+            return name.clone();
+        }
+
+        let path = match (&self.program, &self.file) {
+            (Some(directory), _) => directory.file_name(),
+            (None, Some(file)) => file.file_stem(),
+            (None, None) => return self.model.clone().unwrap_or_else(|| "model".to_owned()),
+        };
+        path.map_or_else(
+            || "model".to_owned(),
+            |name| name.to_string_lossy().into_owned(),
+        )
+    }
+
+    pub fn get_source(&self) -> Result<ModelSource<'_>, ConfigError> {
+        let source = match (&self.model, &self.program, &self.file) {
+            (Some(model), None, None) => ModelSource::Snapshot(model),
+            (None, Some(program), None) => ModelSource::Program(program),
+            (None, None, Some(file)) => ModelSource::Onnx(file),
+            _ => return Err(ConfigError::Source),
+        };
+        let snapshot = matches!(source, ModelSource::Snapshot(_));
+        let file = matches!(source, ModelSource::Onnx(_));
+        let given = [
+            (
+                "processor",
+                self.processor.is_some() && snapshot,
+                "program and file",
+            ),
+            ("dims", !self.dims.is_empty() && !file, "file"),
+            ("inputs", !self.inputs.is_empty() && !file, "file"),
+            ("tune", self.tune != TuneConfig::default() && !file, "file"),
+            (
+                "data_type",
+                self.data_type != DataTypeChoice::Auto && !snapshot,
+                "snapshot",
+            ),
+            ("eager", self.eager && !snapshot, "snapshot"),
+            (
+                "max_model_len",
+                self.max_model_len.is_some() && !snapshot,
+                "snapshot",
+            ),
+            (
+                "max_num_seqs",
+                self.max_num_seqs != default_max_num_seqs() && !snapshot,
+                "snapshot",
+            ),
+            (
+                "cache_tokens",
+                self.cache_tokens.is_some() && !snapshot,
+                "snapshot",
+            ),
+            ("seed", self.seed.is_some() && !snapshot, "snapshot"),
+        ];
+        if let Some(&(option, _, models)) = given.iter().find(|(_, misplaced, _)| *misplaced) {
+            return Err(ConfigError::Misplaced { option, models });
+        }
+        Ok(source)
     }
 
     /// Returns the device `device` names.
@@ -125,9 +230,102 @@ impl ModelConfig {
     /// # Errors
     ///
     /// Returns an error if `device` is not `cpu`, `cuda`, or `cuda:N`.
-    pub fn device(&self) -> Result<Device, ConfigError> {
+    pub fn get_device(&self) -> Result<Device, ConfigError> {
         parse_device(&self.device)
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelSource<'a> {
+    Snapshot(&'a str),
+    Program(&'a Path),
+    Onnx(&'a Path),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TuneConfig {
+    pub enabled: bool,
+    pub level: Option<TuneLevel>,
+    #[serde(serialize_with = "write_duration", deserialize_with = "read_duration")]
+    pub budget: Option<Duration>,
+    pub runs: Option<usize>,
+    pub schedules: Option<bool>,
+    #[serde(serialize_with = "write_duration", deserialize_with = "read_duration")]
+    pub plan_budget: Option<Duration>,
+    pub seed: Option<u64>,
+    pub memory_limit: Option<ByteSize>,
+    pub jobs: Option<usize>,
+    pub records: Option<PathBuf>,
+    pub save_records: Option<PathBuf>,
+}
+
+impl TuneConfig {
+    /// Returns whether any setting applies only to measuring, which reading `records` skips.
+    #[must_use]
+    pub const fn has_measuring_settings(&self) -> bool {
+        self.level.is_some()
+            || self.budget.is_some()
+            || self.runs.is_some()
+            || self.schedules.is_some()
+            || self.plan_budget.is_some()
+            || self.seed.is_some()
+            || self.memory_limit.is_some()
+            || self.jobs.is_some()
+            || self.save_records.is_some()
+    }
+
+    /// Returns the tuning these settings ask for, or `None` when `enabled` is off.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if settings are given with `enabled` off, or if `records` is given with settings for measuring.
+    pub fn get_tuning(&self) -> Result<Option<Tuning>, ConfigError> {
+        if !self.enabled {
+            if self.has_measuring_settings() || self.records.is_some() {
+                return Err(ConfigError::TuneDisabled);
+            }
+
+            return Ok(None);
+        }
+
+        if self.records.is_some() && self.has_measuring_settings() {
+            return Err(ConfigError::TuneRecordsMeasured);
+        }
+
+        let settings = TuneSettings {
+            level: self.level.unwrap_or_default(),
+            budget: self.budget,
+            runs: self.runs,
+            schedules: self.schedules,
+            plan_budget: self.plan_budget,
+            seed: self.seed,
+            memory_limit: self.memory_limit.as_ref().map(ByteSize::as_u64),
+            jobs: self.jobs,
+        };
+        Ok(Some(Tuning {
+            settings,
+            records: self.records.clone(),
+            save: self.save_records.clone(),
+            inputs: None,
+        }))
+    }
+}
+
+#[expect(clippy::ref_option, reason = "serde passes the field by reference")]
+fn write_duration<S: Serializer>(
+    duration: &Option<Duration>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    duration
+        .map(|duration| humantime::format_duration(duration).to_string())
+        .serialize(serializer)
+}
+
+fn read_duration<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Duration>, D::Error> {
+    Option::<String>::deserialize(deserializer)?
+        .map(|text| humantime::parse_duration(&text).map_err(D::Error::custom))
+        .transpose()
 }
 
 fn default_device() -> String {
@@ -183,6 +381,19 @@ pub enum ConfigError {
     /// A device other than `cpu`, `cuda`, or `cuda:N`.
     #[error("device {0}, rather than cpu, cuda, or cuda:N")]
     Device(String),
+    #[error("a model of other than exactly one of model, program, and file")]
+    Source,
+    #[error("{option} applies to {models} models")]
+    Misplaced {
+        option: &'static str,
+        models: &'static str,
+    },
+    /// Tuning settings with tuning off.
+    #[error("tuning settings without tune.enabled = true")]
+    TuneDisabled,
+    /// Tuning records beside settings for measuring, which reading records skips.
+    #[error("tuning records with settings for measuring, which reading records skips")]
+    TuneRecordsMeasured,
 }
 
 /// The type weights load in: the snapshot's own, or one named.

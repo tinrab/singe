@@ -1,6 +1,6 @@
 //! Heads of models that hear or speak clips: a CTC recognizer's scores of each frame's tokens, an audio classifier's of its labels, a codec's reconstructions, a zero-shot classifier's comparisons of clips and texts, and a text-to-speech model's samples.
 
-use std::{f64::consts::PI, fmt::Debug};
+use std::{f64::consts::PI, fmt::Debug, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use singe::{
@@ -10,9 +10,15 @@ use singe::{
 };
 
 use crate::{
-    error::Result,
+    error::{Error, Result},
+    format::transformers::SampleExtractor,
+    function::{
+        TensorFunction,
+        forward::{External, ExternalHead, Forward},
+    },
     head::{Boxed, Classifier, ContrastiveEncoder, upload},
     processor::fbank::{FilterBankOptions, SpectrogramOptions, ast_features, clap_features},
+    source::Source,
 };
 
 /// What a CTC recognizer's layers read of a clip.
@@ -27,24 +33,31 @@ pub enum CtcInput {
 /// A CTC recognizer, as `*ForCTC` heads are: its layers give each frame's scores of its vocabulary, `[B, T, V]`, from what `input` makes of a clip.
 #[derive(Debug)]
 pub struct CtcRecognizer {
-    model: Model<Boxed<dyn Layer>>,
+    model: Forward<Boxed<dyn Layer>>,
     sample_rate: i64,
     input: CtcInput,
+    convolutions: Vec<Convolution>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Convolution {
+    kernel: i64,
+    stride: i64,
 }
 
 impl CtcRecognizer {
     #[must_use]
     pub const fn new(model: Model<Boxed<dyn Layer>>, sample_rate: i64, input: CtcInput) -> Self {
         Self {
-            model,
+            model: Forward::Native(model),
             sample_rate,
             input,
+            convolutions: Vec::new(),
         }
     }
 
-    #[must_use]
-    pub const fn model(&self) -> &Model<Boxed<dyn Layer>> {
-        &self.model
+    pub fn get_model(&self) -> Result<&Model<Boxed<dyn Layer>>> {
+        self.model.get_native()
     }
 
     #[must_use]
@@ -68,16 +81,17 @@ impl CtcRecognizer {
                 } else {
                     samples.to_vec()
                 };
-                upload(self.model.state(), [1, count], samples)?
+                self.model.upload([1, count], samples)?
             }
             CtcInput::LogMel(front_end) => {
+                let model = self.model.get_native()?;
                 let frames = front_end.own_frames(count);
                 if frames == 0 {
                     return Ok(Vec::new());
                 }
 
                 let samples = Tensor::from_vec(
-                    self.model.state().device()?,
+                    model.state().device()?,
                     Shape::create([1, count])?,
                     samples.to_vec(),
                 )?;
@@ -85,11 +99,63 @@ impl CtcRecognizer {
                 let (features, _) = front_end.features(&samples, None)?;
                 features
                     .narrow(2, 0, frames)?
-                    .cast(self.model.state().floating_type()?)?
+                    .cast(model.state().floating_type()?)?
             }
         };
-        let (_, best) = self.model.forward(&input)?.topk(1, -1, true, false)?;
+        let mut scores = self.model.forward(&input)?;
+        if matches!(self.model, Forward::External(_)) {
+            let frames = self.convolutions.iter().fold(count, |length, convolution| {
+                ((length - convolution.kernel).div_euclid(convolution.stride) + 1).max(0)
+            });
+            scores = scores.narrow(1, 0, frames)?;
+        }
+
+        let (_, best) = scores.topk(1, -1, true, false)?;
         Ok(best.contiguous()?.to_vec::<i64>()?)
+    }
+}
+
+#[derive(Deserialize)]
+struct CtcFields {
+    conv_kernel: Option<Vec<i64>>,
+    conv_stride: Option<Vec<i64>>,
+}
+
+impl ExternalHead for CtcRecognizer {
+    fn external(source: &Source, function: Arc<dyn TensorFunction>) -> Result<Self> {
+        let fields: CtcFields = source.json("config.json")?;
+        let (Some(kernels), Some(strides)) = (fields.conv_kernel, fields.conv_stride) else {
+            return Err(Error::unsupported(
+                "a CTC recognizer from an exported program or an ONNX file without `conv_kernel` and `conv_stride` in its config, as models that read log-mel features have",
+            ));
+        };
+        if kernels.len() != strides.len() {
+            return Err(Error::invalid(
+                "a config whose `conv_kernel` and `conv_stride` differ in length",
+            ));
+        }
+
+        let extractor: SampleExtractor = source.json("preprocessor_config.json")?;
+        let mut model = External::create(function, &["logits"])?;
+        // Clips pad to a step along the samples' named axis, and their frames are cut back here, as `transformers` pads clips for models without an attention mask.
+        let samples = model
+            .input("input_values")
+            .and_then(|spec| spec.axes.get(1).cloned().flatten());
+        if let Some(samples) = samples {
+            model = model.narrowing(&samples);
+        }
+        Ok(Self {
+            model: Forward::External(model),
+            sample_rate: extractor.sampling_rate,
+            input: CtcInput::Samples {
+                normalize: extractor.do_normalize,
+            },
+            convolutions: kernels
+                .into_iter()
+                .zip(strides)
+                .map(|(kernel, stride)| Convolution { kernel, stride })
+                .collect(),
+        })
     }
 }
 
@@ -125,8 +191,7 @@ impl AudioClassifier {
     /// Returns each label's score for one clip's samples, before any score function.
     pub fn scores(&self, samples: &[f32]) -> Result<Vec<f32>> {
         let options = self.features;
-        let features = upload(
-            self.classifier.model().state(),
+        let features = self.classifier.upload(
             [
                 1,
                 i64::try_from(options.frames).map_err(|_| SingeError::out_of_range("frames"))?,
@@ -135,6 +200,16 @@ impl AudioClassifier {
             ast_features(samples, &options),
         )?;
         Ok(self.classifier.scores(&features)?.remove(0))
+    }
+}
+
+impl ExternalHead for AudioClassifier {
+    fn external(source: &Source, function: Arc<dyn TensorFunction>) -> Result<Self> {
+        let (model, config) = External::classifier(source, function, 1)?;
+        Ok(Self {
+            classifier: Classifier::external(model, config),
+            features: FilterBankOptions::load(source)?,
+        })
     }
 }
 

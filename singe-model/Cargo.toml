@@ -15,15 +15,17 @@ include.workspace = true
 [features]
 default = []
 cuda_13_4 = ["singe/cuda_13_4", "singe-testing/cuda_13_4"]
-onnx = ["singe/onnx"]
+onnx = ["singe/onnx", "dep:singe-onnx"]
 
 [dependencies]
 rayon.workspace = true
 singe.workspace = true
+singe-onnx = { workspace = true, optional = true }
 image.workspace = true
 minijinja.workspace = true
 minijinja-contrib.workspace = true
 regex-syntax.workspace = true
+safetensors.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 symphonium.workspace = true
@@ -56,10 +58,6 @@ required-features = ["cuda_13_4"]
 [[example]]
 name = "profile"
 required-features = ["cuda_13_4"]
-
-[[example]]
-name = "export_onnx"
-required-features = ["onnx"]
 
 [[test]]
 name = "verifications"

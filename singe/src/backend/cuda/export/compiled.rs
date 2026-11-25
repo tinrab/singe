@@ -17,6 +17,7 @@ use std::{
 
 use libloading::{Error as LibraryError, Library};
 use serde_json::{Error as JsonError, Value};
+use singe_core::report_cleanup_failure;
 use singe_cuda::architecture::GpuArchitecture;
 use thiserror::Error as ThisError;
 
@@ -24,15 +25,19 @@ use crate::{
     backend::cuda::{
         codegen::disk_cache::{self, EntryKind},
         export::{
-            CudaProgram, CudaProgramSet,
-            writer::{CONFIGURATION_REFUSED, CUBLAS_BASE, LIBRARY_VERSION, ProgramFiles},
+            CudaProgram, CudaProgramSet, ProgramValue,
+            writer::{
+                CONFIGURATION_REFUSED, CUBLAS_BASE, LIBRARY_FILE, LIBRARY_VERSION, ProgramFiles,
+            },
         },
         runtime::runtime_for_device,
         tensor_region::CudaTensorSource,
     },
+    data_type::DataType,
     device::Device,
     error::Error,
     graph::narrow_counted,
+    layout::Layout,
     tensor::Tensor,
 };
 
@@ -47,8 +52,24 @@ pub enum ProgramError {
     Manifest(#[from] JsonError),
     #[error("failed to load the program")]
     Load(#[from] LibraryError),
+    #[error("{found} inputs, where the program takes {expected}")]
+    InputCount { expected: usize, found: usize },
+    #[error("input `{name}` as {found}, where the program takes {expected}")]
+    Input {
+        name: String,
+        expected: String,
+        found: String,
+    },
     #[error("nvcc failed in {directory}:\n{output}")]
     Compiler { directory: PathBuf, output: String },
+    #[error(
+        "model.weights in {directory} holds {found} bytes, where the manifest records {expected}"
+    )]
+    Weights {
+        directory: PathBuf,
+        found: usize,
+        expected: usize,
+    },
     #[error("{entry} returned {status} with status word {word} in {directory}: {failure}")]
     Status {
         entry: String,
@@ -116,19 +137,164 @@ pub struct CompiledProgram {
     built: Arc<Built>,
 }
 
+const PROGRAM_DEVICE: Device = Device::Cuda(0);
+
 struct Built {
-    // Its steps by name; the one step of a program of one has none.
-    steps: Vec<(String, CudaProgram)>,
+    steps: Vec<ProgramInterface>,
     library: Library,
     weights: Arc<Vec<u8>>,
     directory: PathBuf,
+    files: Files,
 }
 
-// Programs that fail to compile keep their files, for reading what the compiler rejected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Files {
+    Removed,
+    Kept,
+}
+
 impl Drop for Built {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.directory);
+        // A program that fails to compile never gets here, so its files stay for reading what the compiler rejected.
+        if self.files == Files::Removed
+            && let Err(error) = fs::remove_dir_all(&self.directory)
+        {
+            report_cleanup_failure("remove", "program directory", &error);
+        }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProgramInterface {
+    pub name: String,
+    pub inputs: Vec<ProgramValue>,
+    pub outputs: Vec<ProgramValue>,
+    pub state: Vec<ProgramValue>,
+}
+
+impl ProgramInterface {
+    fn of(program: &CudaProgram) -> Self {
+        Self {
+            name: String::new(),
+            inputs: program.inputs.clone(),
+            outputs: program.outputs.clone(),
+            state: program
+                .state
+                .iter()
+                .map(|state| ProgramValue {
+                    name: state.name.clone(),
+                    graph_name: state.graph_name.clone(),
+                    data_type: state.data_type,
+                    layout: state.layout.clone(),
+                    written: false,
+                    count: None,
+                })
+                .collect(),
+        }
+    }
+
+    fn read(name: String, manifest: &Value) -> Result<Self, ProgramError> {
+        let outputs = manifest_array(&manifest["outputs"])?;
+        let output_names = outputs
+            .iter()
+            .map(|output| manifest_text(output, "name"))
+            .collect::<Result<Vec<_>, _>>()?;
+        let values = |key: &str| {
+            manifest_array(&manifest[key])?
+                .iter()
+                .map(|value| manifest_value(value, &output_names))
+                .collect::<Result<Vec<_>, ProgramError>>()
+        };
+        Ok(Self {
+            name,
+            inputs: values("inputs")?,
+            outputs: values("outputs")?,
+            state: values("state")?,
+        })
+    }
+}
+
+fn manifest_array(value: &Value) -> Result<&Vec<Value>, Error> {
+    value
+        .as_array()
+        .ok_or_else(|| Error::invalid_argument("manifest values"))
+}
+
+fn manifest_text(value: &Value, key: &str) -> Result<String, Error> {
+    value[key]
+        .as_str()
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| Error::invalid_argument(format!("manifest {key}")))
+}
+
+fn manifest_numbers(value: &Value, key: &str) -> Result<Vec<i64>, Error> {
+    manifest_array(&value[key])?
+        .iter()
+        .map(|number| {
+            number
+                .as_i64()
+                .ok_or_else(|| Error::invalid_argument(format!("manifest {key}")))
+        })
+        .collect()
+}
+
+fn manifest_value(value: &Value, output_names: &[String]) -> Result<ProgramValue, ProgramError> {
+    let offset = value["offset"]
+        .as_u64()
+        .and_then(|offset| usize::try_from(offset).ok())
+        .ok_or_else(|| Error::invalid_argument("manifest offset"))?;
+    let layout = Layout::with_strides(
+        manifest_numbers(value, "dimensions")?,
+        manifest_numbers(value, "strides")?,
+    )?
+    .with_offset(offset);
+    let count = value["count"]
+        .as_str()
+        .map(|count| {
+            output_names
+                .iter()
+                .position(|name| name == count)
+                .ok_or_else(|| Error::invalid_argument("manifest count output"))
+        })
+        .transpose()?;
+    Ok(ProgramValue {
+        name: manifest_text(value, "name")?,
+        graph_name: manifest_text(value, "graph_name")?,
+        data_type: manifest_text(value, "data_type")?.parse()?,
+        layout,
+        // State tensors are never written by a run, so their entries leave it out.
+        written: value["written"].as_bool().unwrap_or(false),
+        count,
+    })
+}
+
+fn read_weights(directory: &Path, manifest: &Value) -> Result<Vec<u8>, ProgramError> {
+    let weights = match fs::read(directory.join("model.weights")) {
+        Ok(weights) => weights,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(error.into()),
+    };
+    let expected = manifest["weights_bytes"]
+        .as_u64()
+        .and_then(|bytes| usize::try_from(bytes).ok())
+        .ok_or_else(|| Error::invalid_argument("manifest weights_bytes"))?;
+    if weights.len() != expected {
+        return Err(ProgramError::Weights {
+            directory: directory.to_owned(),
+            found: weights.len(),
+            expected,
+        });
+    }
+    Ok(weights)
+}
+
+fn describe_tensor(data_type: DataType, layout: &Layout, device: Device) -> String {
+    format!(
+        "{data_type} {:?} with strides {:?} from {} on {device}",
+        layout.dimensions(),
+        layout.strides(),
+        layout.storage_offset()
+    )
 }
 
 fn read_manifest(directory: &Path, prefix: &str) -> Result<Value, ProgramError> {
@@ -186,7 +352,7 @@ fn build_library(arguments: &[String], directory: &Path) -> Result<(), ProgramEr
     ) else {
         return run_compiler(arguments, directory);
     };
-    let library = directory.join("libmodel.so");
+    let library = directory.join(LIBRARY_FILE);
     if entry.copy_to(&library) {
         return Ok(());
     }
@@ -236,8 +402,7 @@ fn program_arguments(directory: &Path) -> Result<Vec<String>, ProgramError> {
             .split_whitespace()
             .map(ToOwned::to_owned),
     );
-    arguments
-        .extend(["-shared", "-Xcompiler", "-fPIC", "-o", "libmodel.so"].map(ToOwned::to_owned));
+    arguments.extend(["-shared", "-Xcompiler", "-fPIC", "-o", LIBRARY_FILE].map(ToOwned::to_owned));
     Ok(arguments)
 }
 
@@ -317,6 +482,45 @@ pub fn build_written_loop(directory: &Path) -> Result<PathBuf, ProgramError> {
     Ok(directory.join("model_generate"))
 }
 
+fn build_set(
+    directory: &Path,
+    manifest: &Value,
+    steps: &[(String, Value)],
+) -> Result<(), ProgramError> {
+    let mut links = Vec::new();
+    let mut units = vec![manifest];
+    for (_, step) in steps {
+        links.extend(
+            field(step, "link")
+                .split_whitespace()
+                .map(ToOwned::to_owned),
+        );
+        units.push(step);
+    }
+
+    let mut objects = Vec::new();
+    for unit in units {
+        let mut arguments = compile_arguments(unit);
+        let source = arguments
+            .last()
+            .cloned()
+            .ok_or_else(|| Error::invalid_argument("program compile command"))?;
+        let object = source.replace(".cu", ".o");
+        library_flags(&mut arguments);
+        arguments.extend(["-Xcompiler", "-fPIC", "-o", &object].map(ToOwned::to_owned));
+        run_compiler(&arguments, directory)?;
+        objects.push(object);
+    }
+
+    let mut arguments = objects;
+    links.sort_unstable();
+    links.dedup();
+    library_flags(&mut arguments);
+    arguments.extend(links);
+    arguments.extend(["-shared", "-o", LIBRARY_FILE].map(ToOwned::to_owned));
+    run_compiler(&arguments, directory)
+}
+
 // Writes what compiling `files` needs, which leaves out its weights, since those are read from memory.
 fn write_for_compiling(files: &ProgramFiles, directory: &Path) -> Result<(), ProgramError> {
     fs::create_dir_all(directory)?;
@@ -388,24 +592,25 @@ impl CompiledProgram {
                         shared.push(Arc::clone(&weights));
                         weights
                     };
-                Self::loaded(program, directory, weights)
+                Self::loaded(&program, directory, weights)
             })
             .collect()
     }
 
     fn loaded(
-        program: CudaProgram,
+        program: &CudaProgram,
         directory: PathBuf,
         weights: Arc<Vec<u8>>,
     ) -> Result<Self, ProgramError> {
         // SAFETY: the library is the program just compiled, and its initializers only register kernels.
-        let library = unsafe { Library::new(directory.join("libmodel.so")) }?;
+        let library = unsafe { Library::new(directory.join(LIBRARY_FILE)) }?;
         Ok(Self {
             built: Arc::new(Built {
-                steps: vec![(String::new(), program)],
+                steps: vec![ProgramInterface::of(program)],
                 library,
                 weights,
                 directory,
+                files: Files::Removed,
             }),
         })
     }
@@ -431,17 +636,8 @@ impl CompiledProgram {
     ) -> Result<Self, ProgramError> {
         let arguments = program_arguments(&directory)?;
         build_library(&arguments, &directory)?;
-        // SAFETY: the library is the program just compiled, and its initializers only register kernels.
-        let library = unsafe { Library::new(directory.join("libmodel.so")) }?;
         let weights = program.render("model")?.weights;
-        Ok(Self {
-            built: Arc::new(Built {
-                steps: vec![(String::new(), program.clone())],
-                library,
-                weights: Arc::new(weights),
-                directory,
-            }),
-        })
+        Self::loaded(program, directory, Arc::new(weights))
     }
 
     // Writes a program of several steps under `directory`, and compiles each of its files with its manifest's command, as its user would.
@@ -454,53 +650,49 @@ impl CompiledProgram {
         directory: PathBuf,
     ) -> Result<Self, ProgramError> {
         program.write_to(&directory, "model")?;
+        Self::load(directory, Files::Removed)
+    }
+
+    pub fn open(directory: PathBuf) -> Result<Self, ProgramError> {
+        Self::load(directory, Files::Kept)
+    }
+
+    fn load(directory: PathBuf, files: Files) -> Result<Self, ProgramError> {
         let manifest = read_manifest(&directory, "model")?;
-        let mut objects = Vec::new();
-        let mut units = vec![manifest];
-        let mut links = Vec::new();
-        for entry in &program.entries {
-            let step = read_manifest(&directory, &format!("model_{}", entry.name))?;
-            links.extend(
-                field(&step, "link")
-                    .split_whitespace()
-                    .map(ToOwned::to_owned),
-            );
-            units.push(step);
+        let set = manifest["steps"].as_array();
+        let steps = match set {
+            Some(entries) => entries
+                .iter()
+                .map(|entry| {
+                    let name = manifest_text(entry, "name")?;
+                    let step = read_manifest(&directory, &format!("model_{name}"))?;
+                    Ok((name, step))
+                })
+                .collect::<Result<Vec<_>, ProgramError>>()?,
+            None => vec![(String::new(), manifest.clone())],
+        };
+        if !directory.join(LIBRARY_FILE).exists() {
+            if set.is_some() {
+                build_set(&directory, &manifest, &steps)?;
+            } else {
+                build_library(&program_arguments(&directory)?, &directory)?;
+            }
         }
 
-        for unit in &units {
-            let mut arguments = compile_arguments(unit);
-            let source = arguments
-                .last()
-                .cloned()
-                .ok_or_else(|| Error::invalid_argument("program compile command"))?;
-            let object = source.replace(".cu", ".o");
-            library_flags(&mut arguments);
-            arguments.extend(["-Xcompiler", "-fPIC", "-o", &object].map(ToOwned::to_owned));
-            run_compiler(&arguments, &directory)?;
-            objects.push(object);
-        }
-
-        let mut arguments = objects;
-        links.sort_unstable();
-        links.dedup();
-        library_flags(&mut arguments);
-        arguments.extend(links);
-        arguments.extend(["-shared", "-o", "libmodel.so"].map(ToOwned::to_owned));
-        run_compiler(&arguments, &directory)?;
-        // SAFETY: the library is the program just compiled, and its initializers only register kernels.
-        let library = unsafe { Library::new(directory.join("libmodel.so")) }?;
-        let weights = program.render("model")?.weights;
+        let weights = read_weights(&directory, &manifest)?;
+        let steps = steps
+            .into_iter()
+            .map(|(name, step)| ProgramInterface::read(name, &step))
+            .collect::<Result<Vec<_>, ProgramError>>()?;
+        // SAFETY: the library is the program its manifests describe, and its initializers only register kernels.
+        let library = unsafe { Library::new(directory.join(LIBRARY_FILE)) }?;
         Ok(Self {
             built: Arc::new(Built {
-                steps: program
-                    .entries
-                    .iter()
-                    .map(|entry| (entry.name.clone(), entry.program.clone()))
-                    .collect(),
+                steps,
                 library,
                 weights: Arc::new(weights),
                 directory,
+                files,
             }),
         })
     }
@@ -559,15 +751,8 @@ impl CompiledProgram {
         self.instance()?.run(inputs, runs)
     }
 
-    // The program this was built from, the first step of several.
     #[must_use]
-    pub fn program(&self) -> &CudaProgram {
-        &self.built.steps[0].1
-    }
-
-    // Each step's name and program.
-    #[must_use]
-    pub fn steps(&self) -> &[(String, CudaProgram)] {
+    pub fn steps(&self) -> &[ProgramInterface] {
         &self.built.steps
     }
 
@@ -581,7 +766,7 @@ impl CompiledProgram {
 impl Built {
     // The name of an entry point for the step at `step`.
     fn symbol(&self, entry: &str, step: usize) -> String {
-        let name = &self.steps[step].0;
+        let name = &self.steps[step].name;
         if name.is_empty() {
             format!("model_{entry}")
         } else {
@@ -628,14 +813,39 @@ pub struct ProgramInstance {
 }
 
 impl ProgramInstance {
+    fn check_inputs(&self, step: usize, inputs: &[Tensor]) -> Result<(), ProgramError> {
+        // The program reads each input at the address and layout its manifest gives, so a tensor of another count, type, layout, or device would be read out of bounds.
+        let declared = &self.program.steps[step].inputs;
+        if declared.len() != inputs.len() {
+            return Err(ProgramError::InputCount {
+                expected: declared.len(),
+                found: inputs.len(),
+            });
+        }
+
+        for (value, input) in declared.iter().zip(inputs) {
+            let layout = Layout::from_tensor(input);
+            if input.data_type() != value.data_type
+                || layout != value.layout
+                || input.device() != PROGRAM_DEVICE
+            {
+                return Err(ProgramError::Input {
+                    name: value.graph_name.clone(),
+                    expected: describe_tensor(value.data_type, &value.layout, PROGRAM_DEVICE),
+                    found: describe_tensor(input.data_type(), &layout, input.device()),
+                });
+            }
+        }
+        Ok(())
+    }
+
     fn output_buffers(&self, step: usize) -> Result<Vec<Tensor>, ProgramError> {
         self.program.steps[step]
-            .1
             .outputs
             .iter()
             .map(|output| {
                 Ok(Tensor::zeroed_on(
-                    Device::Cuda(0),
+                    PROGRAM_DEVICE,
                     output.data_type,
                     output.layout.shape(),
                 )?)
@@ -653,6 +863,7 @@ impl ProgramInstance {
         inputs: &[Tensor],
         runs: usize,
     ) -> Result<Vec<Duration>, ProgramError> {
+        self.check_inputs(0, inputs)?;
         let compiled = &self.program;
         let outputs = self.output_buffers(0)?;
         let input_pointers = inputs.iter().map(origin).collect::<Vec<_>>();
@@ -726,12 +937,11 @@ impl ProgramInstance {
     // Returns the status the program's function reports.
     pub fn get(&self, name: &str) -> Result<Tensor, ProgramError> {
         let state = self.program.steps[0]
-            .1
             .state
             .iter()
             .find(|state| state.name == name)
             .ok_or_else(|| Error::missing_input("program state tensor"))?;
-        let values = Tensor::zeroed_on(Device::Cuda(0), state.data_type, state.layout.shape())?;
+        let values = Tensor::zeroed_on(PROGRAM_DEVICE, state.data_type, state.layout.shape())?;
         self.access(&format!("model_get_{name}"), origin(&values))?;
         Ok(values)
     }
@@ -785,7 +995,7 @@ impl ProgramInstance {
             .program
             .steps
             .iter()
-            .position(|(step, _)| step == name)
+            .position(|step| step.name == name)
             .ok_or_else(|| Error::invalid_argument("program step"))?;
         self.run_at(step, inputs, runs)
     }
@@ -796,6 +1006,7 @@ impl ProgramInstance {
         inputs: &[Tensor],
         runs: usize,
     ) -> Result<Vec<Tensor>, ProgramError> {
+        self.check_inputs(step, inputs)?;
         let compiled = &self.program;
         let outputs = self.output_buffers(step)?;
         let input_pointers = inputs.iter().map(origin).collect::<Vec<_>>();
@@ -829,7 +1040,6 @@ impl ProgramInstance {
 
         // Counts are the trailing outputs.
         let counted = compiled.steps[step]
-            .1
             .outputs
             .iter()
             .enumerate()
@@ -838,6 +1048,9 @@ impl ProgramInstance {
         Ok(narrow_counted(&counted, outputs)?)
     }
 }
+
+// SAFETY: the state is host memory the program allocated and `Drop` frees, and its CUDA resources belong to the device's primary context, which any thread may use.
+unsafe impl Send for ProgramInstance {}
 
 impl Drop for ProgramInstance {
     fn drop(&mut self) {

@@ -353,10 +353,10 @@ mod programs {
                     .unwrap();
             for (index, name, _) in set {
                 let case = &cases[*index];
-                let (_, step) = compiled
+                let step = compiled
                     .steps()
                     .iter()
-                    .find(|(step, _)| step == name)
+                    .find(|step| step.name == *name)
                     .unwrap();
                 let inputs = step
                     .inputs

@@ -1,11 +1,14 @@
 //! `image-feature-extraction`: an image to each token's last hidden state, or to one pooled vector.
 
+use std::sync::Arc;
+
 use serde::Deserialize;
 use singe::{DataType, Error as SingeError};
 
 use crate::{
-    error::Result,
-    head::ImageEncoder,
+    error::{Error, Result},
+    function::forward::{External, Forward},
+    head::{Boxed, ImageEncoder, PooledLayer},
     host, model,
     processor::image::{Image, ImageTransforms},
     source::{LoadOptions, Source},
@@ -14,7 +17,8 @@ use crate::{
 
 #[derive(Debug)]
 pub struct ImageFeatureExtractionPipeline {
-    model: ImageEncoder,
+    model: Forward<Boxed<dyn PooledLayer>>,
+    pooled: Option<External>,
     processor: ImageTransforms,
     options: LoadOptions,
 }
@@ -35,8 +39,21 @@ impl Pipeline for ImageFeatureExtractionPipeline {
     type Output = Vec<Vec<f32>>;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
+        let (model, pooled) = if let Some(function) = source.function() {
+            let hidden = External::create(Arc::clone(function), &["last_hidden_state"])?;
+            let pooled = hidden
+                .output("pooler_output")
+                .is_some()
+                .then(|| External::create(Arc::clone(function), &["pooler_output"]))
+                .transpose()?;
+            (Forward::External(hidden), pooled)
+        } else {
+            let model: ImageEncoder = model::load(source, options)?;
+            (Forward::Native(model), None)
+        };
         Ok(Self {
-            model: model::load(source, options)?,
+            model,
+            pooled,
             processor: ImageTransforms::load(source)?,
             options,
         })
@@ -46,11 +63,15 @@ impl Pipeline for ImageFeatureExtractionPipeline {
         let pixels =
             self.processor
                 .preprocess(image, self.options.device, self.options.data_type)?;
-        let hidden = self.model.forward(&pixels)?;
-        let features = if parameters.pool {
-            self.model.layer().pooled(&hidden)?
-        } else {
-            hidden.squeeze(0)?
+        let features = match (&self.model, &self.pooled, parameters.pool) {
+            (Forward::Native(model), _, true) => model.layer().pooled(&model.forward(&pixels)?)?,
+            (Forward::External(_), Some(pooled), true) => pooled.single(&pixels)?,
+            (Forward::External(_), None, true) => {
+                return Err(Error::unsupported(
+                    "pooling with a model without the output pooler_output",
+                ));
+            }
+            (model, _, false) => model.forward(&pixels)?.squeeze(0)?,
         };
         let &[_, width] = features.shape().dimensions() else {
             return Err(SingeError::invalid_argument("image features, [T, D]").into());

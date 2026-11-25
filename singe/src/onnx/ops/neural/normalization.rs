@@ -7,7 +7,7 @@ use crate::{
         attributes::Attributes,
         error::{Error, Result},
         importer::{ImportedValue, Importer},
-        ops::{expect_input_range, optional_input, register_node_outputs},
+        ops::{add_binary_intermediate, expect_input_range, optional_input, register_node_outputs},
         utility::{node_label, node_name},
     },
     shape::normalize_dim_usize,
@@ -74,9 +74,9 @@ pub fn lower_layer_normalization(
     expect_input_range(importer, node, 2, inputs)?;
     let attrs = Attributes::create(node)?;
     let input = importer.required_input(node, 0)?;
+    let normalized_shape = normalized_shape(&attrs, &input)?;
     let weight = importer.required_input(node, 1)?;
     let bias = optional_input(importer, node, 2)?;
-    let normalized_shape = normalized_shape(&attrs, &input)?;
     validate_layer_norm_io(
         importer,
         node,
@@ -88,22 +88,62 @@ pub fn lower_layer_normalization(
     )?;
     let epsilon = layer_norm_epsilon(&attrs)?;
     let device = importer.options().device;
-    let id = importer
-        .graph()
-        .add_operation_request(GraphOperationRequest::layer_normalization(
+    // A scale or bias that only broadcasts to the normalized shape, as Singe's exporter writes a ones scale of extent 1, applies after the normalization, so no length is fixed at import.
+    let matches_normalized_shape = weight.shape.dimensions() == normalized_shape
+        && bias
+            .as_ref()
+            .is_none_or(|bias| bias.shape.dimensions() == normalized_shape);
+    let (name, weight_node, bias_node) = if matches_normalized_shape {
+        (
             node_name(node),
-            operation,
-            input.node,
-            normalized_shape,
             Some(weight.node),
             bias.as_ref().map(|bias| bias.node),
-            epsilon,
-            GraphOperationOutput::new(input.data_type, input.shape.clone(), device),
-        ))?;
+        )
+    } else {
+        (None, None, None)
+    };
+    let mut output =
+        importer
+            .graph()
+            .add_operation_request(GraphOperationRequest::layer_normalization(
+                name,
+                operation,
+                input.node,
+                normalized_shape,
+                weight_node,
+                bias_node,
+                epsilon,
+                GraphOperationOutput::new(input.data_type, input.shape.clone(), device),
+            ))?;
+    if !matches_normalized_shape {
+        output = add_binary_intermediate(
+            importer,
+            if bias.is_none() {
+                node_name(node)
+            } else {
+                None
+            },
+            Operation::Mul,
+            [output, weight.node],
+            input.data_type,
+            input.shape.clone(),
+        )?;
+        if let Some(bias) = &bias {
+            output = add_binary_intermediate(
+                importer,
+                node_name(node),
+                Operation::Add,
+                [output, bias.node],
+                input.data_type,
+                input.shape.clone(),
+            )?;
+        }
+    }
+
     register_node_outputs(
         importer,
         node,
-        vec![ImportedValue::new(id, input.data_type, input.shape)],
+        vec![ImportedValue::new(output, input.data_type, input.shape)],
     )
 }
 
@@ -186,13 +226,20 @@ fn validate_parameter_shape(
     value: &ImportedValue,
     normalized_shape: &[i64],
 ) -> Result<()> {
-    if value.shape.dimensions() == normalized_shape {
+    let dimensions = value.shape.dimensions();
+    let broadcasts = dimensions.len() <= normalized_shape.len()
+        && dimensions
+            .iter()
+            .rev()
+            .zip(normalized_shape.iter().rev())
+            .all(|(&size, &target)| size == target || size == 1);
+    if broadcasts {
         return Ok(());
     }
     Err(Error::UnsupportedShape {
         name: node_label(node),
         reason: format!(
-            "{label} shape {:?} must match normalized shape {:?}",
+            "{label} shape {:?} must broadcast to normalized shape {:?}",
             value.shape.dimensions(),
             normalized_shape
         ),

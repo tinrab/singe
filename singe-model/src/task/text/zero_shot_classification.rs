@@ -67,7 +67,7 @@ impl Pipeline for ZeroShotClassificationPipeline {
 
     /// Loads the model and tokenizer, taking as the entailment label the first whose name starts with `entail`, and as the contradiction label the first, or the last when entailment is the first, as `transformers` finds them.
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
-        let model: SequenceClassifier = model::load(source, options)?;
+        let model: SequenceClassifier = model::load_served(source, options)?;
         let labels = model.config().labels();
         let entailment = labels
             .iter()

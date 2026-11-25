@@ -18,8 +18,8 @@ use singe_onnx::proto::onnx::{
 use crate::{
     data_type::DataType,
     graph::{
-        CaptureInfo, GraphProgram, ProgramInputBinding, StateBindingKind, StateSnapshot,
-        decompose_attention,
+        CaptureInfo, GraphProgram, InputDimensionGuard, ProgramInputBinding, StateBindingKind,
+        StateSnapshot, decompose_attention,
         ir::{Graph, ValueId},
     },
     onnx::{
@@ -39,7 +39,7 @@ use crate::{
 ///
 /// # Errors
 ///
-/// Returns an error if state differs from the program schema, capture or state was specialized to observed values, the graph contains unsupported operations, types, shape expressions, or output projections, or initializer readback or graph conversion fails.
+/// Returns an error if state differs from the program schema, capture was specialized to observed values, the graph contains unsupported operations, types, shape expressions, or output projections, or initializer readback or graph conversion fails.
 pub fn export(program: &GraphProgram, state: &StateSnapshot) -> Result<Vec<u8>> {
     external::encoded(&model(program, state)?)
 }
@@ -63,12 +63,6 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
     {
         return Err(unsupported(
             "value-specialized capture requires host-value guards that ONNX cannot represent",
-        ));
-    }
-
-    if !program.specialized_state().is_empty() {
-        return Err(unsupported(
-            "value-specialized state is outside the export contract",
         ));
     }
 
@@ -112,11 +106,12 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
             .collect(),
         visiting: HashSet::new(),
         serial: 0,
-        dynamic: program
-            .signature()
-            .inputs()
-            .iter()
-            .any(|input| !input.dimension_guards().is_empty()),
+        dynamic: program.signature().inputs().iter().any(|input| {
+            input
+                .dimension_guards()
+                .iter()
+                .any(|guard| !is_fixed(guard))
+        }),
         grown: Default::default(),
         traced: None,
         origin: None,
@@ -137,7 +132,7 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
                         input
                             .dimension_guards()
                             .iter()
-                            .find(|guard| guard.axis() == axis)
+                            .find(|guard| guard.axis() == axis && !is_fixed(guard))
                             .map_or(Value::DimValue(value), |guard| {
                                 Value::DimParam(guard.name().into())
                             }),
@@ -145,7 +140,11 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
                 })
                 .collect(),
         )?;
-        for guard in input.dimension_guards() {
+        for guard in input
+            .dimension_guards()
+            .iter()
+            .filter(|guard| !is_fixed(guard))
+        {
             annotate_dimension(
                 &mut info,
                 guard.axis(),
@@ -164,7 +163,10 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
                     .graph
                     .initializer
                     .push(tensor(input.name().into(), value)?);
-                if kind == StateBindingKind::Default {
+                // State the importer folded into constants cannot be overridden, since the values computed from it are already constants.
+                if kind == StateBindingKind::Default
+                    && !program.specialized_state().contains_key(input.name())
+                {
                     exporter.graph.input.push(info);
                 }
             }
@@ -213,6 +215,8 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
         }
     }
 
+    prune(&mut exporter.graph, program);
+
     let names = exporter.names;
     let model = ModelProto {
         ir_version: IR_VERSION,
@@ -235,6 +239,37 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
         ir,
         names,
     })
+}
+
+fn is_fixed(guard: &InputDimensionGuard) -> bool {
+    // A dimension whose range holds one size, as `singe export --dim` fixes one, is written as that size.
+    guard.min().is_some() && guard.min() == guard.max()
+}
+
+fn prune(graph: &mut GraphProto, program: &GraphProgram) {
+    // Every value is emitted, so shape values no output depends on leave nodes behind; the shape constraints `value_info` annotates stay, as checks on the values they name.
+    let mut read = graph
+        .output
+        .iter()
+        .chain(&graph.value_info)
+        .map(|value| value.name.clone())
+        .collect::<HashSet<_>>();
+    let mut kept = Vec::with_capacity(graph.node.len());
+    for node in mem::take(&mut graph.node).into_iter().rev() {
+        if node.output.iter().any(|output| read.contains(output)) {
+            read.extend(node.input.iter().cloned());
+            kept.push(node);
+        }
+    }
+
+    kept.reverse();
+    graph.node = kept;
+    read.extend(graph.input.iter().map(|input| input.name.clone()));
+    // State the importer folded into constants, such as a reshape's target, leaves initializers no node reads; other state stays, read or not, since its names are the model's published state.
+    graph.initializer.retain(|initializer| {
+        read.contains(&initializer.name)
+            || !program.specialized_state().contains_key(&initializer.name)
+    });
 }
 
 const IR_VERSION: i64 = 14;

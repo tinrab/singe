@@ -136,8 +136,8 @@ impl CudaExport {
         self
     }
 
-    // The providers lowering's rules read for what this export allows.
-    fn policy(&self) -> LoweringPolicy {
+    #[must_use]
+    pub fn lowering_policy(&self) -> LoweringPolicy {
         if let Some(policy) = &self.policy {
             return policy.clone();
         }
@@ -250,7 +250,7 @@ impl CudaExport {
     pub fn export(&self, graph: &Graph) -> Result<CudaProgram> {
         // Planning never touches a device, so constants stay on the host.
         let graph = graph.placed_on(Device::Cpu)?;
-        let policy = self.policy();
+        let policy = self.lowering_policy();
         let merged = self
             .records
             .as_ref()

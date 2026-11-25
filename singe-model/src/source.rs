@@ -3,6 +3,7 @@
 use std::{
     env, fs,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use serde::{Deserialize, de::DeserializeOwned};
@@ -12,6 +13,7 @@ use singe::{DataType, Device};
 use crate::{
     error::{Error, Result},
     format::NativeConfig,
+    function::TensorFunction,
     processor::text::special_token,
 };
 
@@ -28,13 +30,14 @@ pub enum Format {
     AutoGluon,
 }
 
-/// A model directory, its format, and its model kind.
+/// A model directory, its format, its model kind, and the external function that stands in for its weights, when one is attached.
 #[derive(Debug, Clone)]
 pub struct Source {
     directory: PathBuf,
     format: Format,
     /// The model kind: a native config's `model`, a `model_type`, or a `_class_name`.
     kind: String,
+    function: Option<Arc<dyn TensorFunction>>,
 }
 
 impl Source {
@@ -70,6 +73,7 @@ impl Source {
             directory,
             format,
             kind,
+            function: None,
         })
     }
 
@@ -121,7 +125,21 @@ impl Source {
             directory: self.directory.join(name),
             format: self.format,
             kind: self.kind.clone(),
+            function: self.function.clone(),
         }
+    }
+
+    #[must_use]
+    pub fn with_function(self, function: Arc<dyn TensorFunction>) -> Self {
+        Self {
+            function: Some(function),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn function(&self) -> Option<&Arc<dyn TensorFunction>> {
+        self.function.as_ref()
     }
 
     #[must_use]

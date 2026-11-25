@@ -6,6 +6,7 @@ mod onnx;
 mod snapshot;
 
 use std::{
+    collections::BTreeMap,
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::{Path, PathBuf},
@@ -18,11 +19,20 @@ use serde::{
     de::{DeserializeOwned, Error as _},
 };
 use serde_json::Value;
-use singe::{DataType, Device, backend::cuda::clear_cache};
+use singe::{
+    DataType, Device,
+    backend::cuda::{
+        clear_cache,
+        export::{Library, compiled::program_target},
+    },
+};
 use singe_model::{
     LoadOptions, Source,
+    export::cuda::file::{Build, FileExport, export_snapshot},
+    function::{Shapes, program},
     processor::base64::file_value,
-    task::{self, Pipeline},
+    task::{self, Pipeline, Task},
+    tune::{TuneLevel, TuneSettings, Tuning},
 };
 use singe_testing::{GpuWork, profiled};
 
@@ -148,13 +158,29 @@ impl Session {
     // Loads `R` from case `name`'s snapshot in the case's data type, as its reference loads it, runs the case through it, compares each output with the expected one, and reports it with the median time of a run.
     pub fn check<R: Runner>(&mut self, name: &str) {
         let label = format!("{}/{name}", self.name);
-        self.checked(&label, name, run::<R>);
+        self.checked(&label, name, |case, snapshot, label| {
+            run::<R>(case, Source::open(snapshot)?, label)
+        });
     }
 
     // Exports case `name`'s snapshot as a CUDA C++ program, builds its runner with `nvcc`, runs it on the case's inputs, and compares what it gives with the reference's outputs, as `export::run` does.
     pub fn check_exported(&mut self, name: &str) {
         let label = format!("{}/{name}/exported", self.name);
         self.checked(&label, name, run_exported);
+    }
+
+    pub fn check_cuda<R: Runner>(&mut self, name: &str, dimensions: &[(&str, i64)]) {
+        let label = format!("{}/{name}/cuda", self.name);
+        let shapes = Shapes {
+            dimensions: dimensions
+                .iter()
+                .map(|&(name, size)| (name.to_owned(), vec![size]))
+                .collect(),
+            inputs: BTreeMap::new(),
+        };
+        self.checked(&label, name, |case, snapshot, label| {
+            run_cuda::<R>(case, snapshot, label, shapes)
+        });
     }
 
     pub fn check_onnx(&mut self, name: &str) {
@@ -234,12 +260,11 @@ fn verdict(label: &str, matched: bool, details: &[String]) -> Outcome {
     }
 }
 
-fn run<R: Runner>(case: &Case, snapshot: &Path, label: &str) -> Result<Outcome> {
+fn run<R: Runner>(case: &Case, source: Source, label: &str) -> Result<Outcome> {
     if case.task != R::TASK {
         bail!("a {} case run as {}", case.task, R::TASK);
     }
 
-    let source = Source::open(snapshot)?;
     let (pipeline, load_time, load_gpu) =
         profiled(|| R::load(&source, LoadOptions::new(DEVICE, case.data_type)))?;
     let pipeline = pipeline?;
@@ -305,6 +330,52 @@ fn run_exported(case: &Case, snapshot: &Path, label: &str) -> Result<Outcome> {
         .join(label.replace('/', "-"));
     let (matched, details) = export::run(case, snapshot, &directory)?;
     Ok(verdict(label, matched, &details))
+}
+
+fn run_cuda<R: Runner>(
+    case: &Case,
+    snapshot: &Path,
+    label: &str,
+    shapes: Shapes,
+) -> Result<Outcome> {
+    if case.task != R::TASK {
+        bail!("a {} case run as {}", case.task, R::TASK);
+    }
+
+    let directory = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("cuda")
+        .join(label.replace('/', "-"));
+    if directory.exists() {
+        fs::remove_dir_all(&directory)?;
+    }
+    let options = FileExport {
+        architecture: program_target(DEVICE).context("a GPU and nvcc to export for")?,
+        device: DEVICE,
+        shapes,
+        libraries: Library::ALL.to_vec(),
+        fusion: true,
+        state_functions: false,
+        tuning: Some(Tuning {
+            settings: TuneSettings {
+                level: TuneLevel::Quick,
+                ..TuneSettings::default()
+            },
+            ..Tuning::default()
+        }),
+        build: Build::Library,
+    };
+    let name = snapshot
+        .to_str()
+        .context("a snapshot path that is not UTF-8")?;
+    export_snapshot(
+        name,
+        Task::from_id(&case.task)?,
+        case.data_type,
+        &directory,
+        &options,
+    )?;
+    let source = Source::open(snapshot)?.with_function(program::open(&directory)?);
+    run::<R>(case, source, label)
 }
 
 fn run_onnx(

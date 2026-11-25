@@ -1,11 +1,17 @@
 //! `feature-extraction`: text to each token's last hidden state.
 
+use std::sync::Arc;
+
 use serde::Deserialize;
-use singe::{DataType, Error as SingeError, Tensor, nn::TokenBatch};
+use singe::{
+    DataType, Error as SingeError, Tensor,
+    nn::{Layer, TokenBatch},
+};
 
 use crate::{
     error::Result,
-    head::TextEncoder,
+    function::forward::{External, Forward},
+    head::Boxed,
     model,
     processor::text::TextTokenizer,
     source::{LoadOptions, Source},
@@ -14,7 +20,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct FeatureExtractionPipeline {
-    model: TextEncoder,
+    model: Forward<Boxed<dyn Layer<TokenBatch>>>,
     tokenizer: TextTokenizer,
     options: LoadOptions,
 }
@@ -35,8 +41,15 @@ impl Pipeline for FeatureExtractionPipeline {
     type Output = Vec<Vec<f32>>;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
+        let model = match source.function() {
+            Some(function) => Forward::External(External::create(
+                Arc::clone(function),
+                &["last_hidden_state"],
+            )?),
+            None => Forward::Native(model::load(source, options)?),
+        };
         Ok(Self {
-            model: model::load(source, options)?,
+            model,
             tokenizer: TextTokenizer::load(source)?,
             options,
         })

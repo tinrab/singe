@@ -15,10 +15,13 @@ include.workspace = true
 [features]
 default = ["cuda_13_4"]
 cuda_13_4 = ["singe-model/cuda_13_4"]
+onnx = ["singe-model/onnx"]
 
 [dependencies]
 axum.workspace = true
+bytesize = { workspace = true, features = ["serde"] }
 futures.workspace = true
+humantime.workspace = true
 image.workspace = true
 serde.workspace = true
 serde_json.workspace = true

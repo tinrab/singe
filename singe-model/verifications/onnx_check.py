@@ -42,7 +42,7 @@ AUDIO = {
 }
 IMAGE = {
     "image-classification": ("AutoModelForImageClassification", ["logits"]),
-    "image-feature-extraction": ("AutoModel", ["last_hidden_state"]),
+    "image-feature-extraction": ("AutoModel", ["last_hidden_state", "pooler_output"]),
     "image-segmentation": ("AutoModelForSemanticSegmentation", ["logits"]),
     "object-detection": ("AutoModelForObjectDetection", ["logits", "pred_boxes"]),
     "depth-estimation": ("AutoModelForDepthEstimation", ["predicted_depth"]),
@@ -152,14 +152,17 @@ def texts(task, inputs):
     return inputs
 
 
-def encode(tokenizer, items, names):
+def encode(tokenizer, items, names, shape=None):
+    """The tokens of `items`, padded to the longest, or to the fixed `shape`'s length."""
     pairs = isinstance(items[0], tuple)
+    length = {} if shape is None else {"max_length": shape[1]}
     encoded = tokenizer(
         [item[0] for item in items] if pairs else items,
         [item[1] for item in items] if pairs else None,
-        padding=True,
+        padding="max_length" if length else True,
         truncation=True,
         return_tensors="np",
+        **length,
     )
     return {name: encoded[name].astype(np.int64) for name in names if name in encoded}
 
@@ -227,9 +230,12 @@ def fixed_shape(graph):
 
 
 def fitted(values, shape):
-    """`values`, pixels `[B, 3, H, W]` or features `[B, frames, mels]`, adapted to the fixed `shape`."""
+    """`values`, pixels `[B, 3, H, W]`, features `[B, frames, mels]` or samples `[B, N]`, adapted to the fixed `shape`."""
     if shape is None or list(values.shape) == shape:
         return values
+    if values.ndim == 2:
+        values = values[:, : shape[1]]
+        return np.pad(values, [(0, 0), (0, shape[1] - values.shape[1])])
     if values.ndim == 4:
         resized = torch.nn.functional.interpolate(
             torch.from_numpy(values), size=shape[2:], mode="bilinear"
@@ -313,7 +319,7 @@ def main():
         batches = [[item] for item in items] + [items]
 
         def feeds_of(batch):
-            return encode(tokenizer, batch, names)
+            return encode(tokenizer, batch, names, shape)
 
     if shape is not None:
         batches = [batch for batch in batches if len(batch) == shape[0]]

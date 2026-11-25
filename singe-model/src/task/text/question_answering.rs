@@ -87,7 +87,7 @@ impl Pipeline for QuestionAnsweringPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         let tokenizer = TextTokenizer::load(source)?;
         Ok(Self {
-            model: model::load(source, options)?,
+            model: model::load_served(source, options)?,
             classifier: tokenizer.classifier_id()?,
             tokenizer,
             options,

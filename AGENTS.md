@@ -67,6 +67,7 @@ A commit message is a single line.
 - Don't edit this file or the style guide unless asked.
 - Use typed errors with lowercase messages.
 - Don't write new doc comments (`///`, `//!`) unless a task asks for them; existing ones stay, updated only when their code changes.
+- Don't write regular line comments in place of doc comments.
 - Write an inline comment only where the code cannot say something itself.
 - Write each sentence of prose and comments on its own line.
 - Don't edit `uv.lock` by hand.

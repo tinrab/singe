@@ -1,6 +1,8 @@
 //! Masked language modeling, as `transformers`' `*ForMaskedLM` heads: every token's hidden state through a projection, its activation, and a norm, to the vocabulary's scores, `[B, T, vocab]`.
 //! It is written once for every model; its state is `masked_lm.projection`, `masked_lm.norm`, and `masked_lm.output`, whose weight is the token embedding table when the model ties them.
 
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Tensor,
@@ -10,6 +12,10 @@ use singe::{
 use crate::{
     assembly::PostNormEncoder,
     error::Result,
+    function::{
+        TensorFunction,
+        forward::{External, ExternalHead, Forward},
+    },
     head::{EncoderHead, HeadLayouts},
     schema::Schema,
     source::Source,
@@ -43,13 +49,12 @@ impl Layer<TokenBatch> for MaskedLmLayers {
 
 #[derive(Debug)]
 pub struct MaskedLm {
-    model: Model<MaskedLmLayers>,
+    model: Forward<MaskedLmLayers>,
 }
 
 impl MaskedLm {
-    #[must_use]
-    pub const fn model(&self) -> &Model<MaskedLmLayers> {
-        &self.model
+    pub fn get_model(&self) -> Result<&Model<MaskedLmLayers>> {
+        self.model.get_native()
     }
 
     /// Returns the vocabulary's scores at each of `positions`, a row and a token of `batch`.
@@ -122,6 +127,16 @@ impl EncoderHead for MaskedLm {
     }
 
     fn new(model: Model<MaskedLmLayers>, _config: MaskedLmConfig) -> Self {
-        Self { model }
+        Self {
+            model: Forward::Native(model),
+        }
+    }
+}
+
+impl ExternalHead for MaskedLm {
+    fn external(_source: &Source, function: Arc<dyn TensorFunction>) -> Result<Self> {
+        Ok(Self {
+            model: Forward::External(External::create(function, &["logits"])?),
+        })
     }
 }

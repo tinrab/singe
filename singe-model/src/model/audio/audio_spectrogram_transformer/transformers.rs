@@ -3,11 +3,8 @@
 use serde::Deserialize;
 
 use crate::{
-    error::{Error, Result},
-    format::{
-        Rules,
-        transformers::{classifier_config, default_true},
-    },
+    error::Result,
+    format::{Rules, transformers::classifier_config},
     model::{
         audio::audio_spectrogram_transformer::AstConfig,
         vision::vit::transformers::{VitFields, encoder_rules},
@@ -26,23 +23,8 @@ struct Fields {
     max_length: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-struct Extractor {
-    sampling_rate: i64,
-    num_mel_bins: usize,
-    max_length: usize,
-    mean: f64,
-    std: f64,
-    #[serde(default = "default_true")]
-    do_normalize: bool,
-}
-
 pub(crate) fn config(source: &Source) -> Result<AstConfig> {
     let fields: Fields = source.json("config.json")?;
-    let extractor: Extractor = source.json("preprocessor_config.json")?;
-    if !extractor.do_normalize {
-        return Err(Error::unsupported("AST features left unnormalized"));
-    }
     Ok(AstConfig {
         encoder: fields.vit.encoder()?,
         layers: fields.vit.num_hidden_layers,
@@ -52,13 +34,7 @@ pub(crate) fn config(source: &Source) -> Result<AstConfig> {
         mels: fields.num_mel_bins,
         frames: fields.max_length,
         classifier: classifier_config(source)?,
-        features: FilterBankOptions {
-            sample_rate: extractor.sampling_rate,
-            mels: extractor.num_mel_bins,
-            frames: extractor.max_length,
-            mean: extractor.mean,
-            std: extractor.std,
-        },
+        features: FilterBankOptions::load(source)?,
     })
 }
 

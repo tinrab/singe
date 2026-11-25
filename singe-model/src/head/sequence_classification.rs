@@ -2,6 +2,8 @@
 //! It is written once for every model: a model names its layout, and the import rules of its classifier's tensors.
 //! Its state is `classifier.projection`, when the layout has one, and `classifier.output`.
 
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Tensor,
@@ -15,6 +17,10 @@ use crate::{
     assembly::PostNormEncoder,
     error::{Error, Result},
     format::transformers::classifier_config,
+    function::{
+        TensorFunction,
+        forward::{External, ExternalHead, Forward},
+    },
     head::{EncoderHead, HeadLayouts},
     host,
     schema::Schema,
@@ -192,14 +198,13 @@ impl Layer<TokenBatch> for SequenceClassifierLayers {
 /// A loaded classifier: its layers and state, and its labels.
 #[derive(Debug)]
 pub struct SequenceClassifier {
-    model: Model<SequenceClassifierLayers>,
+    model: Forward<SequenceClassifierLayers>,
     config: ClassifierConfig,
 }
 
 impl SequenceClassifier {
-    #[must_use]
-    pub const fn model(&self) -> &Model<SequenceClassifierLayers> {
-        &self.model
+    pub fn get_model(&self) -> Result<&Model<SequenceClassifierLayers>> {
+        self.model.get_native()
     }
 
     #[must_use]
@@ -244,6 +249,19 @@ impl EncoderHead for SequenceClassifier {
     }
 
     fn new(model: Model<SequenceClassifierLayers>, config: ClassifierConfig) -> Self {
-        Self { model, config }
+        Self {
+            model: Forward::Native(model),
+            config,
+        }
+    }
+}
+
+impl ExternalHead for SequenceClassifier {
+    fn external(source: &Source, function: Arc<dyn TensorFunction>) -> Result<Self> {
+        let (model, config) = External::classifier(source, function, 1)?;
+        Ok(Self {
+            model: Forward::External(model),
+            config,
+        })
     }
 }

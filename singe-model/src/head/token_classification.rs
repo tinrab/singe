@@ -1,6 +1,8 @@
 //! Token classification, as `transformers`' `*ForTokenClassification` heads: every token's hidden state to one score per label, `[B, T, labels]`.
 //! It is written once for every model; its state is `classifier.output`.
 
+use std::sync::Arc;
+
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Tensor,
     nn::{Layer, Linear, Model, ModelState, TokenBatch},
@@ -10,6 +12,10 @@ use crate::{
     assembly::PostNormEncoder,
     error::Result,
     format::transformers::classifier_config,
+    function::{
+        TensorFunction,
+        forward::{External, ExternalHead, Forward},
+    },
     head::{ClassifierConfig, EncoderHead, HeadLayouts},
     host,
     schema::Schema,
@@ -49,14 +55,13 @@ impl Layer<TokenBatch> for TokenScoreLayers {
 /// A loaded token classifier: its layers and state, and its labels.
 #[derive(Debug)]
 pub struct TokenClassifier {
-    model: Model<TokenScoreLayers>,
+    model: Forward<TokenScoreLayers>,
     config: ClassifierConfig,
 }
 
 impl TokenClassifier {
-    #[must_use]
-    pub const fn model(&self) -> &Model<TokenScoreLayers> {
-        &self.model
+    pub fn get_model(&self) -> Result<&Model<TokenScoreLayers>> {
+        self.model.get_native()
     }
 
     #[must_use]
@@ -107,6 +112,19 @@ impl EncoderHead for TokenClassifier {
     }
 
     fn new(model: Model<TokenScoreLayers>, config: ClassifierConfig) -> Self {
-        Self { model, config }
+        Self {
+            model: Forward::Native(model),
+            config,
+        }
+    }
+}
+
+impl ExternalHead for TokenClassifier {
+    fn external(source: &Source, function: Arc<dyn TensorFunction>) -> Result<Self> {
+        let (model, config) = External::classifier(source, function, 2)?;
+        Ok(Self {
+            model: Forward::External(model),
+            config,
+        })
     }
 }

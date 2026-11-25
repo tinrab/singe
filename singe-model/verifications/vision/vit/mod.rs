@@ -6,5 +6,6 @@ use crate::support::Session;
 
 pub fn verify(session: &mut Session) {
     session.check::<ImageClassificationPipeline>("classification");
+    session.check_cuda::<ImageClassificationPipeline>("classification", &[("batch_size", 2)]);
     session.check_onnx("classification");
 }

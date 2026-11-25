@@ -7,4 +7,5 @@ use crate::support::Session;
 pub fn verify(session: &mut Session) {
     session.check::<AudioClassificationPipeline>("speech");
     session.check_onnx("speech");
+    session.check_cuda::<AudioClassificationPipeline>("speech", &[("batch_size", 1)]);
 }

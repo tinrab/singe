@@ -769,7 +769,7 @@ fn test_live_metadata_shape_values_reexport_as_runtime_integer_operations() {
 }
 
 #[test]
-fn test_value_specialized_capture_and_imported_state_are_rejected() {
+fn test_value_specialized_capture_is_rejected_and_imported_state_exports_as_constants() {
     let (captured, _) = Graph::capture_with_options(
         [("x", tensor(vec![2., 3.], &[2]))],
         CaptureBindings::new(),
@@ -792,10 +792,33 @@ fn test_value_specialized_capture_and_imported_state_are_rejected() {
             .with_symbolic_dimension_range("sequence", 3, Some(1), Some(8)),
     )
     .unwrap();
-    assert!(matches!(
-        onnx::export(original.program(), original.initializers()),
-        Err(Error::UnsupportedExport { .. })
-    ));
+    let bytes = onnx::export(original.program(), original.initializers()).unwrap();
+    let exported = OnnxModel::from_reader(
+        bytes.as_slice(),
+        OnnxOptions::new()
+            .with_symbolic_dimension_range("batch", 2, Some(1), Some(4))
+            .with_symbolic_dimension_range("sequence", 3, Some(1), Some(8)),
+    )
+    .unwrap();
+    let inputs = original
+        .inputs()
+        .iter()
+        .filter(|input| !input.has_initializer)
+        .map(|input| {
+            let count = input.shape.element_count();
+            let values = (0..count).map(|value| value as f32).collect::<Vec<_>>();
+            let tensor = Tensor::from_vec(Device::Cpu, input.shape.clone(), values)
+                .unwrap()
+                .cast(input.data_type)
+                .unwrap();
+            (input.name.clone(), tensor)
+        })
+        .collect::<HashMap<_, _>>();
+    let want = original.run_ordered(&inputs).unwrap();
+    let have = exported.run_ordered(&inputs).unwrap();
+    for (want, have) in want.iter().zip(&have) {
+        assert_eq!(want.to_bytes().unwrap(), have.to_bytes().unwrap());
+    }
 }
 
 #[test]

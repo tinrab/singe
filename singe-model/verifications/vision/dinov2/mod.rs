@@ -7,4 +7,5 @@ use crate::support::Session;
 pub fn verify(session: &mut Session) {
     session.check::<ImageFeatureExtractionPipeline>("pooled");
     session.check_onnx("pooled");
+    session.check_cuda::<ImageFeatureExtractionPipeline>("pooled", &[("batch_size", 1)]);
 }

@@ -260,6 +260,7 @@ impl Renderer<'_> {
         let value = |value: &ProgramValue| {
             json!({
                 "name": value.name,
+                "graph_name": value.graph_name,
                 "data_type": value.data_type.to_string(),
                 "dimensions": value.layout.dimensions(),
                 "strides": value.layout.strides(),

@@ -7,6 +7,7 @@ mod error;
 #[cfg(any(feature = "cuda_13_4", feature = "onnx"))]
 pub mod export;
 pub mod format;
+pub mod function;
 pub mod head;
 mod host;
 pub mod model;
@@ -14,6 +15,7 @@ pub mod processor;
 pub mod schema;
 pub mod source;
 pub mod task;
+pub mod tune;
 
 pub use self::{
     batch::BatchOptions,

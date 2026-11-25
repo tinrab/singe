@@ -62,9 +62,10 @@ impl Pipeline for AutomaticSpeechRecognitionPipeline {
     type Output = Transcription;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
-        let model = if model::default_head(source)? == Head::Ctc {
+        // An exported program or an ONNX file is a single pass, which only a CTC recognizer is.
+        let model = if source.function().is_some() || model::default_head(source)? == Head::Ctc {
             Recognizer::Ctc {
-                model: Box::new(model::load(source, options)?),
+                model: Box::new(model::load_served(source, options)?),
                 vocabulary: CtcTokenizer::load(source)?,
             }
         } else {

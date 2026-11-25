@@ -13,13 +13,25 @@ use crate::support::Session;
 pub fn verify(session: &mut Session) {
     session.check::<TextClassificationPipeline>("sentiment");
     session.check_onnx("sentiment");
+    session.check_cuda::<TextClassificationPipeline>(
+        "sentiment",
+        &[("batch_size", 2), ("sequence_length", 64)],
+    );
     session.check::<ZeroShotClassificationPipeline>("zero-shot");
     session.check_onnx("zero-shot");
+    session.check_cuda::<ZeroShotClassificationPipeline>(
+        "zero-shot",
+        &[("batch_size", 8), ("sequence_length", 64)],
+    );
     session.check::<ZeroShotClassificationPipeline>("zero-shot-multi-label");
     session.check::<TokenClassificationPipeline>("entities-simple");
     session.check::<TokenClassificationPipeline>("entities-first");
     session.check::<QuestionAnsweringPipeline>("answers");
     session.check_onnx("answers");
+    session.check_cuda::<QuestionAnsweringPipeline>(
+        "answers",
+        &[("batch_size", 16), ("sequence_length", 384)],
+    );
     session.check::<QuestionAnsweringPipeline>("answers-small-windows");
     session.check::<QuestionAnsweringPipeline>("answers-bf16");
     session.check::<FillMaskPipeline>("fill");

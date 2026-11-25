@@ -151,6 +151,26 @@ tasks! {
 }
 
 impl Task {
+    #[must_use]
+    pub const fn can_run_external(self) -> bool {
+        matches!(
+            self,
+            Self::FeatureExtraction
+                | Self::FillMask
+                | Self::QuestionAnswering
+                | Self::SentenceSimilarity
+                | Self::TextClassification
+                | Self::TextRanking
+                | Self::TokenClassification
+                | Self::ZeroShotClassification
+                | Self::ImageClassification
+                | Self::ImageFeatureExtraction
+                | Self::ImageSegmentation
+                | Self::AudioClassification
+                | Self::AutomaticSpeechRecognition
+        )
+    }
+
     /// Returns the task `id` names, as a task id or one of the aliases the Hub or `transformers` gives a task.
     ///
     /// # Errors

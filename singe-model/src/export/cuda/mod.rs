@@ -1,5 +1,7 @@
 //! Writes a model as CUDA C++ programs for one task, with what runs them with nothing of Singe: a generation loop for a task that generates, and a runner for one that maps inputs to outputs.
 
+#[cfg(feature = "onnx")]
+pub mod file;
 mod tokenizer;
 
 use std::path::Path;
@@ -151,23 +153,23 @@ pub fn export(
         }
         Task::TextClassification | Task::TextRanking | Task::ZeroShotClassification => {
             let model: SequenceClassifier = model::load(source, load)?;
-            token_runner(model.model(), directory, options)
+            token_runner(model.get_model()?, directory, options)
         }
         Task::TokenClassification => {
             let model: TokenClassifier = model::load(source, load)?;
-            token_runner(model.model(), directory, options)
+            token_runner(model.get_model()?, directory, options)
         }
         Task::QuestionAnswering => {
             let model: QuestionAnswerer = model::load(source, load)?;
-            token_runner(model.model(), directory, options)
+            token_runner(model.get_model()?, directory, options)
         }
         Task::FillMask => {
             let model: MaskedLm = model::load(source, load)?;
-            token_runner(model.model(), directory, options)
+            token_runner(model.get_model()?, directory, options)
         }
         Task::SentenceSimilarity => {
             let model = SentenceEmbedder::load(source, load)?;
-            token_runner(model.model(), directory, options)
+            token_runner(model.get_model()?, directory, options)
         }
         Task::ImageFeatureExtraction => {
             let model: ImageEncoder = model::load(source, load)?;

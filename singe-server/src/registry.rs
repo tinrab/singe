@@ -10,6 +10,7 @@ use std::{
 
 use serde_json::Value;
 use singe_model::{
+    function::TensorFunction,
     processor::text::TextTokenizer,
     task::{AnyPipeline, Task},
 };
@@ -45,6 +46,7 @@ pub enum Engine {
     Pipeline(Worker<Box<dyn AnyPipeline>>),
     /// A [`TaskRunner`] of one's own, served through the task API.
     Custom(Arc<dyn TaskRunner>),
+    Tensors(Worker<Arc<dyn TensorFunction>>),
 }
 
 /// A model the server serves, under the name requests use.
@@ -69,6 +71,7 @@ impl ServedModel {
             Engine::Text { engine, .. } => engine.state(),
             Engine::Pipeline(worker) => worker.state(),
             Engine::Custom(runner) => runner.state(),
+            Engine::Tensors(worker) => worker.state(),
         }
     }
 
@@ -78,6 +81,7 @@ impl ServedModel {
             Engine::Text { engine, .. } => engine.loaded().await,
             Engine::Pipeline(worker) => worker.loaded().await,
             Engine::Custom(runner) => runner.state(),
+            Engine::Tensors(worker) => worker.loaded().await,
         }
     }
 
@@ -92,7 +96,7 @@ impl ServedModel {
     pub fn max_model_len(&self) -> Option<usize> {
         match &self.engine {
             Engine::Text { engine, .. } => Some(engine.limits().max_model_len),
-            Engine::Pipeline(_) | Engine::Custom(_) => None,
+            Engine::Pipeline(_) | Engine::Custom(_) | Engine::Tensors(_) => None,
         }
     }
 
@@ -104,7 +108,7 @@ impl ServedModel {
     pub fn text(&self, endpoint: &str) -> ApiResult<(&TextEngine, &Arc<TextFormat>)> {
         match &self.engine {
             Engine::Text { engine, format } => Ok((engine, format)),
-            Engine::Pipeline(_) | Engine::Custom(_) => {
+            Engine::Pipeline(_) | Engine::Custom(_) | Engine::Tensors(_) => {
                 Err(ApiError::wrong_task(&self.name, &self.task, endpoint))
             }
         }
@@ -140,9 +144,15 @@ impl ServedModel {
     }
 }
 
+pub const TENSORS: &str = "tensors";
+
 /// Returns the endpoints that serve `task`, ending with the task API every task has.
 #[must_use]
 pub fn endpoints(task: &str) -> Vec<&'static str> {
+    if task == TENSORS {
+        return vec!["/v2/models/<model>/infer", "/v2/models/<model>"];
+    }
+
     let served: &[&str] = match Task::from_id(task) {
         Ok(Task::TextGeneration) => &[
             "/v1/chat/completions",

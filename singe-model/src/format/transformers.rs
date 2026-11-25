@@ -29,6 +29,13 @@ pub const fn default_true() -> bool {
     true
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub struct SampleExtractor {
+    pub sampling_rate: i64,
+    #[serde(default = "default_true")]
+    pub do_normalize: bool,
+}
+
 #[must_use]
 pub const fn default_channels() -> i64 {
     3

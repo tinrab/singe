@@ -8,7 +8,7 @@ use crate::{
     error::{Error, Result},
     format::{
         Rules,
-        transformers::{activation_field, default_true},
+        transformers::{SampleExtractor, activation_field},
     },
     model::audio::wav2vec2::{FeatureConvolution, Wav2Vec2Config},
     source::Source,
@@ -45,13 +45,6 @@ struct Fields {
     vocab_size: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-struct Extractor {
-    sampling_rate: i64,
-    #[serde(default = "default_true")]
-    do_normalize: bool,
-}
-
 pub(crate) fn config(source: &Source) -> Result<Wav2Vec2Config> {
     let fields: Fields = source.json("config.json")?;
     // The base models' layout: a group norm after only the first convolution, and blocks that norm after each residual.
@@ -72,7 +65,7 @@ pub(crate) fn config(source: &Source) -> Result<Wav2Vec2Config> {
         ));
     }
 
-    let extractor: Extractor = source.json("preprocessor_config.json")?;
+    let extractor: SampleExtractor = source.json("preprocessor_config.json")?;
     Ok(Wav2Vec2Config {
         convolutions: fields
             .conv_dim

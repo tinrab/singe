@@ -7,6 +7,8 @@ use std::{
 use image::ImageError;
 use serde_json::Error as JsonError;
 use singe::Error as SingeError;
+#[cfg(feature = "cuda_13_4")]
+use singe::backend::cuda::export::compiled::ProgramError;
 #[cfg(feature = "onnx")]
 use singe::onnx::Error as OnnxError;
 use thiserror::Error;
@@ -21,6 +23,9 @@ pub enum Error {
     #[cfg(feature = "onnx")]
     #[error(transparent)]
     Onnx(Box<OnnxError>),
+    #[cfg(feature = "cuda_13_4")]
+    #[error(transparent)]
+    Program(Box<ProgramError>),
     #[error("failed to access {}", path.display())]
     Io {
         path: PathBuf,
@@ -79,6 +84,13 @@ pub type Result<T> = StdResult<T, Error>;
 impl From<OnnxError> for Error {
     fn from(error: OnnxError) -> Self {
         Self::Onnx(Box::new(error))
+    }
+}
+
+#[cfg(feature = "cuda_13_4")]
+impl From<ProgramError> for Error {
+    fn from(error: ProgramError) -> Self {
+        Self::Program(Box::new(error))
     }
 }
 

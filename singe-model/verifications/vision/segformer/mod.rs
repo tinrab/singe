@@ -7,4 +7,5 @@ use crate::support::Session;
 pub fn verify(session: &mut Session) {
     session.check::<ImageSegmentationPipeline>("semantic");
     session.check_onnx("semantic");
+    session.check_cuda::<ImageSegmentationPipeline>("semantic", &[("batch_size", 1)]);
 }

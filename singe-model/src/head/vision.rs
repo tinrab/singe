@@ -1,7 +1,7 @@
 //! Heads over images and clips: classification of an image or a clip, object detection, the contrastive models zero-shot classification and detection run, depth estimation, semantic segmentation, and super-resolution.
 //! A model builds its layers to these outputs itself, since vision models differ in what their heads read: a class token, a mean of the patches, or detection tokens.
 
-use std::ops::Deref;
+use std::{ops::Deref, sync::Arc};
 
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Tensor,
@@ -10,8 +10,13 @@ use singe::{
 
 use crate::{
     error::{Error, Result},
+    function::{
+        TensorFunction,
+        forward::{External, ExternalHead, Forward},
+    },
     head::{Boxed, ClassifierConfig},
     host,
+    source::Source,
 };
 
 /// Returns the rows of a `[B, …, N]` tensor's last axis, as host vectors.
@@ -27,19 +32,33 @@ fn rows(tensor: &Tensor) -> Result<Vec<Vec<f32>>> {
 /// A classifier of images or clips: its layers to each input's scores, `[B, labels]`, and its labels.
 #[derive(Debug)]
 pub struct Classifier {
-    model: Model<Boxed<dyn Layer>>,
+    model: Forward<Boxed<dyn Layer>>,
     config: ClassifierConfig,
 }
 
 impl Classifier {
     #[must_use]
     pub const fn new(model: Model<Boxed<dyn Layer>>, config: ClassifierConfig) -> Self {
-        Self { model, config }
+        Self {
+            model: Forward::Native(model),
+            config,
+        }
     }
 
     #[must_use]
-    pub const fn model(&self) -> &Model<Boxed<dyn Layer>> {
-        &self.model
+    pub const fn external(model: External, config: ClassifierConfig) -> Self {
+        Self {
+            model: Forward::External(model),
+            config,
+        }
+    }
+
+    pub fn get_model(&self) -> Result<&Model<Boxed<dyn Layer>>> {
+        self.model.get_native()
+    }
+
+    pub fn upload<const N: usize>(&self, dimensions: [i64; N], values: Vec<f32>) -> Result<Tensor> {
+        self.model.upload(dimensions, values)
     }
 
     #[must_use]
@@ -62,6 +81,13 @@ impl Deref for ImageClassifier {
 
     fn deref(&self) -> &Classifier {
         &self.0
+    }
+}
+
+impl ExternalHead for ImageClassifier {
+    fn external(source: &Source, function: Arc<dyn TensorFunction>) -> Result<Self> {
+        let (model, config) = External::classifier(source, function, 1)?;
+        Ok(Self(Classifier::external(model, config)))
     }
 }
 
@@ -305,19 +331,21 @@ impl DepthEstimator {
 /// A semantic segmenter, as `*ForSemanticSegmentation` heads are: its layers give each label's score at each point of a map, `[B, labels, h, w]`, which the pipeline resizes to the image.
 #[derive(Debug)]
 pub struct SemanticSegmenter {
-    model: Model<Boxed<dyn Layer>>,
+    model: Forward<Boxed<dyn Layer>>,
     config: ClassifierConfig,
 }
 
 impl SemanticSegmenter {
     #[must_use]
     pub const fn new(model: Model<Boxed<dyn Layer>>, config: ClassifierConfig) -> Self {
-        Self { model, config }
+        Self {
+            model: Forward::Native(model),
+            config,
+        }
     }
 
-    #[must_use]
-    pub const fn model(&self) -> &Model<Boxed<dyn Layer>> {
-        &self.model
+    pub fn get_model(&self) -> Result<&Model<Boxed<dyn Layer>>> {
+        self.model.get_native()
     }
 
     #[must_use]
@@ -326,7 +354,17 @@ impl SemanticSegmenter {
     }
 
     pub fn scores(&self, pixels: &Tensor) -> Result<Tensor> {
-        Ok(self.model.forward(pixels)?)
+        self.model.forward(pixels)
+    }
+}
+
+impl ExternalHead for SemanticSegmenter {
+    fn external(source: &Source, function: Arc<dyn TensorFunction>) -> Result<Self> {
+        let (model, config) = External::classifier(source, function, 1)?;
+        Ok(Self {
+            model: Forward::External(model),
+            config,
+        })
     }
 }
 

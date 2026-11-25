@@ -5,6 +5,12 @@ use std::f64::consts::PI;
 use serde::{Deserialize, Serialize};
 use singe::signal::slaney_mel_filters;
 
+use crate::{
+    error::{Error, Result},
+    format::transformers::default_true,
+    source::Source,
+};
+
 /// The log mel filter banks an audio classifier reads, as AST's feature extractor computes them: `frames` of `mels` from clips at `sample_rate`, normalized by `mean` and twice `std`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct FilterBankOptions {
@@ -13,6 +19,38 @@ pub struct FilterBankOptions {
     pub frames: usize,
     pub mean: f64,
     pub std: f64,
+}
+
+#[derive(Deserialize)]
+struct Extractor {
+    sampling_rate: i64,
+    num_mel_bins: usize,
+    max_length: usize,
+    mean: f64,
+    std: f64,
+    #[serde(default = "default_true")]
+    do_normalize: bool,
+}
+
+impl FilterBankOptions {
+    /// Reads the options from the snapshot's `preprocessor_config.json`, as `ASTFeatureExtractor` writes it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read, or if it leaves the features unnormalized.
+    pub fn load(source: &Source) -> Result<Self> {
+        let extractor: Extractor = source.json("preprocessor_config.json")?;
+        if !extractor.do_normalize {
+            return Err(Error::unsupported("AST features left unnormalized"));
+        }
+        Ok(Self {
+            sample_rate: extractor.sampling_rate,
+            mels: extractor.num_mel_bins,
+            frames: extractor.max_length,
+            mean: extractor.mean,
+            std: extractor.std,
+        })
+    }
 }
 
 /// The spectrogram a contrastive audio model reads, as CLAP's feature extractor computes it: clips at `sample_rate` cut or repeated to `samples`, frames of `fft` every `hop`, and `mels` Slaney filters between `low` and `high` Hz.

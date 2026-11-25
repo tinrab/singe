@@ -10,7 +10,7 @@ mod state;
 mod steps;
 mod tokenizer;
 
-use std::{cell::RefCell, fs, path::Path};
+use std::{cell::RefCell, fs, io::ErrorKind, path::Path};
 
 use crate::{
     backend::cuda::{
@@ -235,7 +235,8 @@ impl CudaProgram {
         .render()
     }
 
-    // Writes `<prefix>.h`, `<prefix>.cu`, `<prefix>.json`, `<prefix>.weights` when the program has large constants, `<prefix>_generate.cu` when it was exported with a page layout, and `<prefix>.tokenizer` when with a tokenizer too.
+    // Writes `<prefix>.h`, `<prefix>.cu`, `<prefix>.json`, `<prefix>.weights` when the program has large constants, `<prefix>_run.cu` when it runs once per call, `<prefix>_generate.cu` when it was exported with a page layout, and `<prefix>.tokenizer` when with a tokenizer too.
+    // It removes those optional files, and what an earlier program built, when this program has none of them.
     //
     // # Errors
     //
@@ -247,22 +248,22 @@ impl CudaProgram {
         fs::write(directory.join(format!("{prefix}.h")), files.header)?;
         fs::write(directory.join(format!("{prefix}.cu")), files.source)?;
         fs::write(directory.join(format!("{prefix}.json")), files.manifest)?;
-        if let Some(generate) = files.generate {
-            fs::write(directory.join(format!("{prefix}_generate.cu")), generate)?;
+        let [generate, tokenizer, run] = optional_files(prefix);
+        let optional = [
+            (generate, files.generate.map(String::into_bytes)),
+            (tokenizer, files.tokenizer.map(String::into_bytes)),
+            (run, files.run.map(String::into_bytes)),
+        ];
+        for (name, contents) in optional {
+            let path = directory.join(name);
+            match contents {
+                Some(contents) => fs::write(path, contents)?,
+                None => remove_if_present(&path)?,
+            }
         }
 
-        if let Some(tokenizer) = files.tokenizer {
-            fs::write(directory.join(format!("{prefix}.tokenizer")), tokenizer)?;
-        }
-
-        if let Some(run) = files.run {
-            fs::write(directory.join(format!("{prefix}_run.cu")), run)?;
-        }
-
-        if !files.weights.is_empty() {
-            fs::write(directory.join(format!("{prefix}.weights")), files.weights)?;
-        }
-        Ok(())
+        replace_weights(directory, prefix, &files.weights)?;
+        remove_built(directory, prefix)
     }
 }
 
@@ -276,16 +277,56 @@ impl CudaProgramSet {
         let rendered = self.render(prefix)?;
         let directory = directory.as_ref();
         fs::create_dir_all(directory)?;
+        for optional in optional_files(prefix) {
+            if !rendered.files.iter().any(|(name, _)| *name == optional) {
+                remove_if_present(&directory.join(optional))?;
+            }
+        }
+
         for (name, contents) in rendered.files {
             fs::write(directory.join(name), contents)?;
         }
 
-        if !rendered.weights.is_empty() {
-            fs::write(
-                directory.join(format!("{prefix}.weights")),
-                rendered.weights,
-            )?;
-        }
-        Ok(())
+        replace_weights(directory, prefix, &rendered.weights)?;
+        remove_built(directory, prefix)
+    }
+}
+
+fn replace_weights(directory: &Path, prefix: &str, weights: &[u8]) -> Result<()> {
+    let path = directory.join(format!("{prefix}.weights"));
+    if weights.is_empty() {
+        return remove_if_present(&path);
+    }
+
+    fs::write(path, weights)?;
+    Ok(())
+}
+
+pub(crate) const LIBRARY_FILE: &str = "libmodel.so";
+
+fn optional_files(prefix: &str) -> [String; 3] {
+    [
+        format!("{prefix}_generate.cu"),
+        format!("{prefix}.tokenizer"),
+        format!("{prefix}_run.cu"),
+    ]
+}
+
+fn remove_built(directory: &Path, prefix: &str) -> Result<()> {
+    // What an earlier program in the same directory built would otherwise run under this program's manifest.
+    for built in [
+        LIBRARY_FILE.to_owned(),
+        format!("{prefix}_run"),
+        format!("{prefix}_generate"),
+    ] {
+        remove_if_present(&directory.join(built))?;
+    }
+    Ok(())
+}
+
+fn remove_if_present(path: &Path) -> Result<()> {
+    match fs::remove_file(path) {
+        Err(error) if error.kind() != ErrorKind::NotFound => Err(error.into()),
+        _ => Ok(()),
     }
 }

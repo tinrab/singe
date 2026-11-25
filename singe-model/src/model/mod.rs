@@ -13,13 +13,17 @@ pub mod time_series;
 pub mod video;
 pub mod vision;
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use serde_json::Value;
 
 use crate::{
     error::{Error, Result},
     format::{Loader, NativeConfig, WeightFormat},
+    function::forward::ExternalHead,
     head::{Head, HeadLoader, LoadHead},
     source::{Format, LoadOptions, Source},
 };
@@ -106,12 +110,26 @@ pub fn find(source: &Source) -> Result<&'static ModelEntry> {
 ///
 /// # Errors
 ///
-/// Returns an error if [`find`] does, if the model does not serve `H`, or if loading fails.
+/// Returns an error if `source` has an external function attached, which [`load_served`] loads, if [`find`] does, if the model does not serve `H`, or if loading fails.
 pub fn load<H: LoadHead>(source: &Source, options: LoadOptions) -> Result<H> {
+    if source.function().is_some() {
+        return Err(Error::unsupported(format!(
+            "head {} from an exported program or an ONNX file",
+            H::HEAD.id()
+        )));
+    }
+
     let model = find(source)?;
     let load = H::loader(model.loader(H::HEAD)?).ok_or_else(|| model.unserved(H::HEAD))?;
     let mut loader = Loader::new(source, options);
     load(&mut loader).map_err(|error| with_classes(source, H::HEAD, error))
+}
+
+pub fn load_served<H: LoadHead + ExternalHead>(source: &Source, options: LoadOptions) -> Result<H> {
+    source.function().map_or_else(
+        || load(source, options),
+        |function| H::external(source, Arc::clone(function)),
+    )
 }
 
 /// Adds the snapshot's classes to the failed load of a head none of them names, whose weights the snapshot may lack.

@@ -9,6 +9,7 @@ pub mod image;
 pub mod model;
 pub mod rerank;
 pub mod task;
+pub mod tensor;
 pub mod tokenize;
 
 use std::time::{SystemTime, UNIX_EPOCH};

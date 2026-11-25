@@ -13,9 +13,7 @@ use crate::arguments::TypeChoice;
 
 #[derive(Subcommand)]
 pub enum FlashpackCommand {
-    #[command(
-        about = "Loads a model and writes it in Singe's format, with each part's state in a flashpack file."
-    )]
+    /// Loads a model and writes it in Singe's format, with each part's state in a flashpack file.
     Build(BuildArguments),
 }
 
@@ -29,30 +27,18 @@ impl FlashpackCommand {
 
 #[derive(Args)]
 pub struct BuildArguments {
-    #[arg(
-        help = "A model directory, or a Hugging Face repository the local cache holds, as `owner/name` or `owner/name@revision`."
-    )]
+    /// A model directory, or a Hugging Face repository the local cache holds, as `owner/name` or `owner/name@revision`.
     model: String,
-    #[arg(help = "The directory to write, which must not be inside the model's.")]
+    /// The directory to write, which must not be inside the model's.
     output: PathBuf,
-    #[arg(
-        long,
-        help = "The task whose head to keep, or else the head the model's weights hold."
-    )]
+    /// The task whose head to keep, or else the head the model's weights hold.
+    #[arg(long)]
     task: Option<String>,
-    #[arg(
-        long = "type",
-        value_enum,
-        default_value_t,
-        help = "The type of the written floats; `auto` keeps BF16 or F16 weights as stored, and writes others as F32."
-    )]
+    /// The type of the written floats; `auto` keeps BF16 or F16 weights as stored, and writes others as F32.
+    #[arg(long = "type", value_enum, default_value_t)]
     data_type: TypeChoice,
-    #[arg(
-        long,
-        default_value = "cpu",
-        value_parser = parse_device,
-        help = "Where the weights load while converting: `cpu`, `cuda`, or `cuda:N`."
-    )]
+    /// Where the weights load while converting: `cpu`, `cuda`, or `cuda:N`.
+    #[arg(long, default_value = "cpu", value_parser = parse_device)]
     device: Device,
 }
 

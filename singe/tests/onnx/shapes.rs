@@ -375,7 +375,12 @@ fn test_programs_export_models_with_symbolic_dimensions_at_any_chosen_size() {
                 .unwrap();
             let label = format!("{name}-{batch}-{sequence}");
             let compiled = CompiledProgram::create(&program, &label).unwrap();
-            let actual = compiled.run(&[input], 1).unwrap();
+            let feeds = compiled.steps()[0]
+                .inputs
+                .iter()
+                .map(|value| bindings[&value.graph_name].clone())
+                .collect::<Vec<_>>();
+            let actual = compiled.run(&feeds, 1).unwrap();
             assert_eq!(actual.len(), expected.len(), "{label}");
             for (actual, expected) in actual.iter().zip(&expected) {
                 assert_eq!(actual.shape(), expected.shape(), "{label}");
