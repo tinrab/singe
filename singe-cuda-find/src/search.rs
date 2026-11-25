@@ -163,7 +163,7 @@ pub(crate) fn potential_roots(specific_env_vars: &[&str], lib_name_hint: &str) -
     }
 
     // Common CUDA environment variables.
-    for var_name in &COMMON_CUDA_ENV_VARS {
+    for &var_name in COMMON_CUDA_ENV_VARS {
         if let Ok(path_str) = env::var(var_name) {
             let path = PathBuf::from(path_str);
             if path.is_dir() {
@@ -346,7 +346,7 @@ pub(crate) fn driver_search_paths() -> Vec<PathBuf> {
         }
     }
 
-    for var_name in &COMMON_CUDA_ENV_VARS {
+    for &var_name in COMMON_CUDA_ENV_VARS {
         if let Ok(root) = env::var(var_name) {
             let root = PathBuf::from(root);
             for candidate in [root.join("lib"), root.join("lib64")] {

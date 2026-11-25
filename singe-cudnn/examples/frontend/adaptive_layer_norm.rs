@@ -24,7 +24,7 @@ struct AdaptiveLayerNormShape {
     d: i64,
 }
 
-const ADAPTIVE_LAYER_NORM_SHAPES: [AdaptiveLayerNormShape; 4] = [
+const ADAPTIVE_LAYER_NORM_SHAPES: &[AdaptiveLayerNormShape] = &[
     AdaptiveLayerNormShape {
         b: 4,
         s: 1024,
@@ -144,7 +144,7 @@ fn run_shape(example: &common::ExampleContext, shape: AdaptiveLayerNormShape) ->
 
 fn run() -> Result<()> {
     let context = common::ExampleContext::create()?;
-    for shape in ADAPTIVE_LAYER_NORM_SHAPES {
+    for &shape in ADAPTIVE_LAYER_NORM_SHAPES {
         run_shape(&context, shape)?;
     }
     Ok(())

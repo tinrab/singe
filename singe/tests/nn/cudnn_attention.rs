@@ -270,7 +270,7 @@ struct PagedCase {
     last_page_lengths: &'static [i32],
 }
 
-const PAGED_CASES: [PagedCase; 7] = [
+const PAGED_CASES: &[PagedCase] = &[
     PagedCase {
         name: "prefill",
         tokens: 5,

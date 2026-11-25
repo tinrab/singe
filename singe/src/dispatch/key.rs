@@ -20,7 +20,7 @@ pub enum DispatchKey {
 
 impl DispatchKey {
     /// Every key, from the highest priority to the lowest.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: &[Self] = &[
         Self::Autocast,
         Self::Capture,
         Self::Autograd,
@@ -29,7 +29,7 @@ impl DispatchKey {
     ];
 
     /// Frontend keys in the order they run.
-    pub const FRONTEND: [Self; 3] = [Self::Autocast, Self::Capture, Self::Autograd];
+    pub const FRONTEND: &[Self] = &[Self::Autocast, Self::Capture, Self::Autograd];
 
     pub(crate) const COUNT: usize = Self::ALL.len();
 

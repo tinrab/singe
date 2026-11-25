@@ -32,7 +32,7 @@ pub const LIBRARY_VERSION: i32 = 5_000_000;
 pub const CONFIGURATION_REFUSED: i32 = 5_000_001;
 
 // The version of each library these calls were written against, which a test holds to the pinned headers.
-pub const LIBRARY_VERSIONS: [(Library, &str); 5] = [
+pub const LIBRARY_VERSIONS: &[(Library, &str)] = &[
     (Library::Cublas, "13.8"),
     (Library::CublasLt, "13.8"),
     (Library::Cudnn, "9.27"),

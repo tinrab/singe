@@ -305,7 +305,7 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
     }
 }
 
-const PREVIOUS_CHOICE: [i64; 1] = [-1];
+const PREVIOUS_CHOICE: &[i64] = &[-1];
 
 fn row_reads<'a>(
     rows: &'a [Option<RunningSequence>],
@@ -320,7 +320,7 @@ fn row_reads<'a>(
                 if previous.is_some_and(|previous| previous.chooses_for(index, row))
                     && row.generated + 1 < row.options.max_new_tokens =>
             {
-                &PREVIOUS_CHOICE[..]
+                PREVIOUS_CHOICE
             }
             _ => &[][..],
         })

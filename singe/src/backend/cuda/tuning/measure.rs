@@ -45,7 +45,7 @@ const ROUNDS_PER_RUN: usize = 4;
 
 // Whether the baseline is made first, for each fresh pair of instances a comparison runs over.
 // This order has no period of two, since an allocator reusing memory in a fixed order could otherwise give each side the same place in every pair, which would then look like a difference between them.
-const BASELINE_MADE_FIRST: [bool; 5] = [true, false, false, true, false];
+const BASELINE_MADE_FIRST: &[bool] = &[true, false, false, true, false];
 
 // How many pairs of blocks two candidates that do not fit together alternate over.
 const BLOCK_PAIRS: usize = 6;
@@ -516,7 +516,7 @@ impl<'a> Measurer<'a> {
         candidate: &TuningRecords,
     ) -> Attempt<Comparison, MeasureError> {
         let mut pairs = Vec::with_capacity(BASELINE_MADE_FIRST.len());
-        for made_first in BASELINE_MADE_FIRST {
+        for &made_first in BASELINE_MADE_FIRST {
             let compared = if made_first {
                 self.compare_pair(small, baseline, candidate)
             } else {

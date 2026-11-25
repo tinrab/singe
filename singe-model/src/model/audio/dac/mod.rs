@@ -23,7 +23,7 @@ use crate::{
     source::Format,
 };
 
-pub(crate) const DILATIONS: [i64; 3] = [1, 3, 9];
+pub(crate) const DILATIONS: &[i64] = &[1, 3, 9];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DacConfig {

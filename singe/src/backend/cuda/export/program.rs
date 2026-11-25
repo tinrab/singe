@@ -45,7 +45,7 @@ impl From<Library> for LibraryFeature {
 }
 
 impl Library {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: &[Self] = &[
         Self::Cublas,
         Self::CublasLt,
         Self::Cudnn,
@@ -76,7 +76,8 @@ impl FromStr for Library {
 
     fn from_str(name: &str) -> Result<Self> {
         Self::ALL
-            .into_iter()
+            .iter()
+            .copied()
             .find(|library| library.name() == name)
             .ok_or_else(|| Error::invalid_argument(format!("unknown program library `{name}`")))
     }

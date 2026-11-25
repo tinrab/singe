@@ -159,7 +159,7 @@ fn generate_methods(kernel: &KernelMetadata) -> TokenStream {
     let arguments = quote! { #(#arguments,)* };
     let values = kernel.params.iter().map(|p| &p.argument_value);
     let values = quote! { (#(#values,)*) };
-    let methods = ENTRY_POINTS.map(|suffix| {
+    let methods = ENTRY_POINTS.iter().map(|&suffix| {
         let method = entry_point_name(&kernel.rust_name, suffix);
         let rust_name = &kernel.rust_name;
         let (description, leading, trailing, setup, dispatch, output, code_lifetime) = match suffix {

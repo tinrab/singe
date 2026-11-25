@@ -19,7 +19,7 @@ use crate::{
 /// Default CUDA providers, ordered as alias, generated kernel, cuDNN, cuBLASLt, cuBLAS, cuTENSOR, cuFFT, and fusion.
 ///
 /// The lowering plan sorts eligible candidates by cost before choosing a provider.
-pub const DEFAULT_CUDA_LOWERING_PROVIDERS: [CudaGraphProvider; 8] = [
+pub const DEFAULT_CUDA_LOWERING_PROVIDERS: &[CudaGraphProvider] = &[
     CudaGraphProvider::Alias,
     CudaGraphProvider::Kernel,
     CudaGraphProvider::CudnnBackend,

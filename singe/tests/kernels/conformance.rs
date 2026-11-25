@@ -55,7 +55,7 @@ use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
 const FIXTURE: &str = include_str!("../references/conformance/cases.jsonl");
 
 /// Every data type a case can name.
-const DATA_TYPES: [DataType; 16] = [
+const DATA_TYPES: &[DataType] = &[
     DataType::Bool,
     DataType::U8,
     DataType::I8,
@@ -251,7 +251,7 @@ enum Outcome {
 }
 
 impl Outcome {
-    const ALL: [Self; 6] = [
+    const ALL: &[Self] = &[
         Self::Pass,
         Self::Extension,
         Self::Rejected,
@@ -273,7 +273,8 @@ impl Outcome {
 
     fn parse(name: &str) -> Self {
         Self::ALL
-            .into_iter()
+            .iter()
+            .copied()
             .find(|outcome| outcome.name() == name)
             .unwrap_or_else(|| panic!("unknown conformance outcome {name}"))
     }
@@ -281,7 +282,8 @@ impl Outcome {
 
 fn data_type(name: &str) -> DataType {
     DATA_TYPES
-        .into_iter()
+        .iter()
+        .copied()
         .find(|data_type| format!("{data_type:?}") == name)
         .unwrap_or_else(|| panic!("unknown conformance data type {name}"))
 }
@@ -1301,7 +1303,7 @@ fn test_exported_programs_match_pytorch_on_a_sample_of_cases() {
     let generated = CudaExport::new(architecture).without_libraries();
     // Each library alone takes everything it can, and all together choose among themselves.
     let mut library_exports = vec![("libraries".to_owned(), CudaExport::new(architecture))];
-    library_exports.extend(Library::ALL.map(|library| {
+    library_exports.extend(Library::ALL.iter().map(|&library| {
         (
             library.name().to_owned(),
             CudaExport::new(architecture).with_libraries([library]),

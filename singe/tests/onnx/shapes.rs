@@ -18,7 +18,7 @@ use singe::{
 };
 use singe_testing::reference;
 
-const MODELS: [(&str, &[u8]); 4] = [
+const MODELS: &[(&str, &[u8])] = &[
     (
         "shape_as_data",
         include_bytes!("../references/shapes/shape_as_data.onnx"),
@@ -49,7 +49,7 @@ fn test_compiled_shape_constants_reject_changed_symbolic_dimensions() {
 }
 
 fn check_compiled_shape_constants(device: Device) {
-    for (_, bytes) in MODELS {
+    for &(_, bytes) in MODELS {
         let model = OnnxModel::from_reader(bytes, options(2, 3).with_device(device)).unwrap();
         let compiled = model.compile().unwrap();
         let original = HashMap::from([(
@@ -134,7 +134,7 @@ fn compare(output: &Tensor, expected: &Value, dtype: &str) {
 
 fn exercise(device: Device) {
     let references: Value = reference!("shapes/shape_cases").resolved();
-    for (name, bytes) in MODELS {
+    for &(name, bytes) in MODELS {
         #[cfg(feature = "testing")]
         let dispatched = TensorActivity::current().checked_invocations;
         let imported = OnnxModel::from_reader(bytes, options(2, 3)).unwrap();
@@ -353,7 +353,7 @@ fn test_programs_export_models_with_symbolic_dimensions_at_any_chosen_size() {
     let Some(architecture) = program_target(device) else {
         return;
     };
-    let models = MODELS.into_iter().chain([(
+    let models = MODELS.iter().copied().chain([(
         "encoder",
         include_bytes!("../references/shapes/encoder.onnx").as_slice(),
     )]);

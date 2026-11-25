@@ -306,7 +306,7 @@ fn write_file(
 }
 
 fn pad(writer: &mut impl Write, mut count: u64) -> Result<()> {
-    const ZEROS: [u8; 4096] = [0; 4096];
+    const ZEROS: &[u8] = &[0; 4096];
     while count > 0 {
         let length = count.min(ZEROS.len() as u64);
         writer.write_all(&ZEROS[..to_usize_u64(length)?])?;

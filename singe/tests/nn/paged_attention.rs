@@ -30,7 +30,7 @@ const VALID: Paging = Paging {
 };
 
 // Each of these reads or writes outside some buffer.
-const INVALID: [Paging; 9] = [
+const INVALID: &[Paging] = &[
     Paging {
         query_offsets: [0, 3],
         ..VALID
@@ -155,7 +155,7 @@ fn attend_mla(device: Device, data_type: DataType, paging: Paging) -> Result<(Te
 fn check_refusals(device: Device, data_type: DataType) {
     attend(device, data_type, VALID).unwrap();
     attend_mla(device, data_type, VALID).unwrap();
-    for paging in INVALID {
+    for &paging in INVALID {
         assert!(
             matches!(
                 attend(device, data_type, paging),
@@ -266,7 +266,7 @@ fn test_compiled_graphs_refuse_paging_values_at_run_time() {
         .collect::<HashMap<_, _>>()
     };
     executor.run(&run_inputs(VALID)).unwrap();
-    for paging in INVALID {
+    for &paging in INVALID {
         assert!(
             matches!(
                 executor.run(&run_inputs(paging)),

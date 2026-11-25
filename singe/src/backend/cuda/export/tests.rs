@@ -999,7 +999,7 @@ fn test_library_versions_match_the_pinned_headers() {
             })
             .unwrap_or_else(|| panic!("no `{name}` in the header"))
     };
-    for (library, version) in LIBRARY_VERSIONS {
+    for &(library, version) in LIBRARY_VERSIONS {
         let (root, header, major, minor) = match library {
             Library::Cublas | Library::CublasLt => (
                 "CUDA_PATH",

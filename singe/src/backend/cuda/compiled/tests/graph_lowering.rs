@@ -4,7 +4,7 @@ use crate::backend::{
 };
 
 /// Library providers that need an operation-specific lowering, unlike generated kernels and aliases.
-const LIBRARY_PROVIDERS: [CudaGraphProvider; 5] = [
+const LIBRARY_PROVIDERS: &[CudaGraphProvider] = &[
     CudaGraphProvider::CudnnBackend,
     CudaGraphProvider::CublasLt,
     CudaGraphProvider::Cublas,

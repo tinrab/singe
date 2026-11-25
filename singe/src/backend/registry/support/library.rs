@@ -62,7 +62,7 @@ pub enum LibraryFeature {
 
 impl LibraryFeature {
     // Every library with all it may run.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: &[Self] = &[
         Self::Cudnn(CudnnFeature::All),
         Self::Cublas(CublasFeature::All),
         Self::CublasLt(CublasLtFeature::All),
@@ -71,7 +71,7 @@ impl LibraryFeature {
     ];
 
     // Every narrower feature, for reading a set back.
-    const NARROW: [Self; 9] = [
+    const NARROW: &[Self] = &[
         Self::Cudnn(CudnnFeature::Convolution),
         Self::Cudnn(CudnnFeature::Matmul),
         Self::Cudnn(CudnnFeature::Attention),
@@ -149,11 +149,11 @@ impl LibraryFeature {
     // How `features` reads for a person: this library's `All` when it holds all of it, or else the narrower features it holds.
     pub(crate) fn held_in(features: u16) -> Vec<Self> {
         let mut held = Vec::new();
-        for all in Self::ALL {
+        for &all in Self::ALL {
             if features & all.bits() == all.bits() {
                 held.push(all);
             } else {
-                held.extend(Self::NARROW.into_iter().filter(|feature| {
+                held.extend(Self::NARROW.iter().copied().filter(|feature| {
                     feature.provider() as u16 == all.provider() as u16
                         && features & feature.bits() != 0
                 }));

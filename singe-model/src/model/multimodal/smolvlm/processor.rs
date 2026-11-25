@@ -166,7 +166,7 @@ fn whole_tiles(Spatial2d { height, width }: Spatial2dI64, tile: i64) -> Spatial2
 
 /// Returns the English words `num2words` gives for `number` below 1000, and its digits from 1000 up.
 fn number_words(number: usize) -> String {
-    const ONES: [&str; 20] = [
+    const ONES: &[&str] = &[
         "zero",
         "one",
         "two",
@@ -189,7 +189,7 @@ fn number_words(number: usize) -> String {
         "nineteen",
     ];
 
-    const TENS: [&str; 10] = [
+    const TENS: &[&str] = &[
         "", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
     ];
     match number {

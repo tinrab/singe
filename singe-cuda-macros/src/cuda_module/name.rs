@@ -9,10 +9,10 @@ use syn::{Error, Ident, Result};
 use super::{KernelMetadata, source::is_c_identifier_char};
 
 // The method suffixes every kernel gets, one entry point each.
-pub(crate) const ENTRY_POINTS: [&str; 4] = ["_async", "_record", "_node", "_set_node_params"];
+pub(crate) const ENTRY_POINTS: &[&str] = &["_async", "_record", "_node", "_set_node_params"];
 
 // The names `Module` defines besides the kernels' methods.
-const MODULE_ITEMS: [&str; 3] = ["create", "module", "SOURCE"];
+const MODULE_ITEMS: &[&str] = &["create", "module", "SOURCE"];
 
 // Converts a CUDA kernel name to a Rust identifier, reporting an unusable name at `span`.
 pub(crate) fn kernel_identifier(name: &str, span: Span) -> Result<Ident> {
@@ -91,14 +91,14 @@ pub(crate) fn validate_generated_names(kernels: &[KernelMetadata]) -> Result<()>
 
     let mut types = HashMap::new();
     let mut methods = HashMap::new();
-    for name in MODULE_ITEMS {
+    for &name in MODULE_ITEMS {
         register(&mut methods, &Ident::new(name, Span::call_site()))?;
     }
 
     for kernel in kernels {
         register(&mut types, &signature_name(&kernel.rust_name))?;
         register(&mut methods, &prepare_name(&kernel.rust_name))?;
-        for suffix in ENTRY_POINTS {
+        for &suffix in ENTRY_POINTS {
             register(&mut methods, &entry_point_name(&kernel.rust_name, suffix))?;
         }
     }

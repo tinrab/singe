@@ -105,7 +105,7 @@ pub(crate) fn dispatch_checked(
     let registry = Registry::get();
     let entry = registry.entry(request.operation())?;
     let excluded = excluded();
-    for key in DispatchKey::FRONTEND {
+    for &key in DispatchKey::FRONTEND {
         if excluded.contains(key) || !frontend_active(key, inputs) {
             continue;
         }

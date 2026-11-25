@@ -441,7 +441,7 @@ pub fn register_kernels(builder: &mut RegistryBuilder) {
     backend_kernels!(builder, DispatchKey::Cpu, cpu_kernels);
     register_cpu_elementwise_kernels(builder);
     register_interpreted_kernels(builder);
-    register_widened_kernels(builder, DispatchKey::Cpu, &CPU_WIDENED);
+    register_widened_kernels(builder, DispatchKey::Cpu, CPU_WIDENED);
     register_composed_kernels(builder, DispatchKey::Cpu);
     register_decomposed_fallbacks(
         builder,
@@ -672,7 +672,7 @@ fn register_interpreted_kernels(builder: &mut RegistryBuilder) {
 }
 
 // CPU operations whose native kernels compute only in `F32` and `F64`, which half precision widens to.
-const CPU_WIDENED: [Operation; 6] = [
+const CPU_WIDENED: &[Operation] = &[
     Operation::Conv2d,
     Operation::MaxPool2d,
     Operation::AvgPool2d,

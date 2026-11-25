@@ -60,7 +60,7 @@ pub(crate) fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
 /// Chooses finite E4M3 values from zero, signed one-half, one and two.
 #[allow(dead_code)]
 pub(crate) fn init_f8e4m3_image(size: usize, seed: &mut u32) -> Vec<f8e4m3> {
-    const ENCODINGS: [u8; 7] = [0x00, 0x30, 0xb0, 0x38, 0xb8, 0x40, 0xc0];
+    const ENCODINGS: &[u8] = &[0x00, 0x30, 0xb0, 0x38, 0xb8, 0x40, 0xc0];
     (0..size)
         .map(|_| {
             let index = next_random(seed) as usize % ENCODINGS.len();

@@ -111,7 +111,7 @@ fn describe(specs: &[TensorSpec]) -> Vec<TensorMetadata> {
         .collect()
 }
 
-const KSERVE_TYPES: [(DataType, &str); 13] = [
+const KSERVE_TYPES: &[(DataType, &str)] = &[
     (DataType::Bool, "BOOL"),
     (DataType::U8, "UINT8"),
     (DataType::I8, "INT8"),

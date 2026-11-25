@@ -27,7 +27,7 @@ use singe_testing::{
 
 const DEVICE: Device = Device::Cuda(0);
 
-const SENTENCES: [&str; 4] = [
+const SENTENCES: &[&str] = &[
     "An engineer is placing transport belts beside the smelters.",
     "Someone builds a conveyor line next to the furnaces.",
     "The biters attacked the northern wall after the pollution spread.",
@@ -44,7 +44,7 @@ fn minilm(benches: &mut Benches) {
     };
     let tokens = TextTokenizer::load(&source(&snapshot))
         .unwrap()
-        .encode_batch(&SENTENCES, None, DEVICE)
+        .encode_batch(SENTENCES, None, DEVICE)
         .unwrap();
     let inputs = tokens.named_tensors().into_iter().collect();
     for data_type in [DataType::F32, DataType::Bf16] {

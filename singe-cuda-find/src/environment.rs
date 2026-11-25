@@ -1,8 +1,8 @@
 /// Toolkit root variables, checked in this order when no component-specific root matches.
-pub(crate) const COMMON_CUDA_ENV_VARS: [&str; 2] = ["CUDA_PATH", "CUDA_HOME"];
+pub(crate) const COMMON_CUDA_ENV_VARS: &[&str] = &["CUDA_PATH", "CUDA_HOME"];
 
 /// Environment variables whose changes can affect CUDA dependency discovery or linking.
-pub(crate) const CUDA_DISCOVERY_ENV_VARS: [&str; 69] = [
+pub(crate) const CUDA_DISCOVERY_ENV_VARS: &[&str] = &[
     "CUDA_PATH",
     "CUDA_HOME",
     "CUBLAS_PATH",
@@ -78,7 +78,7 @@ pub(crate) const CUDA_DISCOVERY_ENV_VARS: [&str; 69] = [
 ///
 /// Build scripts should call this before using the discovery helpers so Cargo reruns them when CUDA, NVIDIA library, compiler, or linker environment variables change.
 pub fn emit_rerun_if_env_changed() {
-    for var_name in CUDA_DISCOVERY_ENV_VARS {
+    for &var_name in CUDA_DISCOVERY_ENV_VARS {
         println!("cargo:rerun-if-env-changed={var_name}");
     }
 }

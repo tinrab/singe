@@ -68,7 +68,7 @@ const fn bottom_right(
     }
 }
 
-const CASES: [Case; 8] = [
+const CASES: &[Case] = &[
     top_left("top-left causal", None, Some(0)),
     top_left("top-left right", None, Some(8)),
     top_left("top-left left", Some(32), None),
@@ -266,7 +266,7 @@ fn test_every_diagonal_band_matches_a_reference_or_is_refused() -> Result<(), Er
     let key = values(BATCH * HEADS * KEYS * DIM, &mut seed);
     let value = values(BATCH * HEADS * KEYS * DIM, &mut seed);
     let mut wrong = Vec::new();
-    for case in CASES {
+    for &case in CASES {
         for implementation in [
             AttentionImplementation::Composite,
             AttentionImplementation::Unified,

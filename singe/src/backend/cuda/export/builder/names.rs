@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-const CPP_KEYWORDS: [&str; 84] = [
+const CPP_KEYWORDS: &[&str] = &[
     "alignas",
     "alignof",
     "and",

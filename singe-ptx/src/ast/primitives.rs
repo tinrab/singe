@@ -127,7 +127,7 @@ pub enum ScalarType {
 }
 
 impl ScalarType {
-    const ALL: [(Self, &'static str); 23] = [
+    const ALL: &[(Self, &'static str)] = &[
         (Self::B8, "b8"),
         (Self::B16, "b16"),
         (Self::B32, "b32"),

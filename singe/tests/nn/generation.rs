@@ -139,7 +139,7 @@ fn options() -> DecoderOptions {
         })
 }
 
-const PROMPTS: [&[i64]; 3] = [&[1, 5, 9, 13, 2, 7, 4], &[3], &[8, 17, 11]];
+const PROMPTS: &[&[i64]] = &[&[1, 5, 9, 13, 2, 7, 4], &[3], &[8, 17, 11]];
 const SEED: u64 = 7;
 
 // Three prompts in two rows, the third joining as the first row frees, drawn from one seed, through Singe's compiled decoder.
@@ -148,7 +148,7 @@ fn generate_compiled(model: &Model<TinyDecoder>, generation: &GenerationOptions)
     decoder.compile().unwrap();
     generate_batch(
         &mut decoder,
-        &PROMPTS,
+        PROMPTS,
         generation,
         Some(&Generator::new(SEED)),
         |_, _, _| Ok(()),

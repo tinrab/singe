@@ -261,7 +261,7 @@ pub fn cudnn_matmul_graph_execution_plan(
     )
 }
 
-const HEURISTIC_MODES: [CudnnBackendHeuristicMode; 3] = [
+const HEURISTIC_MODES: &[CudnnBackendHeuristicMode] = &[
     CudnnBackendHeuristicMode::Instant,
     CudnnBackendHeuristicMode::B,
     CudnnBackendHeuristicMode::Fallback,
@@ -300,7 +300,7 @@ fn heuristic_configs(
     operation_graph: &CudnnOperationGraph,
 ) -> Vec<CudnnEngineConfig> {
     let mut configs = Vec::new();
-    for mode in HEURISTIC_MODES {
+    for &mode in HEURISTIC_MODES {
         if let Ok(heuristics) = CudnnEngineHeuristics::create(
             cudnn,
             operation_graph,
@@ -478,7 +478,7 @@ fn cudnn_execution_plan(
     // The plan with the least workspace above `GRAPH_WORKSPACE_BYTES`, for a graph no engine runs within it.
     let mut oversized: Option<(usize, CudnnExecutionPlan)> = None;
 
-    'modes: for mode in HEURISTIC_MODES {
+    'modes: for &mode in HEURISTIC_MODES {
         let heuristics = match CudnnEngineHeuristics::create(
             cudnn,
             operation_graph,

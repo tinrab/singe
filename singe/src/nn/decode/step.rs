@@ -31,7 +31,7 @@ pub struct DecodeStep {
     sequence_ids: Tensor,
 }
 
-pub const PACKED_ORDER: [&str; 11] = [
+pub const PACKED_ORDER: &[&str] = &[
     "tokens",
     "positions",
     "write_pages",

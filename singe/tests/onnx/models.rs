@@ -23,7 +23,7 @@ use singe_testing::reference;
 
 // Missing required exports fail compilation.
 // Regenerate with the pinned exporter.
-const MODELS: [(&str, &[u8]); 3] = [
+const MODELS: &[(&str, &[u8])] = &[
     ("mlp", include_bytes!("../references/layers/mlp.onnx")),
     ("cnn", include_bytes!("../references/layers/cnn.onnx")),
     (
@@ -62,7 +62,7 @@ fn assert_output(actual: &Tensor, expected: &Value) {
 
 fn check_exports(device: Device) {
     let references: Value = reference!("layers").resolved();
-    for (name, bytes) in MODELS {
+    for &(name, bytes) in MODELS {
         let model = OnnxModel::from_reader(bytes, OnnxOptions::new().with_device(device)).unwrap();
         assert_eq!(model.inputs().len(), 1, "{name}");
         assert_eq!(model.outputs()[0].name, "y");
@@ -131,7 +131,7 @@ fn test_required_pytorch_exports_run_as_cuda_programs() {
         return;
     };
     let references: Value = reference!("layers").resolved();
-    for (name, bytes) in MODELS {
+    for &(name, bytes) in MODELS {
         let model = OnnxModel::from_reader(bytes, OnnxOptions::new().with_device(device)).unwrap();
         let graph = model.graph().unwrap();
         for (label, libraries) in [

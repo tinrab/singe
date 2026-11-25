@@ -20,7 +20,7 @@ use crate::{
     value::ValueSpec,
 };
 
-const GROWTH: [i64; 2] = [2, 3];
+const GROWTH: &[i64] = &[2, 3];
 
 pub fn fixed_dimensions(dimensions: &[i64]) -> Vec<Option<Value>> {
     dimensions

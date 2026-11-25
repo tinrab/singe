@@ -10,7 +10,7 @@ use super::{
     error_support::{self, Message},
 };
 
-const TRAILING: [char; 5] = ['.', '!', ':', ';', ','];
+const TRAILING: &[char] = &['.', '!', ':', ';', ','];
 
 fn capitalized(message: &str, formatted: bool) -> bool {
     let mut chars = message.chars().peekable();

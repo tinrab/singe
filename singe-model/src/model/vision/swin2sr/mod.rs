@@ -23,7 +23,7 @@ use crate::{
 };
 
 /// The mean color of DIV2K's images, which the model subtracts from its input and adds back to its output.
-const MEAN: [f32; 3] = [0.4488, 0.4371, 0.4040];
+const MEAN: &[f32] = &[0.4488, 0.4371, 0.4040];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Swin2SrConfig {

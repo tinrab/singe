@@ -24,7 +24,7 @@ const KEYS: i64 = 40;
 const DIM: i64 = 64;
 
 // Each batch's count of keys: all of them, one, and some.
-const LENGTHS: [i32; 3] = [40, 1, 23];
+const LENGTHS: &[i32] = &[40, 1, 23];
 
 fn values(shape: &[i64], seed: f32, device: Device, data_type: DataType) -> Tensor {
     let count = shape.iter().product::<i64>();

@@ -11,7 +11,7 @@ use singe_cupti::{
     types::{ActivityFlushFlag, ActivityKind},
 };
 
-const KINDS: [ActivityKind; 2] = [ActivityKind::ConcurrentKernel, ActivityKind::MemoryCopy];
+const KINDS: &[ActivityKind] = &[ActivityKind::ConcurrentKernel, ActivityKind::MemoryCopy];
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct KernelWork {
@@ -45,7 +45,7 @@ impl GpuWork {
 // Runs `work`, returning what it gave, its wall time, and the GPU's work during it.
 pub fn profiled<T>(work: impl FnOnce() -> T) -> Result<(T, Duration, GpuWork)> {
     let collector = ActivityCollector::create(&ActivityBufferOptions::default())?;
-    for kind in KINDS {
+    for &kind in KINDS {
         collector.enable(kind)?;
     }
 
@@ -53,7 +53,7 @@ pub fn profiled<T>(work: impl FnOnce() -> T) -> Result<(T, Duration, GpuWork)> {
     let value = work();
     let wall = start.elapsed();
     collector.flush_all(ActivityFlushFlag::Forced)?;
-    for kind in KINDS {
+    for &kind in KINDS {
         collector.disable(kind)?;
     }
 
