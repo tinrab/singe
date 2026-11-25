@@ -20,8 +20,10 @@ use crate::{
     graph::{
         CaptureBindings, CaptureInfo, CaptureOptions, DimensionExpr, Graph, GraphOperationInputs,
         GraphOperationOutput, GraphOperationRequest, GraphOutput, InputDimensionGuard,
-        SymbolicAttributes, capture::options::CaptureBinding, generators::GraphGenerator,
-        ir::ValueId,
+        SymbolicAttributes,
+        capture::options::CaptureBinding,
+        generators::GraphGenerator,
+        ir::{CountedOutput, ValueId},
     },
     observation::{CaptureReadGuard, track_capture_storage},
     random::Generator,
@@ -45,8 +47,6 @@ pub struct CaptureSession {
     written: HashMap<usize, ValueId>,
     /// Generators bound as inputs, with the state tensor and blocks used so far.
     generators: Vec<(GraphGenerator, Tensor)>,
-    // Results narrowed to a count read during capture, by tensor, with the values of their bound and of the count.
-    counted: HashMap<TensorId, (ValueId, ValueId)>,
     _read_guard: CaptureReadGuard,
 }
 
@@ -92,7 +92,6 @@ impl CaptureSession {
             binding_names: HashSet::new(),
             inputs: Vec::new(),
             storage_bases: HashMap::new(),
-            counted: HashMap::new(),
             written: HashMap::new(),
             generators: Vec::new(),
             _read_guard: CaptureReadGuard::enter(options.allow_value_specialization)?,
@@ -255,6 +254,12 @@ impl CaptureSession {
     }
 
     fn add_input(&mut self, name: &str, tensor: &Tensor) -> Result<ValueId> {
+        if tensor.count().is_some() {
+            return Err(Error::invalid_argument(format!(
+                "graph input `{name}` is counted, and a graph takes whole tensors"
+            )));
+        }
+
         self.require_new_binding(name, tensor)?;
         let node = self.graph.add_input(
             name,
@@ -309,28 +314,10 @@ impl CaptureSession {
             );
         }
 
-        if self.counted.contains_key(&tensor.id()) {
-            return Err(Error::unsupported_operation(
-                "a result whose extent depends on values, which a compiled graph returns but does not compute with",
-            ));
-        }
         self.tensor_nodes
             .get(&tensor.id())
             .copied()
             .ok_or_else(|| Error::from(CaptureError::UnrecordedTensor))
-    }
-
-    // Records `narrowed`, the leading `count` rows of `bound`, as a result a graph returns narrowed after each run.
-    pub(crate) fn record_counted(
-        &mut self,
-        narrowed: &Tensor,
-        bound: &Tensor,
-        count: &Tensor,
-    ) -> Result<()> {
-        let bound = self.ensure_tensor(bound)?;
-        let count = self.ensure_tensor(count)?;
-        self.counted.insert(narrowed.id(), (bound, count));
-        Ok(())
     }
 
     /// Returns the bound state of `generator` and the blocks used before this call, binding it as an input on first use.
@@ -477,15 +464,15 @@ impl CaptureSession {
         let mut counts = Vec::new();
         let mut output_values = Vec::with_capacity(outputs.len());
         for (position, tensor) in outputs.iter().enumerate() {
-            let node = match self.counted.get(&tensor.id()) {
-                Some(&(bound, count)) => {
-                    counted_outputs.push(position);
-                    counts.push(count);
-                    bound
-                }
-                None => self.ensure_tensor(tensor)?,
-            };
-            output_values.push(GraphOutput::new(node, 0));
+            if let Some(count) = tensor.count() {
+                counted_outputs.push(CountedOutput {
+                    position,
+                    axis: count.axis(),
+                });
+                counts.push(self.ensure_tensor(count.rows())?);
+            }
+
+            output_values.push(GraphOutput::new(self.ensure_tensor(tensor)?, 0));
         }
 
         let written_inputs = self

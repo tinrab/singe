@@ -2,6 +2,7 @@ mod concat;
 mod construction;
 mod pad;
 mod resize;
+mod selection;
 mod slice;
 mod view;
 
@@ -12,6 +13,7 @@ pub use self::{
     construction::{lower_expand, lower_reshape, lower_shape},
     pad::lower_pad,
     resize::lower_resize,
+    selection::{lower_compress, lower_nonzero},
     slice::lower_slice,
     view::{
         lower_flatten, lower_gather, lower_scatter_elements, lower_squeeze, lower_transpose,

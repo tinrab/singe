@@ -90,9 +90,8 @@ impl Layer<TokenBatch> for TokenEmbeddings {
         let tokens = input.tokens();
         let mut hidden = tokens.apply(&self.words, state)?;
         if let Some(table) = &self.positions {
-            // Each token's position counts the tokens before it, from tensors alone, so a program built with a run-time length reads as many rows as it has tokens.
-            let ones = tokens.equal(tokens)?.cast(DataType::I64)?;
-            let positions = ones.cumsum(1)?.sub(&ones)?;
+            let positions =
+                Tensor::range(tokens.device(), 0, tokens.dimension(1)?)?.unsqueeze(0)?;
             let table = state.tensor(table)?;
             let rows = table
                 .shape()

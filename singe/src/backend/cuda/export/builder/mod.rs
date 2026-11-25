@@ -31,7 +31,7 @@ use crate::{
                 program::{
                     BufferId, BufferKind, BufferView, CudaProgram, Library, LibraryCall,
                     OperationProvider, ProgramBuffer, ProgramState, ProgramStep, ProgramValue,
-                    StateKind, StepProvider,
+                    RowCount, StateKind, StepProvider,
                 },
             },
             graph_binding::{InPlaceWrites, WritableInputs, graph_users},
@@ -495,7 +495,7 @@ impl Builder<'_> {
         &mut self,
         name: &str,
         value: ValueId,
-        count: Option<usize>,
+        count: Option<RowCount>,
         names: &mut HashSet<String>,
         outputs: &mut Vec<ProgramValue>,
     ) -> Result<()> {
@@ -544,8 +544,11 @@ impl Builder<'_> {
                     .map_or_else(|| format!("output{index}"), ToOwned::to_owned);
                 let count = counted
                     .iter()
-                    .position(|&position| position == index)
-                    .map(|position| visible + position);
+                    .position(|counted| counted.position == index)
+                    .map(|position| RowCount {
+                        output: visible + position,
+                        axis: counted[position].axis,
+                    });
                 (name, value, count)
             });
         for (name, value, count) in results {
@@ -566,8 +569,8 @@ impl Builder<'_> {
             self.copy(source, destination)?;
         }
 
-        for (&position, &value) in counted.iter().zip(&outputs[visible + writes.len()..]) {
-            let name = format!("{}_count", program_outputs[position].name);
+        for (counted, &value) in counted.iter().zip(&outputs[visible + writes.len()..]) {
+            let name = format!("{}_count", program_outputs[counted.position].name);
             self.add_output(&name, value, None, &mut names, &mut program_outputs)?;
         }
         Ok(program_outputs)

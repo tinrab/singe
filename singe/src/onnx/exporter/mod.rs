@@ -72,17 +72,14 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
     })?;
     let ir = graph.to_ir()?;
     let source = &ir;
-    if !source.counted_outputs().is_empty() {
-        return Err(unsupported(
-            "outputs whose extent depends on values are outside the export contract",
-        ));
-    }
-
     // A graph that writes inputs returns their new values as trailing outputs, named `present.<input>` beside the input they update.
+    // The counts of counted outputs follow, and each counted output leaves as a slice by its count.
+    let counted = source.counted_outputs();
+    let writes = source.input_writes().len();
     let visible_outputs = source
         .output_values()
         .len()
-        .checked_sub(source.input_writes().len())
+        .checked_sub(writes + counted.len())
         .ok_or_else(|| unsupported("missing written-input outputs"))?;
     let mut exporter = Exporter {
         source,
@@ -179,8 +176,17 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
     }
 
     exporter.constraints()?;
-    for (index, &output) in source.output_values().iter().enumerate() {
+    for (index, &output) in source
+        .output_values()
+        .iter()
+        .enumerate()
+        .take(visible_outputs + writes)
+    {
         let value = exporter.emit(output)?;
+        let counted = counted
+            .iter()
+            .position(|counted| counted.position == index)
+            .map(|position| (counted[position].axis, visible_outputs + writes + position));
         let name = index.checked_sub(visible_outputs).map_or_else(
             || {
                 source
@@ -189,7 +195,7 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
             },
             |write| format!("present.{}", source.input_writes()[write]),
         );
-        if value != name {
+        if value != name || counted.is_some() {
             // A public output cannot redefine an input or initializer in ONNX SSA.
             if exporter.names.values().any(|existing| existing == &name) {
                 return Err(unsupported(format!(
@@ -197,15 +203,29 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
                 )));
             }
 
-            exporter.node("Identity", vec![value], name.clone(), vec![]);
+            if let Some((axis, count)) = counted {
+                let count = exporter.emit(source.output_values()[count])?;
+                let one = exporter.integers(vec![1], &[1])?;
+                let end = exporter.temporary("Reshape", vec![count, one], vec![]);
+                let start = exporter.integers(vec![1], &[0])?;
+                let axis = i64::try_from(axis).map_err(|_| unsupported("counted axis"))?;
+                let axis = exporter.integers(vec![1], &[axis])?;
+                exporter.node("Slice", vec![value, start, end, axis], name.clone(), vec![]);
+            } else {
+                exporter.node("Identity", vec![value], name.clone(), vec![]);
+            }
         }
 
         let spec = program.signature().outputs()[index].spec();
-        let dims = if exporter.dynamic {
+        let mut dims = if exporter.dynamic {
             vec![None; spec.shape().dimensions().len()]
         } else {
             shapes::fixed_dimensions(spec.shape().dimensions())
         };
+        if let Some((axis, _)) = counted {
+            dims[axis] = None;
+        }
+
         exporter
             .graph
             .output

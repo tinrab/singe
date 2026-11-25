@@ -185,10 +185,23 @@ impl Importer {
                     reason: "declared rank does not match inferred rank".into(),
                 });
             }
-            for (declared, actual) in shape.dimensions.iter().zip(inferred.shape.dimensions()) {
-                if let Some(DimensionValue::Value(value)) = declared.value
-                    && (value < 0 || value != *actual)
-                {
+
+            let counted = inferred.count.map(|count| count.axis);
+            for (axis, (declared, &actual)) in shape
+                .dimensions
+                .iter()
+                .zip(inferred.shape.dimensions())
+                .enumerate()
+            {
+                let Some(DimensionValue::Value(value)) = declared.value else {
+                    continue;
+                };
+                let fits = if counted == Some(axis) {
+                    value <= actual
+                } else {
+                    value == actual
+                };
+                if value < 0 || !fits {
                     return Err(Error::UnsupportedShape {
                         name: info.name.clone(),
                         reason: "declared dimension does not match inferred dimension".into(),
@@ -214,7 +227,16 @@ impl Importer {
                 continue;
             }
             if let Some(shape) = &value_tensor_type(info)?.shape {
-                for (dimension, actual) in shape.dimensions.iter().zip(value.shape.dimensions()) {
+                let counted = value.count.map(|count| count.axis);
+                for (axis, (dimension, actual)) in shape
+                    .dimensions
+                    .iter()
+                    .zip(value.shape.dimensions())
+                    .enumerate()
+                {
+                    if counted == Some(axis) {
+                        continue;
+                    }
                     if let Some(DimensionValue::Parameter(symbol)) = &dimension.value {
                         let (min, max) = self.options.symbolic_bounds(symbol);
                         if symbol.is_empty()

@@ -8,6 +8,7 @@ use std::{cell::Cell, fmt};
 pub enum DispatchKey {
     /// Casts operands to a reduced-precision type inside an [`autocast`](crate::dispatch::autocast) scope.
     Autocast,
+    Counted,
     /// Records operations into the active graph capture.
     Capture,
     /// Records backward nodes for operations on tensors that require gradients.
@@ -22,6 +23,7 @@ impl DispatchKey {
     /// Every key, from the highest priority to the lowest.
     pub const ALL: &[Self] = &[
         Self::Autocast,
+        Self::Counted,
         Self::Capture,
         Self::Autograd,
         Self::Cpu,
@@ -29,7 +31,7 @@ impl DispatchKey {
     ];
 
     /// Frontend keys in the order they run.
-    pub const FRONTEND: &[Self] = &[Self::Autocast, Self::Capture, Self::Autograd];
+    pub const FRONTEND: &[Self] = &[Self::Autocast, Self::Counted, Self::Capture, Self::Autograd];
 
     pub(crate) const COUNT: usize = Self::ALL.len();
 
@@ -54,6 +56,7 @@ impl fmt::Display for DispatchKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Autocast => "autocast",
+            Self::Counted => "counted",
             Self::Capture => "capture",
             Self::Autograd => "autograd",
             Self::Cpu => "cpu",
@@ -91,7 +94,12 @@ impl DispatchKeySet {
     /// Returns the frontend keys.
     #[must_use]
     pub const fn frontend() -> Self {
-        Self(DispatchKey::Autocast.bit() | DispatchKey::Capture.bit() | DispatchKey::Autograd.bit())
+        Self(
+            DispatchKey::Autocast.bit()
+                | DispatchKey::Counted.bit()
+                | DispatchKey::Capture.bit()
+                | DispatchKey::Autograd.bit(),
+        )
     }
 }
 

@@ -302,8 +302,14 @@ pub struct ProgramValue {
     pub layout: Layout,
     // An input the program also writes.
     pub written: bool,
-    // The output holding how many leading rows of this one a run wrote, when only a run decides that.
-    pub count: Option<usize>,
+    // The output holding how many rows along an axis of this one a run wrote, when only a run decides that.
+    pub count: Option<RowCount>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RowCount {
+    pub output: usize,
+    pub axis: usize,
 }
 
 // What a state tensor is in the graph it came from.

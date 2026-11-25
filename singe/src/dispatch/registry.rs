@@ -6,7 +6,7 @@ use std::{
 use crate::{
     autograd,
     backend::{register_kernels, registry::Operation},
-    dispatch::{DispatchKey, Kernel, autocast, custom::CustomOperation},
+    dispatch::{DispatchKey, Kernel, autocast, counted, custom::CustomOperation},
     error::{Error, Result},
     graph::capture,
 };
@@ -80,6 +80,7 @@ impl Registry {
             let mut builder = RegistryBuilder::default();
             register_kernels(&mut builder);
             autocast::register(&mut builder);
+            counted::register(&mut builder);
             capture::register(&mut builder);
             autograd::register(&mut builder);
             Self {

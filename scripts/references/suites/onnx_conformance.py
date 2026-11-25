@@ -132,6 +132,11 @@ def fixture(op, version, variant="", constant=False):
         extra("indices", [4, 1], np.int64)
         extra("updates", [9.0, 8.0], np.float32)
         attrs["axis"] = 0
+    elif op == "NonZero":
+        runtime["x"] = np.array([[0.0, 1.5, 0.0], [2.0, 0.0, 3.0]], dtype=np.float32)
+    elif op == "Compress":
+        extra("condition", [True, False, True], np.bool_)
+        attrs["axis"] = 1
     elif op == "Transpose":
         attrs["perm"] = [1, 0]
     elif op == "Pad":

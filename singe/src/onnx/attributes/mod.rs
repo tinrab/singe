@@ -30,6 +30,10 @@ impl<'a> Attributes<'a> {
         Ok(Self { node, values })
     }
 
+    pub(crate) fn has(&self, name: &str) -> bool {
+        self.values.contains_key(name)
+    }
+
     pub(crate) fn int(&self, name: &str, default: i64) -> Result<i64> {
         match self.values.get(name) {
             Some(AttributeValue::Int(value)) => Ok(*value),

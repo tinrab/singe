@@ -10,7 +10,7 @@ use singe_onnx::Model;
 
 use crate::{
     device::Device,
-    graph::Graph,
+    graph::{Graph, ir::CountedOutput},
     onnx::{
         error::{Error, Result},
         export_contract::apply_shape_contract,
@@ -53,6 +53,7 @@ pub fn import_model(
         }
 
         validate_inputs(&importer, &node)?;
+
         let operands = node
             .inputs
             .iter()
@@ -101,17 +102,29 @@ pub fn import_model(
         importer.record_shape_constraint(info)?;
     }
 
-    let output_values = outputs
-        .iter()
-        .map(|output| {
-            importer
-                .values
-                .get(&output.name)
-                .map(|value| (output.name.clone(), value.node, 0))
-                .ok_or_else(|| Error::MissingValue(output.name.clone()))
-        })
-        .collect::<Result<Vec<_>>>()?;
+    let mut output_values = Vec::with_capacity(outputs.len());
+    let mut counts = Vec::new();
+    for (position, output) in outputs.iter().enumerate() {
+        let value = importer
+            .values
+            .get(&output.name)
+            .ok_or_else(|| Error::MissingValue(output.name.clone()))?;
+        output_values.push((output.name.clone(), value.node, 0));
+        if let Some(count) = value.count {
+            counts.push((
+                CountedOutput {
+                    position,
+                    axis: count.axis,
+                },
+                (format!("{}_count", output.name), count.node, 0),
+            ));
+        }
+    }
+
+    let (counted, count_values): (Vec<_>, Vec<_>) = counts.into_iter().unzip();
+    output_values.extend(count_values);
     importer.graph.set_named_output_projections(output_values)?;
+    importer.graph.counted_outputs = counted;
     let specialized_initializers = importer.specialized_initializers.into_inner();
     for name in &specialized_initializers {
         if let Some(tensor) = importer.graph.initializers.get(name).cloned() {

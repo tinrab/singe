@@ -140,15 +140,11 @@ fn result_can_be_written<T: BuildHasher>(
 
 // Whether `base` is an input the graph writes, whose written value is this scatter's result and nothing the caller keeps.
 fn input_can_be_written(ir: &Graph, id: ValueId, base: ValueId) -> Result<bool> {
-    if !ir.counted_outputs().is_empty() {
-        return Ok(false);
-    }
-
     let outputs = ir.output_values_vec();
     let writes = ir.input_writes();
     let visible = outputs
         .len()
-        .checked_sub(writes.len())
+        .checked_sub(writes.len() + ir.counted_outputs().len())
         .ok_or_else(|| Error::missing_output("scatter input in place"))?;
     let Some(position) = ir
         .input_values()
@@ -165,7 +161,10 @@ fn input_can_be_written(ir: &Graph, id: ValueId, base: ValueId) -> Result<bool> 
     }
 
     // A result the caller keeps cannot live in storage the next run overwrites.
-    for &output in &outputs[..visible] {
+    let kept = outputs[..visible]
+        .iter()
+        .chain(&outputs[visible + writes.len()..]);
+    for &output in kept {
         if alias_root(ir, output)? == id {
             return Ok(false);
         }

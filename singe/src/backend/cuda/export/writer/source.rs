@@ -325,7 +325,10 @@ impl Renderer<'_> {
                 "strides": value.layout.strides(),
                 "offset": value.layout.storage_offset(),
                 "written": value.written,
-                "count": value.count.map(|count| program.outputs[count].name.as_str()),
+                "count": value.count.map(|count| json!({
+                    "output": program.outputs[count.output].name,
+                    "axis": count.axis,
+                })),
             })
         };
         let decoding = program.decoding.as_ref().map(|decoding| {

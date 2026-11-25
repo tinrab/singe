@@ -854,6 +854,14 @@ fn difference(actual: &[Tensor], expected: &[Encoded], operation: &str) -> Optio
         ));
     }
     for (index, (actual, expected)) in actual.iter().zip(expected).enumerate() {
+        let actual = match actual.cut_to_count() {
+            Ok(actual) => actual,
+            Err(error) => {
+                return Some(format!(
+                    "output {index} cannot be cut to its count: {error}"
+                ));
+            }
+        };
         let data_type = data_type(&expected.dtype);
         if actual.data_type() != data_type {
             return Some(format!(

@@ -10,8 +10,8 @@ pub(crate) use self::recorder::{
 use crate::{
     backend::registry::{AliasBehavior, operation_schema},
     device::Device,
-    dispatch::{DispatchKey, DispatchKeySet, ExcludeGuard, Kernel, KernelCall, RegistryBuilder},
-    error::{Error, Result},
+    dispatch::{DispatchKey, Kernel, KernelCall, RegistryBuilder},
+    error::Result,
     random::Generator,
     storage::{cpu::CpuStorage, meta::MetaStorage},
     tensor::Tensor,
@@ -98,22 +98,6 @@ pub fn has_run_time_axes() -> Result<bool> {
         Ok(())
     })?;
     Ok(declared)
-}
-
-// Returns the leading rows of `bound` that the `I64` scalar `count` names, for an operation whose result extent depends on values.
-// The count is read once for the eager result, and a captured graph returns the result narrowed to its count after each run.
-pub(crate) fn counted(bound: &Tensor, count: &Tensor) -> Result<Tensor> {
-    let length = {
-        let _guard = ExcludeGuard::new(DispatchKeySet::frontend());
-        count
-            .to_vec::<i64>()?
-            .first()
-            .copied()
-            .ok_or_else(|| Error::missing_output("counted"))?
-    };
-    let narrowed = bound.strided_view_unrecorded(bound.layout().slice(0, 0, length, 1)?)?;
-    with_active_session(|session| session.record_counted(&narrowed, bound, count))?;
-    Ok(narrowed)
 }
 
 #[cfg(test)]

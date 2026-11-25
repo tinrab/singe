@@ -1,6 +1,7 @@
 mod algebra;
 mod composite;
 mod convolution;
+pub mod count;
 mod creation;
 mod data_type;
 mod display;
@@ -45,7 +46,7 @@ pub use crate::tensor::{
 };
 use crate::{
     autograd::AutogradMeta, data_type::DataType, device::Device, error::Result, layout::Layout,
-    shape::Shape, storage::Storage, value::ValueSpec,
+    shape::Shape, storage::Storage, tensor::count::Count, value::ValueSpec,
 };
 
 #[derive(Debug)]
@@ -56,6 +57,7 @@ pub(crate) struct TensorInner {
     pub(crate) layout: Layout,
     /// Gradient state when the tensor requires gradients, shared by its clones.
     pub(crate) autograd: RwLock<Option<Arc<AutogradMeta>>>,
+    pub(crate) count: Option<Count>,
 }
 
 /// A typed, shaped tensor backed by device storage.

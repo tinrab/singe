@@ -25,7 +25,7 @@ use crate::{
     backend::cuda::{
         codegen::disk_cache::{self, EntryKind},
         export::{
-            CudaProgram, CudaProgramSet, ProgramValue,
+            CudaProgram, CudaProgramSet, ProgramValue, RowCount,
             writer::{
                 CONFIGURATION_REFUSED, CUBLAS_BASE, LIBRARY_FILE, LIBRARY_VERSION, ProgramFiles,
             },
@@ -36,7 +36,7 @@ use crate::{
     data_type::DataType,
     device::Device,
     error::Error,
-    graph::narrow_counted,
+    graph::{ir::CountedOutput, narrow_counted},
     layout::Layout,
     tensor::Tensor,
 };
@@ -249,12 +249,17 @@ fn manifest_value(value: &Value, output_names: &[String]) -> Result<ProgramValue
     )?
     .with_offset(offset);
     let count = value["count"]
-        .as_str()
+        .as_object()
         .map(|count| {
-            output_names
-                .iter()
-                .position(|name| name == count)
-                .ok_or_else(|| Error::invalid_argument("manifest count output"))
+            let output = count["output"]
+                .as_str()
+                .and_then(|count| output_names.iter().position(|name| name == count))
+                .ok_or_else(|| Error::invalid_argument("manifest count output"))?;
+            let axis = count["axis"]
+                .as_u64()
+                .and_then(|axis| usize::try_from(axis).ok())
+                .ok_or_else(|| Error::invalid_argument("manifest count axis"))?;
+            Ok::<_, ProgramError>(RowCount { output, axis })
         })
         .transpose()?;
     Ok(ProgramValue {
@@ -1043,7 +1048,12 @@ impl ProgramInstance {
             .outputs
             .iter()
             .enumerate()
-            .filter_map(|(index, output)| output.count.map(|_| index))
+            .filter_map(|(position, output)| {
+                output.count.map(|count| CountedOutput {
+                    position,
+                    axis: count.axis,
+                })
+            })
             .collect::<Vec<_>>();
         Ok(narrow_counted(&counted, outputs)?)
     }

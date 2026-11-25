@@ -76,10 +76,15 @@ impl Importer {
         let Some(shape) = &tensor.shape else {
             return Ok(());
         };
+        let value = self.value(&info.name)?;
+        let counted = value.count.map(|count| count.axis);
+        let id = value.node;
         let dimensions = shape
             .dimensions
             .iter()
-            .map(|dim| match &dim.value {
+            .enumerate()
+            .map(|(axis, dim)| match &dim.value {
+                _ if counted == Some(axis) => DimensionConstraint::Unknown,
                 Some(DimensionValue::Value(value)) => DimensionConstraint::Fixed(*value),
                 Some(DimensionValue::Parameter(name)) => {
                     let (min, max) = self.options.symbolic_bounds(name);
@@ -92,7 +97,6 @@ impl Importer {
                 _ => DimensionConstraint::Unknown,
             })
             .collect();
-        let id = self.value(&info.name)?.node;
         self.graph
             .shape_program
             .constraints

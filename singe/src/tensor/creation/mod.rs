@@ -239,6 +239,7 @@ impl Tensor {
                 data_type,
                 layout: layout.into(),
                 autograd: RwLock::default(),
+                count: None,
             }),
         }
     }
@@ -281,6 +282,7 @@ impl Tensor {
                 data_type,
                 layout,
                 autograd: RwLock::default(),
+                count: None,
             }),
         })
     }

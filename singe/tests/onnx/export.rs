@@ -574,6 +574,15 @@ fn test_operations_export_as_onnx_operators_and_roundtrip() {
         ("promotion", vec![a.clone(), whole], |x| {
             Ok(vec![x[0].add(&x[1])?])
         }),
+        ("selections", vec![a.clone(), b.clone()], |x| {
+            let selected = x[0].masked_select(&x[0].greater(&x[1])?)?;
+            Ok(vec![
+                selected.clone(),
+                x[1].greater(&x[0])?.nonzero()?,
+                selected.sum(&[0], false)?,
+                selected.softmax(0)?,
+            ])
+        }),
     ];
     for (name, inputs, build) in cases {
         let named = inputs
@@ -581,6 +590,10 @@ fn test_operations_export_as_onnx_operators_and_roundtrip() {
             .enumerate()
             .map(|(index, input)| (format!("x{index}"), input.clone()));
         let (captured, expected) = Graph::capture(named, build).unwrap();
+        let expected = expected
+            .iter()
+            .map(|expected| expected.cut_to_count().unwrap())
+            .collect::<Vec<_>>();
         let outputs = (0..expected.len()).map(|index| format!("y{index}"));
         let program = captured
             .with_output_names(outputs)

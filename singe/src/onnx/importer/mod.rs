@@ -38,6 +38,13 @@ pub struct ImportedValue {
     pub(crate) node: ValueId,
     pub(crate) data_type: DataType,
     pub(crate) shape: Shape,
+    pub(crate) count: Option<ImportedCount>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ImportedCount {
+    pub(crate) axis: usize,
+    pub(crate) node: ValueId,
 }
 
 pub struct Importer {

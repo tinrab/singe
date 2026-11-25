@@ -336,6 +336,7 @@ impl Tensor {
                 data_type: self.inner.data_type,
                 layout,
                 autograd: RwLock::default(),
+                count: None,
             }),
         }
     }

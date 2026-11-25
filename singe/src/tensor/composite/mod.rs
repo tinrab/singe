@@ -21,7 +21,7 @@ use crate::{
         Shape, normalize_dim_usize,
         spatial::{Padding, Padding2d},
     },
-    tensor::Tensor,
+    tensor::{Tensor, count::Count},
     utility::{to_i64, to_usize},
 };
 
@@ -164,13 +164,16 @@ impl Tensor {
 
     /// Returns the `I64` coordinates of the nonzero elements, one row per element in row-major order, as `torch.nonzero` does.
     ///
-    /// The number of rows depends on the values: the coordinates are written into rows bounded by the element count, and the call reads the count back to the host; a captured graph returns the result narrowed to its count after each run.
+    /// The number of rows depends on the values, so the result has a row for every element and its [`Self::count`] says how many lead with coordinates.
+    /// [`Self::cut_to_count`] and a graph's run return only those rows.
     ///
     /// # Errors
     ///
-    /// Returns an error if the count cannot be read, as for meta tensors.
+    /// Returns an error if the tensor cannot be cast to `Bool`.
     pub fn nonzero(&self) -> Result<Self> {
-        let truth = self.cast(DataType::Bool)?;
+        let truth = self
+            .cast(DataType::Bool)?
+            .fill_padding(Scalar::Bool(false))?;
         let (rows, count) = selection_rows(&truth)?;
         let dimensions = self.shape().dimensions().to_vec();
         let rank = self.shape().rank();
@@ -200,16 +203,16 @@ impl Tensor {
             bound.index_copy(0, &rows, &coordinates)?
         }
         .narrow(0, 0, extent)?;
-        capture::counted(&bound, &count)
+        bound.with_count(Count::create(0, count)?)
     }
 
     /// Returns the elements where the Boolean `mask` is true, in row-major order, as a vector, as `torch.masked_select` does; the tensor and the mask broadcast together.
     ///
-    /// The number of elements depends on the mask, which the call reads as [`Self::nonzero`] does.
+    /// The number of elements depends on the mask, which the result's [`Self::count`] holds, as for [`Self::nonzero`].
     ///
     /// # Errors
     ///
-    /// Returns an error if `mask` is not Boolean, the shapes do not broadcast, or the count cannot be read.
+    /// Returns an error if `mask` is not Boolean or the shapes do not broadcast.
     pub fn masked_select(&self, mask: &Self) -> Result<Self> {
         if mask.data_type() != DataType::Bool {
             return Err(Error::data_type_mismatch(
@@ -219,16 +222,24 @@ impl Tensor {
             ));
         }
 
+        let mut mask = mask.fill_padding(Scalar::Bool(false))?;
+        if let Some(real) = self.real_positions()? {
+            mask = mask.logical_and(&real)?;
+        }
+
         let shape = self.shape().broadcast_with(mask.shape())?;
         let extent = to_i64(shape.element_count(), "masked select count")?;
-        let values = self.expand(&shape)?.reshape([extent])?;
+        let values = self
+            .fill_padding(Scalar::Signed(0))?
+            .expand(&shape)?
+            .reshape([extent])?;
         let (rows, count) = selection_rows(&mask.expand(&shape)?)?;
         let bound = capture::literal(self.device(), |device| {
             Scalar::Signed(0).full(device, self.data_type(), &Shape::create([extent + 1])?)
         })?
         .index_copy(0, &rows, &values)?
         .narrow(0, 0, extent)?;
-        capture::counted(&bound, &count)
+        bound.with_count(Count::create(0, count)?)
     }
 
     pub fn flip(&self, dims: &[i64]) -> Result<Self> {

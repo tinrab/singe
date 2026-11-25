@@ -18,7 +18,7 @@ pub use self::{
         Activation, BufferId, BufferKind, BufferView, CharacterClasses, Composition, CudaProgram,
         CudaProgramSet, Decoding, GemmOperand, Library, LibraryCall, LoopEncoder, LoopToken,
         LoopTokenizer, OperationProvider, ProgramBuffer, ProgramEntry, ProgramState, ProgramStep,
-        ProgramValue, StateKind, StepProvider,
+        ProgramValue, RowCount, StateKind, StepProvider,
     },
     writer::{ProgramFiles, set::ProgramSetFiles},
 };

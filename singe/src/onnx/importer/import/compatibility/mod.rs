@@ -45,6 +45,16 @@ pub fn validate_inputs(importer: &Importer, node: &Node) -> Result<()> {
         .enumerate()
         .filter(|(_, name)| !name.is_empty())
     {
+        let value = importer.value(name)?;
+        if value.count.is_some() {
+            return Err(Error::unsupported_operator(
+                node.domain.as_deref(),
+                &node.operator_type,
+                version,
+                format!("input `{name}` is counted, which only a graph output may be"),
+            ));
+        }
+
         let Some(&(parameter, allowed, homogeneous)) = schema
             .input_types
             .get(index)
@@ -52,7 +62,6 @@ pub fn validate_inputs(importer: &Importer, node: &Node) -> Result<()> {
         else {
             continue;
         };
-        let value = importer.value(name)?;
         if !allowed.contains(&value.data_type)
             || homogeneous
                 && variables

@@ -448,6 +448,20 @@
     "program": true
   },
   {
+    "name": "Compress_11",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "Compress_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
     "name": "Concat_13",
     "importable": true,
     "eager": true,
@@ -1352,6 +1366,20 @@
   },
   {
     "name": "Neg_28",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "NonZero_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true,
+    "program": true
+  },
+  {
+    "name": "NonZero_28",
     "importable": true,
     "eager": true,
     "compiled": true,

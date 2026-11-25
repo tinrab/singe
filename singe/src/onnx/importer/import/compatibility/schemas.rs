@@ -88,42 +88,8 @@ const TYPES_10: &[DataType] = &[
     DataType::U8,
 ];
 
-const TYPES_11: &[DataType] = &[DataType::I32, DataType::I8, DataType::U8];
-
-const TYPES_12: &[DataType] = &[DataType::F32];
-
-const TYPES_13: &[DataType] = &[
-    DataType::F8E4M3,
-    DataType::F8E5M2,
-    DataType::I32,
-    DataType::I8,
-    DataType::U8,
-];
-
-const TYPES_14: &[DataType] = &[DataType::Bf16, DataType::F16, DataType::F32];
-
-const TYPES_15: &[DataType] = &[
-    DataType::F8E4M3,
-    DataType::F8E5M2,
-    DataType::I16,
-    DataType::I32,
-    DataType::I8,
-    DataType::U16,
-    DataType::U8,
-];
-
-const TYPES_16: &[DataType] = &[
-    DataType::Bf16,
-    DataType::F16,
-    DataType::F32,
-    DataType::F64,
-    DataType::F8E4M3,
-    DataType::F8E5M2,
-];
-
-const TYPES_17: &[DataType] = &[DataType::I32];
-
-const TYPES_18: &[DataType] = &[
+const TYPES_11: &[DataType] = &[
+    DataType::Bool,
     DataType::F16,
     DataType::F32,
     DataType::F64,
@@ -137,16 +103,56 @@ const TYPES_18: &[DataType] = &[
     DataType::U8,
 ];
 
-const TYPES_19: &[DataType] = &[
-    DataType::F16,
-    DataType::F32,
-    DataType::F64,
+const TYPES_12: &[DataType] = &[DataType::I32, DataType::I8, DataType::U8];
+
+const TYPES_13: &[DataType] = &[DataType::F32];
+
+const TYPES_14: &[DataType] = &[
+    DataType::F8E4M3,
+    DataType::F8E5M2,
+    DataType::I32,
     DataType::I8,
     DataType::U8,
 ];
 
-const TYPES_20: &[DataType] = &[
+const TYPES_15: &[DataType] = &[DataType::Bf16, DataType::F16, DataType::F32];
+
+const TYPES_16: &[DataType] = &[
+    DataType::F8E4M3,
+    DataType::F8E5M2,
+    DataType::I16,
+    DataType::I32,
+    DataType::I8,
+    DataType::U16,
+    DataType::U8,
+];
+
+const TYPES_17: &[DataType] = &[
     DataType::Bf16,
+    DataType::F16,
+    DataType::F32,
+    DataType::F64,
+    DataType::F8E4M3,
+    DataType::F8E5M2,
+];
+
+const TYPES_18: &[DataType] = &[DataType::I32];
+
+const TYPES_19: &[DataType] = &[
+    DataType::F16,
+    DataType::F32,
+    DataType::F64,
+    DataType::I16,
+    DataType::I32,
+    DataType::I64,
+    DataType::I8,
+    DataType::U16,
+    DataType::U32,
+    DataType::U64,
+    DataType::U8,
+];
+
+const TYPES_20: &[DataType] = &[
     DataType::F16,
     DataType::F32,
     DataType::F64,
@@ -159,13 +165,22 @@ const TYPES_21: &[DataType] = &[
     DataType::F16,
     DataType::F32,
     DataType::F64,
+    DataType::I8,
+    DataType::U8,
+];
+
+const TYPES_22: &[DataType] = &[
+    DataType::Bf16,
+    DataType::F16,
+    DataType::F32,
+    DataType::F64,
     DataType::I16,
     DataType::I32,
     DataType::I64,
     DataType::I8,
 ];
 
-const TYPES_22: &[DataType] = &[
+const TYPES_23: &[DataType] = &[
     DataType::Bf16,
     DataType::F16,
     DataType::F32,
@@ -174,20 +189,20 @@ const TYPES_22: &[DataType] = &[
     DataType::I64,
 ];
 
-const TYPES_23: &[DataType] = &[DataType::I8, DataType::U8];
+const TYPES_24: &[DataType] = &[DataType::I8, DataType::U8];
 
-const TYPES_24: &[DataType] = &[
+const TYPES_25: &[DataType] = &[
     DataType::F8E4M3,
     DataType::F8E5M2,
     DataType::I8,
     DataType::U8,
 ];
 
-const TYPES_25: &[DataType] = &[DataType::F32, DataType::I32];
+const TYPES_26: &[DataType] = &[DataType::F32, DataType::I32];
 
-const TYPES_26: &[DataType] = &[DataType::Bf16, DataType::F16, DataType::F32, DataType::I32];
+const TYPES_27: &[DataType] = &[DataType::Bf16, DataType::F16, DataType::F32, DataType::I32];
 
-const TYPES_27: &[DataType] = &[
+const TYPES_28: &[DataType] = &[
     DataType::F8E4M3,
     DataType::F8E5M2,
     DataType::I16,
@@ -196,17 +211,7 @@ const TYPES_27: &[DataType] = &[
     DataType::U8,
 ];
 
-const TYPES_28: &[DataType] = &[
-    DataType::F32,
-    DataType::F64,
-    DataType::I16,
-    DataType::I32,
-    DataType::I64,
-];
-
 const TYPES_29: &[DataType] = &[
-    DataType::Bf16,
-    DataType::F16,
     DataType::F32,
     DataType::F64,
     DataType::I16,
@@ -219,17 +224,13 @@ const TYPES_30: &[DataType] = &[
     DataType::F16,
     DataType::F32,
     DataType::F64,
+    DataType::I16,
     DataType::I32,
     DataType::I64,
-    DataType::I8,
-    DataType::U32,
-    DataType::U64,
-    DataType::U8,
 ];
 
 const TYPES_31: &[DataType] = &[
     DataType::Bf16,
-    DataType::Bool,
     DataType::F16,
     DataType::F32,
     DataType::F64,
@@ -242,15 +243,14 @@ const TYPES_31: &[DataType] = &[
 ];
 
 const TYPES_32: &[DataType] = &[
+    DataType::Bf16,
     DataType::Bool,
     DataType::F16,
     DataType::F32,
     DataType::F64,
-    DataType::I16,
     DataType::I32,
     DataType::I64,
     DataType::I8,
-    DataType::U16,
     DataType::U32,
     DataType::U64,
     DataType::U8,
@@ -911,6 +911,30 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         attributes: &[],
     },
     OperatorSchema {
+        operator: "Compress",
+        min_opset: 11,
+        max_opset: 27,
+        schema_version: 11,
+        input_range: (2, 2),
+        output_range: (1, 1),
+        required_inputs: &[0, 1],
+        required_outputs: &[0],
+        input_types: &[("T", TYPES_11, true), ("T1", TYPES_4, true)],
+        attributes: &[("axis", AttributeType::Int, false)],
+    },
+    OperatorSchema {
+        operator: "Compress",
+        min_opset: 28,
+        max_opset: 28,
+        schema_version: 28,
+        input_range: (2, 2),
+        output_range: (1, 1),
+        required_inputs: &[0, 1],
+        required_outputs: &[0],
+        input_types: &[("T", TYPES_5, true), ("T1", TYPES_4, true)],
+        attributes: &[("axis", AttributeType::Int, false)],
+    },
+    OperatorSchema {
         operator: "Concat",
         min_opset: 13,
         max_opset: 28,
@@ -1289,9 +1313,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T", TYPES_11, true),
-            ("tensor(float)", TYPES_12, true),
-            ("T", TYPES_11, true),
+            ("T", TYPES_12, true),
+            ("tensor(float)", TYPES_13, true),
+            ("T", TYPES_12, true),
         ],
         attributes: &[("axis", AttributeType::Int, false)],
     },
@@ -1305,9 +1329,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_13, true),
-            ("T2", TYPES_14, true),
-            ("T1", TYPES_13, true),
+            ("T1", TYPES_14, true),
+            ("T2", TYPES_15, true),
+            ("T1", TYPES_14, true),
         ],
         attributes: &[("axis", AttributeType::Int, false)],
     },
@@ -1321,9 +1345,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_15, true),
-            ("T2", TYPES_14, true),
-            ("T1", TYPES_15, true),
+            ("T1", TYPES_16, true),
+            ("T2", TYPES_15, true),
+            ("T1", TYPES_16, true),
         ],
         attributes: &[
             ("axis", AttributeType::Int, false),
@@ -1340,9 +1364,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_15, true),
-            ("T2", TYPES_14, true),
-            ("T1", TYPES_15, true),
+            ("T1", TYPES_16, true),
+            ("T2", TYPES_15, true),
+            ("T1", TYPES_16, true),
         ],
         attributes: &[
             ("axis", AttributeType::Int, false),
@@ -1360,9 +1384,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_15, true),
-            ("T2", TYPES_14, true),
-            ("T1", TYPES_15, true),
+            ("T1", TYPES_16, true),
+            ("T2", TYPES_15, true),
+            ("T1", TYPES_16, true),
         ],
         attributes: &[
             ("axis", AttributeType::Int, false),
@@ -1380,9 +1404,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_15, true),
-            ("T2", TYPES_14, true),
-            ("T1", TYPES_15, true),
+            ("T1", TYPES_16, true),
+            ("T2", TYPES_15, true),
+            ("T1", TYPES_16, true),
         ],
         attributes: &[
             ("axis", AttributeType::Int, false),
@@ -1400,9 +1424,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_15, true),
-            ("T2", TYPES_14, true),
-            ("T1", TYPES_15, true),
+            ("T1", TYPES_16, true),
+            ("T2", TYPES_15, true),
+            ("T1", TYPES_16, true),
         ],
         attributes: &[
             ("axis", AttributeType::Int, false),
@@ -1460,8 +1484,8 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0],
         required_outputs: &[0],
         input_types: &[
-            ("T", TYPES_16, true),
-            ("T1", TYPES_16, true),
+            ("T", TYPES_17, true),
+            ("T1", TYPES_17, true),
             ("T2", TYPES_4, true),
         ],
         attributes: &[("seed", AttributeType::Int, false)],
@@ -1612,7 +1636,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
             ("T", TYPES_1, true),
             ("T", TYPES_1, true),
             ("T", TYPES_1, true),
-            ("T1", TYPES_17, true),
+            ("T1", TYPES_18, true),
             ("T", TYPES_1, true),
         ],
         attributes: &[
@@ -1640,7 +1664,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
             ("T", TYPES_2, true),
             ("T", TYPES_2, true),
             ("T", TYPES_2, true),
-            ("T1", TYPES_17, true),
+            ("T1", TYPES_18, true),
             ("T", TYPES_2, true),
         ],
         attributes: &[
@@ -1744,7 +1768,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0, 1],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_18, true), ("T", TYPES_18, true)],
+        input_types: &[("T", TYPES_19, true), ("T", TYPES_19, true)],
         attributes: &[],
     },
     OperatorSchema {
@@ -1906,7 +1930,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T1", TYPES_16, true)],
+        input_types: &[("T1", TYPES_17, true)],
         attributes: &[],
     },
     OperatorSchema {
@@ -1923,7 +1947,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
             ("T", TYPES_1, true),
             ("T", TYPES_1, true),
             ("T", TYPES_1, true),
-            ("T1", TYPES_17, true),
+            ("T1", TYPES_18, true),
             ("T", TYPES_1, true),
             ("T", TYPES_1, true),
             ("T", TYPES_1, true),
@@ -1953,7 +1977,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
             ("T", TYPES_2, true),
             ("T", TYPES_2, true),
             ("T", TYPES_2, true),
-            ("T1", TYPES_17, true),
+            ("T1", TYPES_18, true),
             ("T", TYPES_2, true),
             ("T", TYPES_2, true),
             ("T", TYPES_2, true),
@@ -2034,7 +2058,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0, 1],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_18, true), ("T", TYPES_18, true)],
+        input_types: &[("T", TYPES_19, true), ("T", TYPES_19, true)],
         attributes: &[],
     },
     OperatorSchema {
@@ -2106,7 +2130,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 2),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_19, true)],
+        input_types: &[("T", TYPES_20, true)],
         attributes: &[
             ("auto_pad", AttributeType::String, false),
             ("ceil_mode", AttributeType::Int, false),
@@ -2126,7 +2150,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 2),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_20, true)],
+        input_types: &[("T", TYPES_21, true)],
         attributes: &[
             ("auto_pad", AttributeType::String, false),
             ("ceil_mode", AttributeType::Int, false),
@@ -2224,7 +2248,19 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_21, true)],
+        input_types: &[("T", TYPES_22, true)],
+        attributes: &[],
+    },
+    OperatorSchema {
+        operator: "NonZero",
+        min_opset: 13,
+        max_opset: 28,
+        schema_version: 13,
+        input_range: (1, 1),
+        output_range: (1, 1),
+        required_inputs: &[0],
+        required_outputs: &[0],
+        input_types: &[("T", TYPES_5, true)],
         attributes: &[],
     },
     OperatorSchema {
@@ -2378,7 +2414,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0, 1],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_22, true), ("T1", TYPES_18, true)],
+        input_types: &[("T", TYPES_23, true), ("T1", TYPES_19, true)],
         attributes: &[],
     },
     OperatorSchema {
@@ -2390,7 +2426,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0, 1],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_22, true), ("T1", TYPES_0, true)],
+        input_types: &[("T", TYPES_23, true), ("T1", TYPES_0, true)],
         attributes: &[],
     },
     OperatorSchema {
@@ -2403,14 +2439,14 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1, 2, 3, 4, 5, 6, 7],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_23, true),
-            ("tensor(float)", TYPES_12, true),
-            ("T1", TYPES_23, true),
-            ("T2", TYPES_23, true),
-            ("tensor(float)", TYPES_12, true),
-            ("T2", TYPES_23, true),
-            ("tensor(float)", TYPES_12, true),
-            ("T3", TYPES_23, true),
+            ("T1", TYPES_24, true),
+            ("tensor(float)", TYPES_13, true),
+            ("T1", TYPES_24, true),
+            ("T2", TYPES_24, true),
+            ("tensor(float)", TYPES_13, true),
+            ("T2", TYPES_24, true),
+            ("tensor(float)", TYPES_13, true),
+            ("T3", TYPES_24, true),
         ],
         attributes: &[],
     },
@@ -2424,14 +2460,14 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1, 2, 3, 4, 5, 6, 7],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_24, true),
-            ("TS", TYPES_14, true),
-            ("T1", TYPES_24, true),
-            ("T2", TYPES_24, true),
-            ("TS", TYPES_14, true),
-            ("T2", TYPES_24, true),
-            ("TS", TYPES_14, true),
-            ("T3", TYPES_24, true),
+            ("T1", TYPES_25, true),
+            ("TS", TYPES_15, true),
+            ("T1", TYPES_25, true),
+            ("T2", TYPES_25, true),
+            ("TS", TYPES_15, true),
+            ("T2", TYPES_25, true),
+            ("TS", TYPES_15, true),
+            ("T3", TYPES_25, true),
         ],
         attributes: &[],
     },
@@ -2445,9 +2481,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_25, true),
-            ("tensor(float)", TYPES_12, true),
-            ("T2", TYPES_23, true),
+            ("T1", TYPES_26, true),
+            ("tensor(float)", TYPES_13, true),
+            ("T2", TYPES_24, true),
         ],
         attributes: &[("axis", AttributeType::Int, false)],
     },
@@ -2461,9 +2497,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_26, true),
-            ("T1", TYPES_26, true),
-            ("T2", TYPES_24, true),
+            ("T1", TYPES_27, true),
+            ("T1", TYPES_27, true),
+            ("T2", TYPES_25, true),
         ],
         attributes: &[
             ("axis", AttributeType::Int, false),
@@ -2480,9 +2516,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_26, true),
-            ("T1", TYPES_26, true),
-            ("T2", TYPES_27, true),
+            ("T1", TYPES_27, true),
+            ("T1", TYPES_27, true),
+            ("T2", TYPES_28, true),
         ],
         attributes: &[
             ("axis", AttributeType::Int, false),
@@ -2501,9 +2537,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_26, true),
-            ("T2", TYPES_26, true),
-            ("T3", TYPES_27, true),
+            ("T1", TYPES_27, true),
+            ("T2", TYPES_27, true),
+            ("T3", TYPES_28, true),
         ],
         attributes: &[
             ("axis", AttributeType::Int, false),
@@ -2523,9 +2559,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_26, true),
-            ("T2", TYPES_26, true),
-            ("T3", TYPES_27, true),
+            ("T1", TYPES_27, true),
+            ("T2", TYPES_27, true),
+            ("T3", TYPES_28, true),
         ],
         attributes: &[
             ("axis", AttributeType::Int, false),
@@ -2545,9 +2581,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_26, true),
-            ("T2", TYPES_26, true),
-            ("T3", TYPES_27, true),
+            ("T1", TYPES_27, true),
+            ("T2", TYPES_27, true),
+            ("T3", TYPES_28, true),
         ],
         attributes: &[
             ("axis", AttributeType::Int, false),
@@ -2567,9 +2603,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1],
         required_outputs: &[0],
         input_types: &[
-            ("T1", TYPES_26, true),
-            ("T2", TYPES_26, true),
-            ("T3", TYPES_27, true),
+            ("T1", TYPES_27, true),
+            ("T2", TYPES_27, true),
+            ("T3", TYPES_28, true),
         ],
         attributes: &[
             ("axis", AttributeType::Int, false),
@@ -2609,7 +2645,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
             ("T", TYPES_1, true),
             ("T", TYPES_1, true),
             ("T", TYPES_1, true),
-            ("T1", TYPES_17, true),
+            ("T1", TYPES_18, true),
             ("T", TYPES_1, true),
         ],
         attributes: &[
@@ -2636,7 +2672,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
             ("T", TYPES_2, true),
             ("T", TYPES_2, true),
             ("T", TYPES_2, true),
-            ("T1", TYPES_17, true),
+            ("T1", TYPES_18, true),
             ("T", TYPES_2, true),
         ],
         attributes: &[
@@ -2659,9 +2695,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1, 2],
         required_outputs: &[0],
         input_types: &[
-            ("T", TYPES_28, true),
-            ("T", TYPES_28, true),
-            ("T", TYPES_28, true),
+            ("T", TYPES_29, true),
+            ("T", TYPES_29, true),
+            ("T", TYPES_29, true),
         ],
         attributes: &[],
     },
@@ -2675,9 +2711,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1, 2],
         required_outputs: &[0],
         input_types: &[
-            ("T", TYPES_29, true),
-            ("T", TYPES_29, true),
-            ("T", TYPES_29, true),
+            ("T", TYPES_30, true),
+            ("T", TYPES_30, true),
+            ("T", TYPES_30, true),
         ],
         attributes: &[("stash_type", AttributeType::Int, false)],
     },
@@ -2852,7 +2888,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_30, true)],
+        input_types: &[("T", TYPES_31, true)],
         attributes: &[
             ("axes", AttributeType::Ints, false),
             ("keepdims", AttributeType::Int, false),
@@ -2867,7 +2903,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_30, true), ("tensor(int64)", TYPES_6, true)],
+        input_types: &[("T", TYPES_31, true), ("tensor(int64)", TYPES_6, true)],
         attributes: &[
             ("keepdims", AttributeType::Int, false),
             ("noop_with_empty_axes", AttributeType::Int, false),
@@ -2882,7 +2918,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_31, true), ("tensor(int64)", TYPES_6, true)],
+        input_types: &[("T", TYPES_32, true), ("tensor(int64)", TYPES_6, true)],
         attributes: &[
             ("keepdims", AttributeType::Int, false),
             ("noop_with_empty_axes", AttributeType::Int, false),
@@ -2927,7 +2963,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_30, true)],
+        input_types: &[("T", TYPES_31, true)],
         attributes: &[
             ("axes", AttributeType::Ints, false),
             ("keepdims", AttributeType::Int, false),
@@ -2942,7 +2978,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_30, true), ("tensor(int64)", TYPES_6, true)],
+        input_types: &[("T", TYPES_31, true), ("tensor(int64)", TYPES_6, true)],
         attributes: &[
             ("keepdims", AttributeType::Int, false),
             ("noop_with_empty_axes", AttributeType::Int, false),
@@ -2957,7 +2993,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_31, true), ("tensor(int64)", TYPES_6, true)],
+        input_types: &[("T", TYPES_32, true), ("tensor(int64)", TYPES_6, true)],
         attributes: &[
             ("keepdims", AttributeType::Int, false),
             ("noop_with_empty_axes", AttributeType::Int, false),
@@ -3059,7 +3095,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (1, 1),
         required_inputs: &[0],
         required_outputs: &[0],
-        input_types: &[("T", TYPES_21, true)],
+        input_types: &[("T", TYPES_22, true)],
         attributes: &[],
     },
     OperatorSchema {
@@ -3158,7 +3194,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         input_types: &[
             ("T1", TYPES_5, true),
             ("T2", TYPES_1, true),
-            ("tensor(float)", TYPES_12, true),
+            ("tensor(float)", TYPES_13, true),
             ("tensor(int64)", TYPES_6, true),
         ],
         attributes: &[
@@ -3186,7 +3222,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         input_types: &[
             ("T1", TYPES_5, true),
             ("T2", TYPES_1, true),
-            ("tensor(float)", TYPES_12, true),
+            ("tensor(float)", TYPES_13, true),
             ("tensor(int64)", TYPES_6, true),
         ],
         attributes: &[
@@ -3217,7 +3253,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         input_types: &[
             ("T1", TYPES_5, true),
             ("T2", TYPES_1, true),
-            ("tensor(float)", TYPES_12, true),
+            ("tensor(float)", TYPES_13, true),
             ("tensor(int64)", TYPES_6, true),
         ],
         attributes: &[
@@ -3246,9 +3282,9 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_inputs: &[0, 1, 2],
         required_outputs: &[0],
         input_types: &[
-            ("T", TYPES_14, true),
-            ("T", TYPES_14, true),
-            ("T", TYPES_14, true),
+            ("T", TYPES_15, true),
+            ("T", TYPES_15, true),
+            ("T", TYPES_15, true),
             ("M", TYPES_6, true),
         ],
         attributes: &[
@@ -3693,7 +3729,7 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         output_range: (2, 2),
         required_inputs: &[0, 1],
         required_outputs: &[0, 1],
-        input_types: &[("T", TYPES_18, true), ("tensor(int64)", TYPES_6, true)],
+        input_types: &[("T", TYPES_19, true), ("tensor(int64)", TYPES_6, true)],
         attributes: &[
             ("axis", AttributeType::Int, false),
             ("largest", AttributeType::Int, false),
@@ -3847,8 +3883,8 @@ pub const SCHEMAS: &[OperatorSchema] = &[
         required_outputs: &[0],
         input_types: &[
             ("B", TYPES_4, true),
-            ("T", TYPES_32, true),
-            ("T", TYPES_32, true),
+            ("T", TYPES_11, true),
+            ("T", TYPES_11, true),
         ],
         attributes: &[],
     },

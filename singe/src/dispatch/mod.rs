@@ -1,11 +1,12 @@
 //! Routes operation calls through dispatch keys to registered kernels.
 //!
 //! Every tensor operation, graph interpreter step, and module call builds an [`OperationRequest`] and enters [`call`].
-//! The dispatcher runs the highest active key that has a kernel: [`DispatchKey::Autocast`], then [`DispatchKey::Capture`], then [`DispatchKey::Autograd`], then the backend key chosen from the input device.
+//! The dispatcher runs the highest active key that has a kernel: [`DispatchKey::Autocast`], then [`DispatchKey::Counted`], then [`DispatchKey::Capture`], then [`DispatchKey::Autograd`], then the backend key chosen from the input device.
 //! While a kernel runs, its key and every key above it are excluded on the thread, so [`KernelCall::redispatch`] and nested calls reach the keys below.
 //! Backends run their own kernel for an operation, or its composite kernel when they have none.
 
 mod autocast;
+mod counted;
 mod custom;
 mod kernel;
 mod key;
@@ -151,6 +152,7 @@ pub(crate) fn has_backend_kernel(operation: Operation, key: DispatchKey) -> bool
 fn frontend_active(key: DispatchKey, inputs: &[Tensor]) -> bool {
     match key {
         DispatchKey::Autocast => autocast_data_type().is_some(),
+        DispatchKey::Counted => inputs.iter().any(|input| input.count().is_some()),
         DispatchKey::Capture => capture::is_active(),
         DispatchKey::Autograd => autograd::records(inputs),
         DispatchKey::Cpu | DispatchKey::Cuda => false,

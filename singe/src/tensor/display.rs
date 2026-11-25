@@ -4,6 +4,13 @@ use crate::{data_type::DataType, error::Error, tensor::Tensor};
 
 impl Display for Tensor {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if self.count().is_some() {
+            return match self.cut_to_count() {
+                Ok(rows) => write!(f, "{rows}"),
+                Err(error) => write!(f, "tensor(<counted rows unreadable: {error}>)"),
+            };
+        }
+
         let data_type = self.data_type();
         let shape = self.shape();
         let dims = shape.dimensions();

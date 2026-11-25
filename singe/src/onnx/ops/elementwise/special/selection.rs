@@ -125,14 +125,5 @@ fn validate_where_inputs(
             "x and y dtypes must match",
         ));
     }
-
-    if x.data_type != DataType::F32 {
-        return Err(Error::unsupported_operator(
-            node.domain.as_deref(),
-            "Where",
-            importer.opset_version(node.domain.as_deref()),
-            "only f32 where branch inputs are supported",
-        ));
-    }
     Ok(())
 }

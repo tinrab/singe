@@ -6,9 +6,10 @@ use crate::{
     backend::{
         registry::{
             BatchNormalizationAttributes, ClampAttributes, Conv2dAttributes, Conv3dAttributes,
-            FlattenAttributes, LayerNormalizationAttributes, Operation, OperationAttributes,
-            PadAttributes, Pool2dAttributes, ReductionAttributes, ResizeAttributes,
-            SliceAttributes, StridedAttributes, TopKAttributes, TransposeAttributes,
+            FlattenAttributes, IndexPutAttributes, LayerNormalizationAttributes, Operation,
+            OperationAttributes, PadAttributes, Pool2dAttributes, ReductionAttributes,
+            ResizeAttributes, SliceAttributes, StridedAttributes, TopKAttributes,
+            TransposeAttributes,
         },
         spec::reduction_problem,
     },
@@ -313,6 +314,9 @@ impl Exporter<'_> {
                 self.node("Gather", op.inputs, op.output, vec![integer("axis", 0)]);
             }
             (Op::StridedScatter, Attr::Strided(strided)) => self.strided_scatter(op, &strided)?,
+            (Op::IndexPut, Attr::IndexPut(IndexPutAttributes { dim, accumulate })) => {
+                self.index_put(op, dim, accumulate)?;
+            }
             (Op::Custom(custom), _) => {
                 return Err(unsupported(format!(
                     "custom operation {} has no onnx mapping",
@@ -432,7 +436,15 @@ impl Exporter<'_> {
     }
 
     fn scalar_arithmetic(&mut self, op: OperationExport<'_>, value: Scalar) -> Result<()> {
-        self.matching_floats(&op)?;
+        let on_integers = matches!(
+            op.operation,
+            Operation::Scale | Operation::AddScalar | Operation::SubScalar | Operation::RSubScalar
+        ) && !op.data_type.is_float()
+            && self.source.required_value_data_type(op.node.inputs()[0])? == op.data_type;
+        if !on_integers {
+            self.matching_floats(&op)?;
+        }
+
         let OperationExport {
             mut inputs,
             output,
@@ -887,6 +899,43 @@ impl Exporter<'_> {
         } else {
             self.node("Multinomial", vec![logits], output, attributes);
         }
+        Ok(())
+    }
+
+    fn index_put(&mut self, op: OperationExport<'_>, dim: i64, accumulate: bool) -> Result<()> {
+        let OperationExport {
+            node,
+            inputs,
+            output,
+            ..
+        } = op;
+        let [destination, source, indices] = inputs.as_slice() else {
+            return Err(unsupported("index put with several index tensors"));
+        };
+        let rank = self.source.required_value_shape(node.inputs()[1])?.rank();
+        if self.source.required_value_shape(node.inputs()[2])?.rank() != 1 {
+            return Err(unsupported("index put whose indices are not a vector"));
+        }
+
+        let axis = if dim < 0 { dim + rank } else { dim };
+        let dimensions = (0..rank)
+            .map(|position| if position == axis { -1 } else { 1 })
+            .collect::<Vec<_>>();
+        let shape = self.integers(vec![rank], &dimensions)?;
+        let column = self.temporary("Reshape", vec![indices.clone(), shape], vec![]);
+        let extent = self.temporary("Shape", vec![source.clone()], vec![]);
+        let spread = self.temporary("Expand", vec![column, extent], vec![]);
+        let mut attributes = vec![integer("axis", axis)];
+        if accumulate {
+            attributes.push(string("reduction", "add"));
+        }
+
+        self.node(
+            "ScatterElements",
+            vec![destination.clone(), spread, source.clone()],
+            output,
+            attributes,
+        );
         Ok(())
     }
 

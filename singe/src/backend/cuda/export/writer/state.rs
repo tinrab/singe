@@ -108,8 +108,8 @@ impl Renderer<'_> {
         for value in values {
             let rows = value.count.map_or_else(String::new, |count| {
                 format!(
-                    " A run writes as many leading rows as `{}` holds.",
-                    values[count].name
+                    " A run writes as many leading rows along axis {} as `{}` holds.",
+                    count.axis, values[count.output].name
                 )
             });
             let qualifier = if kind == ValueStruct::Inputs && !value.written {

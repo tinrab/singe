@@ -10,7 +10,7 @@ use crate::{
     graph::ir::ValueId,
     onnx::{
         error::{Error, Result},
-        importer::{ImportedValue, Importer},
+        importer::{ImportedCount, ImportedValue, Importer},
     },
     shape::Shape,
     tensor::Tensor,
@@ -69,7 +69,13 @@ impl ImportedValue {
             node,
             data_type,
             shape,
+            count: None,
         }
+    }
+
+    pub(crate) const fn counted(mut self, axis: usize, node: ValueId) -> Self {
+        self.count = Some(ImportedCount { axis, node });
+        self
     }
 }
 

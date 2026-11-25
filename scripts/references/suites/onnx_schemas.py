@@ -35,6 +35,8 @@ RANGES = {
     "QLinearMatMul": (13, 28),
     "AveragePool": (13, 28),
     "ScatterElements": (16, 28),
+    "NonZero": (13, 28),
+    "Compress": (11, 28),
     **dict.fromkeys("GRU LSTM RNN".split(), (14, 28)),
     **dict.fromkeys(
         "BlackmanWindow DFT HammingWindow HannWindow MelWeightMatrix STFT".split(),

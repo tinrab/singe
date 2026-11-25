@@ -1,6 +1,10 @@
 #[cfg(feature = "onnx")]
 use crate::graph::shape_program::ShapeProgram;
-use crate::graph::{CaptureInfo, generators::GraphGenerator, ir::Graph};
+use crate::graph::{
+    CaptureInfo,
+    generators::GraphGenerator,
+    ir::{CountedOutput, Graph},
+};
 
 impl Graph {
     /// Returns the public name of output `index`, if it has one.
@@ -19,7 +23,7 @@ impl Graph {
         &self.input_writes
     }
 
-    pub(crate) fn counted_outputs(&self) -> &[usize] {
+    pub(crate) fn counted_outputs(&self) -> &[CountedOutput] {
         &self.counted_outputs
     }
 

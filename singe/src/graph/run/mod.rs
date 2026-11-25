@@ -6,10 +6,11 @@ use crate::{
         CompiledGraph, Graph, GraphSignature,
         generators::with_generator_states,
         interpreter::{execute_ir, execute_values, value_releases},
-        ir::{OperationId, ValueId},
+        ir::{CountedOutput, OperationId, ValueId},
         symbolic::SymbolicShapeEnv,
     },
     tensor::Tensor,
+    utility::to_i64,
 };
 
 /// Work performed by one interpreted prepared run, excluding input bindings and embedded constants.
@@ -169,22 +170,22 @@ pub fn write_back(targets: &[Tensor], mut outputs: Vec<Tensor>) -> Result<Vec<Te
 }
 
 // Narrows each counted output to the count its trailing output holds, and returns the other outputs.
-pub fn narrow_counted(counted: &[usize], mut outputs: Vec<Tensor>) -> Result<Vec<Tensor>> {
+pub fn narrow_counted(counted: &[CountedOutput], mut outputs: Vec<Tensor>) -> Result<Vec<Tensor>> {
     let visible = outputs
         .len()
         .checked_sub(counted.len())
         .ok_or_else(|| Error::missing_output("narrow counted"))?;
     let counts = outputs.split_off(visible);
-    for (&position, count) in counted.iter().zip(counts) {
+    for (counted, count) in counted.iter().zip(counts) {
         let length = count
             .to_vec::<i64>()?
             .first()
             .copied()
             .ok_or_else(|| Error::missing_output("narrow counted"))?;
         let output = outputs
-            .get_mut(position)
+            .get_mut(counted.position)
             .ok_or_else(|| Error::missing_output("narrow counted"))?;
-        *output = output.narrow(0, 0, length)?;
+        *output = output.narrow(to_i64(counted.axis, "counted axis")?, 0, length)?;
     }
     Ok(outputs)
 }

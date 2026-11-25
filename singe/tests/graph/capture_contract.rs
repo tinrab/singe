@@ -5,7 +5,7 @@ use std::{
 };
 
 use singe::{
-    DataType, Device, Error, Shape, Tensor,
+    Device, Error, Shape, Tensor,
     error::CaptureError,
     graph::{CaptureBindings, CaptureOptions, Graph, GraphPrepareOptions, StateBindingKind},
 };
@@ -273,14 +273,51 @@ fn assert_value_dependent_outputs_narrow_on_each_run(device: Device) {
         [("x", input(&[0., 2., 0., 3.])), ("t", threshold.clone())],
         |inputs| {
             let x = &inputs[0];
+            let selected = x.masked_select(&x.greater(&inputs[1])?)?;
+            let rows = x.nonzero()?;
             Ok(vec![
-                x.nonzero()?,
-                x.masked_select(&x.greater(&inputs[1])?)?,
+                rows.clone(),
+                selected.clone(),
+                selected.sum(&[0], false)?,
+                selected.mean(&[0], false)?,
+                selected.softmax(0)?,
+                x.index_select(0, &rows.squeeze(1)?)?,
             ])
         },
     )
     .unwrap();
-    assert_eq!(eager[0].shape().dimensions(), [2, 1]);
+    assert_eq!(eager[0].shape().dimensions(), [4, 1]);
+    assert_eq!(
+        eager[0].cut_to_count().unwrap().shape().dimensions(),
+        [2, 1]
+    );
+    let check =
+        |outputs: &[Tensor], rows: &[i64], selected: &[f32], softmax: &[f32], gathered: &[f32]| {
+            assert_eq!(outputs.len(), 6);
+            let outputs = outputs
+                .iter()
+                .map(|output| output.cut_to_count().unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(outputs[0].to_vec::<i64>().unwrap(), rows);
+            assert_eq!(outputs[1].to_vec::<f32>().unwrap(), selected);
+            let sum = selected.iter().sum::<f32>();
+            assert_eq!(outputs[2].to_vec::<f32>().unwrap(), [sum]);
+            let mean = outputs[3].to_vec::<f32>().unwrap()[0];
+            assert!((mean - sum / 2.).abs() < 1e-6, "{mean}");
+            let actual = outputs[4].to_vec::<f32>().unwrap();
+            assert_eq!(actual.len(), softmax.len());
+            for (actual, expected) in actual.iter().zip(softmax) {
+                assert!((actual - expected).abs() < 1e-6, "{actual} {expected}");
+            }
+            assert_eq!(outputs[5].to_vec::<f32>().unwrap(), gathered);
+        };
+    check(
+        &eager,
+        &[1, 3],
+        &[2., 3.],
+        &[0.268_941_43, 0.731_058_6],
+        &[2., 3.],
+    );
     let mut prepared = graph.prepare(GraphPrepareOptions::new(device)).unwrap();
     // Another input selects another number of elements, which each run narrows its results to.
     let outputs = prepared
@@ -289,12 +326,16 @@ fn assert_value_dependent_outputs_narrow_on_each_run(device: Device) {
             ("t".to_owned(), threshold),
         ]))
         .unwrap();
-    assert_eq!(outputs.len(), 2);
-    assert_eq!(outputs[0].to_vec::<i64>().unwrap(), [0, 2, 3]);
-    assert_eq!(outputs[1].to_vec::<f32>().unwrap(), [5., 7.]);
-    // A graph returns such a result but computes nothing from it.
-    let error = Graph::capture([("x", input(&[0., 2.]))], |inputs| {
-        Ok(vec![inputs[0].nonzero()?.cast(DataType::F32)?])
+    check(
+        &outputs,
+        &[0, 2, 3],
+        &[5., 7.],
+        &[0.119_202_92, 0.880_797_1],
+        &[1., 5., 7.],
+    );
+    // An operation that splits the counted axis is refused.
+    let error = Graph::capture([("x", input(&[0., 2., 0., 3.]))], |inputs| {
+        Ok(vec![inputs[0].nonzero()?.reshape([2, 2])?])
     })
     .unwrap_err();
     assert!(matches!(error, Error::Unsupported { .. }), "{error:?}");

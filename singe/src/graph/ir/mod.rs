@@ -30,6 +30,12 @@ use crate::{
     tensor::Tensor,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CountedOutput {
+    pub position: usize,
+    pub axis: usize,
+}
+
 /// A tensor program of values and the operations that produce them.
 ///
 /// Construction appends one operation per node, and each operation produces one value with the same index.
@@ -51,8 +57,8 @@ pub struct Graph {
     pub(crate) shape_program: ShapeProgram,
     /// Inputs that the trailing outputs, in order, write back after each run.
     pub(crate) input_writes: Vec<String>,
-    // Outputs whose leading extent depends on values: each is computed at a bound and narrowed after the run to a count, which a trailing output after the input writes holds, in this order.
-    pub(crate) counted_outputs: Vec<usize>,
+    // Outputs whose extent along one axis depends on values: each is computed at a bound and narrowed after the run to a count, which a trailing output after the input writes holds, in this order.
+    pub(crate) counted_outputs: Vec<CountedOutput>,
     /// Generators the graph reads through inputs, supplied and advanced on each run.
     pub(crate) generators: Vec<GraphGenerator>,
     pub(crate) capture_info: Option<CaptureInfo>,

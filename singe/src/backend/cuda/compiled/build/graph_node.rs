@@ -99,13 +99,13 @@ pub fn add_cuda_graph_memset_node(
 pub fn add_input_write_nodes(ir: &Graph, state: &mut GraphLoweringState) -> Result<()> {
     let names = ir.input_writes();
     let outputs = ir.output_values_vec();
-    if names.is_empty() || state.native_nodes.is_empty() || !ir.counted_outputs().is_empty() {
+    if names.is_empty() || state.native_nodes.is_empty() {
         return Ok(());
     }
 
     let visible = outputs
         .len()
-        .checked_sub(names.len())
+        .checked_sub(names.len() + ir.counted_outputs().len())
         .ok_or_else(|| Error::missing_output("add input write nodes"))?;
     let bound = ir
         .input_values()

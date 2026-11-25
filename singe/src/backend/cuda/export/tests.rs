@@ -98,7 +98,7 @@ fn check(
     let outputs = instance.run(&names, 2).unwrap();
     assert_eq!(outputs.len(), eager.len(), "{name}");
     for (actual, expected) in outputs.iter().zip(&eager) {
-        assert_close(actual, expected, tolerance, name);
+        assert_close(actual, &expected.cut_to_count().unwrap(), tolerance, name);
     }
     drop(instance);
     drop(compiled);
@@ -501,7 +501,7 @@ fn test_programs_advance_generators_across_runs() {
     }
 }
 
-// A result only a run can size comes with its count, and the caller's buffer holds as many rows as could be written.
+// A result only a run can size, and what is computed from it, comes with its count, and the caller's buffer holds as many rows as could be written.
 #[test]
 fn test_programs_report_how_many_rows_counted_results_hold() {
     let Some((architecture, _lock)) = target() else {
@@ -516,10 +516,15 @@ fn test_programs_report_how_many_rows_counted_results_hold() {
         &[("x", values(&[16], 1)), ("mask", mask)],
         1e-6,
         |inputs| {
+            let selected = inputs[0]
+                .masked_select(&inputs[1])?
+                .relu()?
+                .mul_scalar(2.)?;
             Ok(vec![
-                inputs[0].masked_select(&inputs[1])?,
+                selected.clone(),
                 inputs[1].nonzero()?,
                 inputs[0].relu()?,
+                selected.sum(&[0], false)?,
             ])
         },
     );
@@ -528,10 +533,10 @@ fn test_programs_report_how_many_rows_counted_results_hold() {
         .iter()
         .filter(|output| output.count.is_some());
     assert_eq!(counted.count(), 2);
-    assert_eq!(program.outputs.len(), 5);
+    assert_eq!(program.outputs.len(), 6);
     let header = program.render("model").unwrap().header;
     assert!(
-        header.contains("as many leading rows as `output0_count` holds"),
+        header.contains("as many leading rows along axis 0 as `output0_count` holds"),
         "{header}"
     );
 }

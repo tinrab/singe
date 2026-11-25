@@ -1,7 +1,8 @@
 use singe_onnx::Node;
 
 use crate::{
-    graph::{DimensionExpr, SymbolicAttributes, node::NodeKind},
+    data_type::DataType,
+    graph::{DimensionExpr, SymbolicAttributes, capture, node::NodeKind},
     onnx::{
         error::{Error, Result},
         importer::{ImportedValue, Importer},
@@ -13,15 +14,94 @@ use crate::{
         utility::{node_label, node_name},
     },
     shape::{Shape, transform::normalize_dim},
+    tensor::{Tensor, count::Count},
 };
 
 pub fn lower_slice(importer: &mut Importer, node: &Node) -> Result<()> {
     expect_input_range(importer, node, 3, 5)?;
     expect_outputs(importer, node, 1)?;
     let input = importer.required_input(node, 0)?;
+    if has_run_time_end(importer, node)? {
+        let value = counted_slice(importer, node, &input)?;
+        return register_node_outputs(importer, node, vec![value]);
+    }
+
     let params = slice_parameters(importer, node)?;
     let current = apply_slice_parameters(importer, node, input, &params)?;
     register_node_outputs(importer, node, vec![current])
+}
+
+fn has_run_time_end(importer: &Importer, node: &Node) -> Result<bool> {
+    let name = &node.inputs[2];
+    Ok(importer.metadata_shape_value(name)?.is_none()
+        && importer.static_input_tensor(name)?.is_none())
+}
+
+fn counted_slice(
+    importer: &mut Importer,
+    node: &Node,
+    input: &ImportedValue,
+) -> Result<ImportedValue> {
+    let starts = shape_input_values(importer, node, 1, "starts")?;
+    let axes = optional_values(importer, node, 3, "axes", 0)?;
+    let steps = optional_values(importer, node, 4, "steps", 1)?;
+    let (&[0], &[axis], &[1]) = (starts.as_slice(), axes.as_slice(), steps.as_slice()) else {
+        return Err(refuse(
+            importer,
+            node,
+            "a slice to a run-time end that does not start at zero and step by one along one axis",
+        ));
+    };
+    if !importer.have_fixed_shapes(&[input.node])? {
+        return Err(refuse(
+            importer,
+            node,
+            "a slice to a run-time end of an input with run-time axes",
+        ));
+    }
+
+    let axis =
+        onnx_dimension_to_usize(node, "slice axis", normalize_dim(axis, input.shape.rank())?)?;
+    let extent = input.shape.dimensions()[axis];
+    let end = importer.required_input(node, 2)?;
+    let device = importer.options().device;
+    let ids = importer
+        .graph()
+        .append_traced(&[input.node, end.node], device, |inputs| {
+            let end = inputs[1].cast(DataType::I64)?.reshape([])?;
+            let literal =
+                |value: i64| capture::literal(end.device(), |device| Tensor::scalar(device, value));
+            let (zero, extent) = (literal(0)?, literal(extent)?);
+            let wrapped = Tensor::where_select(&end.less(&zero)?, &end.add(&extent)?, &end)?;
+            let rows = wrapped.maximum(&zero)?.minimum(&extent)?;
+            Ok(vec![inputs[0].with_count(Count::create(axis, rows)?)?])
+        })?;
+    let &[value, count] = ids.as_slice() else {
+        return Err(refuse(importer, node, "a slice without its count"));
+    };
+    Ok(ImportedValue::new(value, input.data_type, input.shape.clone()).counted(axis, count))
+}
+
+fn optional_values(
+    importer: &Importer,
+    node: &Node,
+    index: usize,
+    label: &str,
+    default: i64,
+) -> Result<Vec<i64>> {
+    match node.inputs.get(index) {
+        Some(name) if !name.is_empty() => shape_input_values(importer, node, index, label),
+        _ => Ok(vec![default]),
+    }
+}
+
+fn refuse(importer: &Importer, node: &Node, reason: &str) -> Error {
+    Error::unsupported_operator(
+        node.domain.as_deref(),
+        "Slice",
+        importer.opset_version(node.domain.as_deref()),
+        reason,
+    )
 }
 
 pub fn apply_slice_parameters(
