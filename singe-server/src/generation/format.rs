@@ -4,7 +4,10 @@
 use std::sync::Arc;
 
 use serde_json::{Map, Value};
-use singe::{generation::SequenceOptions, tensor::SamplingOptions};
+use singe::{
+    generation::{Penalties, SequenceOptions},
+    tensor::SamplingOptions,
+};
 use singe_model::{
     Source,
     processor::{
@@ -14,7 +17,14 @@ use singe_model::{
     task::text::text_generation::GenerationDefaults,
 };
 
-use crate::error::{ApiError, ApiResult};
+use crate::{
+    api::{
+        chat::{ChatLogprobs, ChatTokenLogprob, TopLogprob},
+        completion::CompletionLogprobs,
+    },
+    error::{ApiError, ApiResult},
+    generation::output::LoggedToken,
+};
 
 /// A text model's tokenizer, chat template, stop tokens, and sampling defaults, read from its snapshot.
 #[derive(Debug)]
@@ -32,7 +42,7 @@ pub struct TextFormat {
 }
 
 /// The sampling a request asks for; what it leaves out comes from the model's defaults.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Sampling {
     /// In [0, 2]; at or below 1e-5 it picks the likeliest token.
     pub temperature: Option<f32>,
@@ -44,7 +54,22 @@ pub struct Sampling {
     pub min_p: Option<f32>,
     /// The seed of the sequence's random stream; unset, the engine draws one.
     pub seed: Option<u64>,
+    /// In [-2, 2].
+    pub presence_penalty: Option<f32>,
+    /// In [-2, 2].
+    pub frequency_penalty: Option<f32>,
+    /// Above 0.
+    pub repetition_penalty: Option<f32>,
+    /// Token ids in the vocabulary, with biases in [-100, 100].
+    pub logit_bias: Vec<(i64, f32)>,
+    /// At most the sequence's token limit.
+    pub min_tokens: usize,
+    /// How many alternatives to return with each token's log probability, or `None` for no log probabilities.
+    pub logprobs: Option<usize>,
 }
+
+/// The least log probability a response reports: one that underflows to negative infinity, which JSON cannot hold, reports this, as vLLM's does.
+const LEAST_LOGPROB: f32 = -9999.0;
 
 /// Temperatures at or below this choose the likeliest token.
 const GREEDY_TEMPERATURE: f32 = 1.0e-5;
@@ -97,14 +122,36 @@ impl TextFormat {
     ///
     /// # Errors
     ///
-    /// Returns a 400 error if a sampling setting, or the model's default for it, is out of range.
+    /// Returns a 400 error if a sampling setting, or the model's default for it, is out of range, a biased token is outside the vocabulary, or `min_tokens` exceeds `max_tokens`.
     pub fn sequence(
         &self,
         max_tokens: usize,
-        sampling: Sampling,
+        sampling: &Sampling,
         stop_token_ids: &[i64],
         ignore_eos: bool,
     ) -> ApiResult<SequenceOptions> {
+        if sampling.min_tokens > max_tokens {
+            return Err(ApiError::invalid_field(
+                "min_tokens",
+                format!(
+                    "{} tokens at least, more than the limit of {max_tokens}",
+                    sampling.min_tokens
+                ),
+            ));
+        }
+
+        let vocabulary = self.tokenizer.vocabulary_size();
+        if let Some((token, _)) = sampling
+            .logit_bias
+            .iter()
+            .find(|(token, _)| !(0..vocabulary).contains(token))
+        {
+            return Err(ApiError::invalid_field(
+                "logit_bias",
+                format!("token {token} outside a vocabulary of {vocabulary}"),
+            ));
+        }
+
         let mut stop_tokens = if ignore_eos {
             Vec::new()
         } else {
@@ -116,10 +163,119 @@ impl TextFormat {
             stop_tokens,
             sampling: self.sampling(sampling)?,
             seed: sampling.seed,
+            logit_bias: sampling.logit_bias.clone(),
+            min_tokens: sampling.min_tokens,
+            penalties: self.penalties(sampling)?,
+            logprobs: sampling.logprobs,
         })
     }
 
-    fn sampling(&self, sampling: Sampling) -> ApiResult<Option<SamplingOptions>> {
+    /// Returns the log probabilities of `tokens` as a legacy completion lists them, their text starting `offset` characters into the choice's text; `offset` moves past them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a token fails to decode.
+    pub fn completion_logprobs(
+        &self,
+        tokens: &[LoggedToken],
+        offset: &mut usize,
+    ) -> ApiResult<CompletionLogprobs> {
+        let mut logprobs = CompletionLogprobs::default();
+        for logged in tokens {
+            let text = self.token_text(logged.token)?;
+            let mut top = Map::new();
+            top.insert(text.clone(), Value::from(reported(logged.logprobs.logprob)));
+            for &(token, logprob) in &logged.logprobs.alternatives {
+                top.insert(self.token_text(token)?, Value::from(reported(logprob)));
+            }
+
+            logprobs.text_offset.push(*offset);
+            *offset += text.chars().count();
+            logprobs
+                .token_logprobs
+                .push(reported(logged.logprobs.logprob));
+            logprobs.top_logprobs.push(top);
+            logprobs.tokens.push(text);
+        }
+        Ok(logprobs)
+    }
+
+    /// Returns the log probabilities of `tokens` as a chat completion lists them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a token fails to decode.
+    pub fn chat_logprobs(&self, tokens: &[LoggedToken]) -> ApiResult<ChatLogprobs> {
+        let content = tokens
+            .iter()
+            .map(|logged| {
+                let top_logprobs = logged
+                    .logprobs
+                    .alternatives
+                    .iter()
+                    .map(|&(token, logprob)| {
+                        let token = self.token_text(token)?;
+                        Ok(TopLogprob {
+                            bytes: token.as_bytes().to_vec(),
+                            token,
+                            logprob: reported(logprob),
+                        })
+                    })
+                    .collect::<ApiResult<Vec<_>>>()?;
+                let token = self.token_text(logged.token)?;
+                Ok(ChatTokenLogprob {
+                    bytes: token.as_bytes().to_vec(),
+                    token,
+                    logprob: reported(logged.logprobs.logprob),
+                    top_logprobs,
+                })
+            })
+            .collect::<ApiResult<Vec<_>>>()?;
+        Ok(ChatLogprobs { content })
+    }
+
+    fn token_text(&self, token: i64) -> ApiResult<String> {
+        Ok(self.tokenizer.decode(&[token], false)?)
+    }
+
+    fn penalties(&self, sampling: &Sampling) -> ApiResult<Penalties> {
+        let defaults = self.defaults;
+        let penalties = Penalties {
+            repetition: sampling
+                .repetition_penalty
+                .or(defaults.repetition_penalty)
+                .unwrap_or(1.0),
+            frequency: sampling
+                .frequency_penalty
+                .or(defaults.frequency_penalty)
+                .unwrap_or(0.0),
+            presence: sampling
+                .presence_penalty
+                .or(defaults.presence_penalty)
+                .unwrap_or(0.0),
+        };
+        if !(penalties.repetition.is_finite() && penalties.repetition > 0.0) {
+            return Err(ApiError::invalid_field(
+                "repetition_penalty",
+                "a repetition_penalty at or below 0",
+            ));
+        }
+
+        for (name, value) in [
+            ("frequency_penalty", penalties.frequency),
+            ("presence_penalty", penalties.presence),
+        ] {
+            if !(-2.0..=2.0).contains(&value) {
+                return Err(ApiError::invalid_field(
+                    name,
+                    format!("a {name} outside [-2, 2]"),
+                ));
+            }
+        }
+        Ok(penalties)
+    }
+
+    fn sampling(&self, sampling: &Sampling) -> ApiResult<Option<SamplingOptions>> {
         let defaults = self.defaults;
         let temperature = sampling.temperature.or(defaults.temperature).unwrap_or(1.0);
         if !(0.0..=2.0).contains(&temperature) {
@@ -156,4 +312,8 @@ impl TextFormat {
                 .with_min_p(min_p),
         ))
     }
+}
+
+fn reported(logprob: f32) -> f32 {
+    logprob.max(LEAST_LOGPROB)
 }

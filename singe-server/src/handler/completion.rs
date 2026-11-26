@@ -13,7 +13,10 @@ use futures::future::{join_all, try_join_all};
 use crate::{
     api::{
         Stop, Usage,
-        completion::{Completion, CompletionChoice, CompletionRequest, PromptInput},
+        completion::{
+            Completion, CompletionChoice, CompletionLogprobs, CompletionRequest, MAX_LOGPROBS,
+            PromptInput,
+        },
         now, warn_unknown,
     },
     error::{ApiError, ApiResult},
@@ -58,8 +61,14 @@ pub async fn create(
         return Err(ApiError::unsupported_field("best_of"));
     }
 
-    if request.logprobs.is_some() {
-        return Err(ApiError::unsupported_field("logprobs"));
+    if request
+        .logprobs
+        .is_some_and(|logprobs| logprobs > MAX_LOGPROBS)
+    {
+        return Err(ApiError::invalid_field(
+            "logprobs",
+            format!("more than {MAX_LOGPROBS} alternatives"),
+        ));
     }
 
     let inputs = request.prompt.clone().inputs();
@@ -91,6 +100,8 @@ pub async fn create(
     })
     .await?;
 
+    let sampling = fields.sampling(request.logprobs)?;
+    let wants_logprobs = request.logprobs.is_some();
     let mut generations = Vec::with_capacity(prompts.len());
     let mut prompt_tokens = Vec::with_capacity(prompts.len());
     for prompt in prompts {
@@ -99,13 +110,10 @@ pub async fn create(
             prompt.len(),
             engine.limits(),
         )?;
-        let options = format.sequence(
-            limit,
-            fields.sampling(),
-            &fields.stop_token_ids,
-            fields.ignore_eos,
-        )?;
+        let options =
+            format.sequence(limit, &sampling, &fields.stop_token_ids, fields.ignore_eos)?;
         let stop_tokens = options.stop_tokens.clone();
+        let min_tokens = options.min_tokens;
         prompt_tokens.push(prompt.len());
         let detokenizer = Detokenizer::new(
             Arc::clone(&format.tokenizer),
@@ -121,12 +129,14 @@ pub async fn create(
                 .as_ref()
                 .map_or_else(Vec::new, |stop| Stop::strings(Some(stop))),
             stop_tokens,
+            min_tokens,
         ));
     }
 
     let id = format!("cmpl-{}", request_id(&headers));
     let created = now();
     let name = model.name.clone();
+    let format = Arc::clone(format);
 
     if !fields.stream {
         let finished = try_join_all(generations.iter_mut().map(TextGeneration::collect)).await?;
@@ -141,13 +151,17 @@ pub async fn create(
         let choices = finished
             .into_iter()
             .enumerate()
-            .map(|(index, (text, reason))| CompletionChoice {
-                index,
-                text,
-                finish_reason: Some(reason.as_str()),
-                logprobs: None,
+            .map(|(index, output)| {
+                Ok(CompletionChoice {
+                    index,
+                    logprobs: wants_logprobs
+                        .then(|| format.completion_logprobs(&output.logprobs, &mut 0))
+                        .transpose()?,
+                    text: output.text,
+                    finish_reason: Some(output.reason.as_str()),
+                })
             })
-            .collect();
+            .collect::<ApiResult<Vec<_>>>()?;
         return Ok(Json(Completion {
             id,
             object: "text_completion",
@@ -161,7 +175,10 @@ pub async fn create(
 
     let include_usage = fields.include_usage();
     Ok(stream(move |events| async move {
-        let chunk = |index: usize, text: String, finish_reason: Option<&'static str>| Completion {
+        let chunk = |index: usize,
+                     text: String,
+                     finish_reason: Option<&'static str>,
+                     logprobs: Option<CompletionLogprobs>| Completion {
             id: id.clone(),
             object: "text_completion",
             created,
@@ -170,7 +187,7 @@ pub async fn create(
                 index,
                 text,
                 finish_reason,
-                logprobs: None,
+                logprobs,
             }],
             usage: None,
         };
@@ -180,15 +197,29 @@ pub async fn create(
             .map(|(index, generation)| {
                 let events = events.clone();
                 let chunk = &chunk;
+                let format = &format;
                 async move {
+                    // Where the next chunk's tokens start in the choice's text.
+                    let mut offset = 0;
                     loop {
                         let sent = match generation.next().await {
-                            Ok(Some(Piece::Text(text))) => {
-                                events.json(&chunk(index, text, None)).await
+                            Ok(Some(Piece::Text { text, logprobs })) => {
+                                let logprobs = wants_logprobs
+                                    .then(|| format.completion_logprobs(&logprobs, &mut offset))
+                                    .transpose();
+                                match logprobs {
+                                    Ok(logprobs) => {
+                                        events.json(&chunk(index, text, None, logprobs)).await
+                                    }
+                                    Err(error) => {
+                                        events.error(&error).await;
+                                        return false;
+                                    }
+                                }
                             }
                             Ok(Some(Piece::Finished(reason))) => {
                                 events
-                                    .json(&chunk(index, String::new(), Some(reason.as_str())))
+                                    .json(&chunk(index, String::new(), Some(reason.as_str()), None))
                                     .await
                             }
                             Ok(None) => return true,

@@ -1,20 +1,33 @@
+use std::iter;
+
 use crate::{
+    data_type::DataType,
     device::Device,
     error::{Error, Result},
-    generation::{Decoder, GenerationOptions, SequenceOptions, choose, reading::TokenReader},
+    generation::{
+        Bias, Choice, Chosen, ChosenLogprobs, Decoder, GenerationOptions, PenaltyCounts,
+        SequenceOptions, choose, reading::HostReader,
+    },
     random::{self, Generator},
     shape::Shape,
-    tensor::{Draws, Tensor},
+    tensor::{Draws, SamplingOptions, Tensor},
 };
 
 // One token a running batch chose.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GeneratedToken {
     // Which sequence, by the order they joined.
     pub sequence: usize,
     pub token: i64,
     // Whether this is the sequence's last, so its row is free again.
     pub finished: bool,
+    pub logprobs: Option<TokenLogprobs>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TokenLogprobs {
+    pub logprob: f32,
+    pub alternatives: Vec<(i64, f32)>,
 }
 
 struct RunningSequence {
@@ -24,6 +37,13 @@ struct RunningSequence {
     generated: usize,
     options: SequenceOptions,
     draws: u64,
+    uncounted_prompt: Vec<i64>,
+}
+
+#[derive(Clone)]
+struct PenaltyState {
+    generated: Tensor,
+    prompt: Tensor,
 }
 
 pub struct RunningBatch<'a, D: Decoder + ?Sized> {
@@ -32,11 +52,15 @@ pub struct RunningBatch<'a, D: Decoder + ?Sized> {
     rows: Vec<Option<RunningSequence>>,
     joined: usize,
     unread: Option<UnreadStep>,
-    reader: TokenReader,
+    penalties: Option<PenaltyState>,
+    token_reader: HostReader,
+    logprob_token_reader: HostReader,
+    logprob_value_reader: HostReader,
 }
 
 struct UnreadStep {
     chosen: Tensor,
+    logprobs: Option<ChosenLogprobs>,
     choosing: Vec<Option<usize>>,
 }
 
@@ -57,7 +81,10 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
             rows,
             joined: 0,
             unread: None,
-            reader: TokenReader::default(),
+            penalties: None,
+            token_reader: HostReader::default(),
+            logprob_token_reader: HostReader::default(),
+            logprob_value_reader: HostReader::default(),
         })
     }
 
@@ -86,24 +113,25 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
             return Err(Error::invalid_argument("generation prompt is empty"));
         }
 
-        if options.max_new_tokens == 0 {
-            return Err(Error::invalid_argument(
-                "a running batch generates at least one token per sequence",
-            ));
-        }
-
+        options.validate()?;
         let Some(index) = self.rows.iter().position(Option::is_none) else {
             return Ok(None);
         };
         prepare(self.decoder, index)?;
         let row = &mut self.rows[index];
         let id = self.joined;
+        let uncounted_prompt = if options.penalties.is_neutral() {
+            Vec::new()
+        } else {
+            prompt.to_vec()
+        };
         *row = Some(RunningSequence {
             id,
             pending: prompt.to_vec(),
             generated: 0,
             options,
             draws: 0,
+            uncounted_prompt,
         });
         self.joined += 1;
         Ok(Some(id))
@@ -150,12 +178,32 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
         };
         // The next step reads the tokens the previous one chose on the device, and runs while the host reads them; a sequence that stopped leaves its row of it unread.
         // A next step that fails changes nothing, and runs again after these tokens, from the host, which reports what fails then.
-        let reading = self.reader.start(&previous.chosen)?;
+        let reading = self.token_reader.start(&previous.chosen)?;
+        let logprob_reading = match &previous.logprobs {
+            Some(logprobs) => Some((
+                self.logprob_token_reader.start(&logprobs.tokens)?,
+                self.logprob_value_reader.start(&logprobs.values)?,
+            )),
+            None => None,
+        };
         let next = self.enqueue(Some(&previous), generator).ok().flatten();
-        let chosen = self.reader.finish(reading)?;
+        let chosen = self.token_reader.finish::<i64>(reading)?;
         if chosen.len() != self.rows.len() {
             return Err(Error::missing_output("generated tokens"));
         }
+
+        let logprobs = match logprob_reading {
+            Some((tokens, values)) => {
+                let tokens = self.logprob_token_reader.finish::<i64>(tokens)?;
+                let values = self.logprob_value_reader.finish::<f32>(values)?;
+                Some(ReadLogprobs {
+                    width: tokens.len() / chosen.len(),
+                    tokens,
+                    values,
+                })
+            }
+            None => None,
+        };
 
         let mut generated = Vec::new();
         for (index, (row, &token)) in self.rows.iter_mut().zip(&chosen).enumerate() {
@@ -169,10 +217,15 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
             running.generated += 1;
             let finished = running.generated == running.options.max_new_tokens
                 || running.options.stop_tokens.contains(&token);
+            let logprobs = logprobs
+                .as_ref()
+                .zip(running.options.logprobs)
+                .map(|(logprobs, alternatives)| logprobs.row(index, alternatives));
             generated.push(GeneratedToken {
                 sequence: running.id,
                 token,
                 finished,
+                logprobs,
             });
             if finished {
                 *row = None;
@@ -221,50 +274,124 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
                     .map(|row| row.id)
             })
             .collect::<Vec<_>>();
-        let first = self.first_tokens(previous, &choosing, logits.device())?;
-        let chosen = self.choose_rows(&logits, &first, &choosing, generator)?;
+        // The index of the token each row chooses: the next after those read, and after the one `previous` chose for it.
+        let positions = self
+            .rows
+            .iter()
+            .enumerate()
+            .map(|(index, row)| {
+                row.as_ref().map_or(0, |row| {
+                    row.generated
+                        + usize::from(
+                            previous.is_some_and(|previous| previous.chooses_for(index, row)),
+                        )
+                })
+            })
+            .collect::<Vec<_>>();
+        let chosen = self.choose_rows(&logits, &choosing, &positions, generator)?;
         for (row, &portion) in self.rows.iter_mut().zip(&portions) {
             if let Some(row) = row {
                 let read = portion.min(row.pending.len());
                 row.pending.drain(..read);
             }
         }
-        Ok(Some(UnreadStep { chosen, choosing }))
+        Ok(Some(UnreadStep {
+            chosen: chosen.tokens,
+            logprobs: chosen.logprobs,
+            choosing,
+        }))
     }
 
     fn choose_rows(
         &mut self,
         logits: &Tensor,
-        first: &Tensor,
         choosing: &[Option<usize>],
+        positions: &[usize],
         generator: Option<&Generator>,
-    ) -> Result<Tensor> {
-        let sampling = self
+    ) -> Result<Chosen> {
+        let device = logits.device();
+        let rows = self.row_count()?;
+        let first = choosing
+            .iter()
+            .zip(positions)
+            .map(|(choosing, &position)| i64::from(choosing.is_some() && position == 0))
+            .collect::<Vec<_>>();
+        let first = Tensor::from_vec(device, Shape::create([rows])?, first)?;
+        let choosers = self
             .rows
             .iter()
             .zip(choosing)
-            .map(|(row, choosing)| {
-                row.as_ref()
-                    .filter(|_| choosing.is_some())
-                    .and_then(|row| row.options.sampling)
-            })
+            .map(|(row, choosing)| row.as_ref().filter(|_| choosing.is_some()))
             .collect::<Vec<_>>();
-        if sampling.iter().all(Option::is_none) {
-            return choose(
-                logits,
-                first,
-                &self.options,
-                &sampling,
-                Draws::Generator(None),
-            );
+        let sampling = choosers
+            .iter()
+            .map(|row| row.and_then(|row| row.options.sampling))
+            .collect::<Vec<_>>();
+        let logprobs = choosers
+            .iter()
+            .flatten()
+            .filter_map(|row| row.options.logprobs)
+            .max()
+            .map(|alternatives| i64::try_from(alternatives).unwrap_or(i64::MAX));
+        let penalized = choosers
+            .iter()
+            .map(|row| row.is_some_and(|row| !row.options.penalties.is_neutral()))
+            .collect::<Vec<_>>();
+        let streams = if sampling.iter().all(Option::is_none) {
+            None
+        } else {
+            Some(self.streams(&sampling, device, generator)?)
+        };
+        let bias = self.bias(choosing, positions, logits)?;
+        let penalty_settings = self.prepare_penalties(&penalized, logits)?;
+
+        let draws = streams
+            .as_ref()
+            .map_or(Draws::Generator(None), Draws::Streams);
+        let mut choice = Choice::new(&first, &self.options, &sampling, draws);
+        choice.bias = bias
+            .as_ref()
+            .map(|(tokens, values)| Bias { tokens, values });
+        choice.penalties =
+            penalty_settings
+                .as_ref()
+                .zip(self.penalties.as_ref())
+                .map(|(settings, state)| PenaltyCounts {
+                    settings,
+                    generated: &state.generated,
+                    prompt: &state.prompt,
+                });
+        choice.logprobs = logprobs;
+        let chosen = choose(logits, &choice)?;
+
+        for (row, sampling) in self.rows.iter_mut().zip(&sampling) {
+            if let Some(row) = row.as_mut().filter(|_| sampling.is_some()) {
+                row.draws += 1;
+            }
         }
 
+        if penalty_settings.is_some() {
+            self.count_chosen(&penalized, &chosen.tokens)?;
+        }
+        Ok(chosen)
+    }
+
+    fn row_count(&self) -> Result<i64> {
+        i64::try_from(self.rows.len()).map_err(|_| Error::out_of_range("generation rows"))
+    }
+
+    fn streams(
+        &mut self,
+        sampling: &[Option<SamplingOptions>],
+        device: Device,
+        generator: Option<&Generator>,
+    ) -> Result<Tensor> {
         let generator = match generator {
             Some(generator) => generator.clone(),
-            None => Generator::default_for(logits.device())?,
+            None => Generator::default_for(device)?,
         };
         let mut states = Vec::with_capacity(2 * self.rows.len());
-        for (row, sampling) in self.rows.iter_mut().zip(&sampling) {
+        for (row, sampling) in self.rows.iter_mut().zip(sampling) {
             let stream = match row {
                 Some(row) if sampling.is_some() => {
                     let seed = match row.options.seed {
@@ -278,50 +405,214 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
             };
             states.extend(stream.map(u64::cast_signed));
         }
-
-        let rows =
-            i64::try_from(self.rows.len()).map_err(|_| Error::out_of_range("generation rows"))?;
-        let states = Tensor::from_vec(logits.device(), Shape::create([rows, 2])?, states)?;
-        let chosen = choose(
-            logits,
-            first,
-            &self.options,
-            &sampling,
-            Draws::Streams(&states),
-        )?;
-        for (row, sampling) in self.rows.iter_mut().zip(&sampling) {
-            if let Some(row) = row.as_mut().filter(|_| sampling.is_some()) {
-                row.draws += 1;
-            }
-        }
-        Ok(chosen)
+        Tensor::from_vec(device, Shape::create([self.row_count()?, 2])?, states)
     }
 
-    fn first_tokens(
+    fn bias(
         &self,
-        previous: Option<&UnreadStep>,
         choosing: &[Option<usize>],
-        device: Device,
-    ) -> Result<Tensor> {
-        let first = self
+        positions: &[usize],
+        logits: &Tensor,
+    ) -> Result<Option<(Tensor, Tensor)>> {
+        let vocabulary = vocabulary(logits);
+        let entries = self
             .rows
             .iter()
             .zip(choosing)
-            .enumerate()
-            .map(|(index, (row, choosing))| {
-                i64::from(row.as_ref().is_some_and(|row| {
-                    let chosen = row.generated
-                        + usize::from(
-                            previous.is_some_and(|previous| previous.chooses_for(index, row)),
-                        );
-                    choosing.is_some() && chosen == 0
-                }))
+            .zip(positions)
+            .map(|((row, choosing), &position)| {
+                let Some(row) = row.as_ref().filter(|_| choosing.is_some()) else {
+                    return Vec::new();
+                };
+                let mut entries = row.options.logit_bias.clone();
+                if position < row.options.min_tokens {
+                    entries.extend(
+                        row.options
+                            .stop_tokens
+                            .iter()
+                            .map(|&token| (token, f32::NEG_INFINITY)),
+                    );
+                }
+                entries
             })
             .collect::<Vec<_>>();
-        let rows =
-            i64::try_from(first.len()).map_err(|_| Error::out_of_range("generation rows"))?;
-        Tensor::from_vec(device, Shape::create([rows])?, first)
+        let width = entries.iter().map(Vec::len).max().unwrap_or(0);
+        if width == 0 {
+            return Ok(None);
+        }
+
+        if let Some((token, _)) = entries
+            .iter()
+            .flatten()
+            .find(|(token, _)| !(0..vocabulary).contains(token))
+        {
+            return Err(Error::invalid_argument(format!(
+                "biased token {token} is outside a vocabulary of {vocabulary}"
+            )));
+        }
+
+        let mut tokens = Vec::with_capacity(entries.len() * width);
+        let mut values = Vec::with_capacity(entries.len() * width);
+        for row in &entries {
+            tokens.extend(row.iter().map(|&(token, _)| token));
+            tokens.extend(iter::repeat_n(0, width - row.len()));
+            values.extend(row.iter().map(|&(_, value)| value));
+            values.extend(iter::repeat_n(0.0_f32, width - row.len()));
+        }
+
+        let width = i64::try_from(width).map_err(|_| Error::out_of_range("logit bias"))?;
+        let shape = Shape::create([self.row_count()?, width])?;
+        Ok(Some((
+            Tensor::from_vec(logits.device(), shape.clone(), tokens)?,
+            Tensor::from_vec(logits.device(), shape, values)?,
+        )))
     }
+
+    fn prepare_penalties(&mut self, penalized: &[bool], logits: &Tensor) -> Result<Option<Tensor>> {
+        if self
+            .rows
+            .iter()
+            .flatten()
+            .all(|row| row.options.penalties.is_neutral())
+        {
+            self.penalties = None;
+            return Ok(None);
+        }
+
+        if !penalized.contains(&true) {
+            return Ok(None);
+        }
+
+        let device = logits.device();
+        let rows = self.row_count()?;
+        let vocabulary = vocabulary(logits);
+        let state = if let Some(state) = &self.penalties {
+            state.clone()
+        } else {
+            let shape = Shape::create([rows, vocabulary])?;
+            PenaltyState {
+                generated: Tensor::zeroed_on(device, DataType::F32, shape.clone())?,
+                prompt: Tensor::zeroed_on(device, DataType::F32, shape)?,
+            }
+        };
+        let state = self.count_prompts(state, penalized, vocabulary)?;
+        let settings = self
+            .rows
+            .iter()
+            .flat_map(|row| {
+                let penalties = row.as_ref().map_or_default(|row| row.options.penalties);
+                [
+                    penalties.repetition,
+                    penalties.frequency,
+                    penalties.presence,
+                ]
+            })
+            .collect::<Vec<_>>();
+        let settings = Tensor::from_vec(device, Shape::create([rows, 3])?, settings)?;
+        self.penalties = Some(state);
+        for (row, &penalized) in self.rows.iter_mut().zip(penalized) {
+            if let Some(row) = row.as_mut().filter(|_| penalized) {
+                row.uncounted_prompt.clear();
+            }
+        }
+        Ok(Some(settings))
+    }
+
+    fn count_prompts(
+        &self,
+        mut state: PenaltyState,
+        penalized: &[bool],
+        vocabulary: i64,
+    ) -> Result<PenaltyState> {
+        let prompts = self
+            .rows
+            .iter()
+            .zip(penalized)
+            .map(|(row, &penalized)| match row {
+                Some(row) if penalized => &row.uncounted_prompt[..],
+                _ => &[][..],
+            })
+            .collect::<Vec<_>>();
+        let width = prompts.iter().map(|prompt| prompt.len()).max().unwrap_or(0);
+        if width == 0 {
+            return Ok(state);
+        }
+
+        if let Some(token) = prompts
+            .iter()
+            .copied()
+            .flatten()
+            .find(|token| !(0..vocabulary).contains(*token))
+        {
+            return Err(Error::invalid_argument(format!(
+                "prompt token {token} is outside a vocabulary of {vocabulary}"
+            )));
+        }
+
+        let keep = prompts
+            .iter()
+            .map(|prompt| if prompt.is_empty() { 1.0_f32 } else { 0.0 })
+            .collect::<Vec<_>>();
+        let mut tokens = Vec::with_capacity(prompts.len() * width);
+        let mut ones = Vec::with_capacity(prompts.len() * width);
+        for prompt in &prompts {
+            tokens.extend_from_slice(prompt);
+            tokens.extend(iter::repeat_n(0, width - prompt.len()));
+            ones.extend(iter::repeat_n(1.0_f32, prompt.len()));
+            ones.extend(iter::repeat_n(0.0_f32, width - prompt.len()));
+        }
+
+        let device = state.prompt.device();
+        let rows = self.row_count()?;
+        let width = i64::try_from(width).map_err(|_| Error::out_of_range("prompt"))?;
+        let keep = Tensor::from_vec(device, Shape::create([rows, 1])?, keep)?;
+        let tokens = Tensor::from_vec(device, Shape::create([rows, width])?, tokens)?;
+        let ones = Tensor::from_vec(device, Shape::create([rows, width])?, ones)?;
+        state.generated = state.generated.mul(&keep)?;
+        state.prompt = state.prompt.mul(&keep)?.scatter_add(1, &tokens, &ones)?;
+        Ok(state)
+    }
+
+    fn count_chosen(&mut self, penalized: &[bool], tokens: &Tensor) -> Result<()> {
+        let rows = self.row_count()?;
+        let Some(state) = self.penalties.as_mut() else {
+            return Ok(());
+        };
+
+        let increments = penalized
+            .iter()
+            .map(|&penalized| if penalized { 1.0_f32 } else { 0.0 })
+            .collect::<Vec<_>>();
+        let increments = Tensor::from_vec(tokens.device(), Shape::create([rows, 1])?, increments)?;
+        state.generated = state
+            .generated
+            .scatter_add(1, &tokens.unsqueeze(1)?, &increments)?;
+        Ok(())
+    }
+}
+
+struct ReadLogprobs {
+    tokens: Vec<i64>,
+    values: Vec<f32>,
+    width: usize,
+}
+
+impl ReadLogprobs {
+    fn row(&self, index: usize, alternatives: usize) -> TokenLogprobs {
+        let row = index * self.width..(index + 1) * self.width;
+        let (tokens, values) = (&self.tokens[row.clone()], &self.values[row]);
+        TokenLogprobs {
+            logprob: values[0],
+            alternatives: iter::zip(&tokens[1..], &values[1..])
+                .map(|(&token, &value)| (token, value))
+                .take(alternatives)
+                .collect(),
+        }
+    }
+}
+
+fn vocabulary(logits: &Tensor) -> i64 {
+    logits.shape().dimensions().last().copied().unwrap_or(0)
 }
 
 const PREVIOUS_CHOICE: &[i64] = &[-1];
@@ -379,10 +670,7 @@ fn step_portions(pending: &[usize], largest: Option<usize>) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        generation::{generate, generate_batch},
-        tensor::SamplingOptions,
-    };
+    use crate::generation::{Penalties, generate, generate_batch};
 
     // Answers each step with logits favouring a token one above each sequence's last.
     struct Counting {
@@ -716,5 +1004,74 @@ mod tests {
         let alone = draw(&[]);
         assert_eq!(alone.len(), 6);
         assert_eq!(draw(&neighbours), alone);
+
+        // Bias, penalties and `min_tokens` change only their own sequence's tokens, and log probabilities come from the logits as the decoder gave them.
+        let limited = |max_new_tokens| SequenceOptions {
+            max_new_tokens,
+            ..SequenceOptions::default()
+        };
+        // Token 6 beats the decoder's choice until two of it cost more than the bias.
+        let frequent = SequenceOptions {
+            logit_bias: vec![(6, 2.0)],
+            penalties: Penalties {
+                frequency: 0.6,
+                ..Penalties::default()
+            },
+            logprobs: Some(2),
+            ..limited(4)
+        };
+        // The decoder's choice, 4, is in the prompt, so the penalty halves it below token 6's bias.
+        let repeated = SequenceOptions {
+            logit_bias: vec![(6, 0.8)],
+            penalties: Penalties {
+                repetition: 2.0,
+                ..Penalties::default()
+            },
+            ..limited(1)
+        };
+        let held = SequenceOptions {
+            stop_tokens: vec![4],
+            min_tokens: 1,
+            ..limited(9)
+        };
+        let mut decoder = Counting::new(3);
+        let options = GenerationOptions {
+            max_new_tokens: 1,
+            ..GenerationOptions::default()
+        };
+        let mut batch = RunningBatch::create(&mut decoder, options).unwrap();
+        let ids = [
+            (&[0][..], frequent),
+            (&[4, 3][..], repeated),
+            (&[3][..], held),
+        ]
+        .into_iter()
+        .map(|(prompt, options)| {
+            batch
+                .join_with_options(prompt, options, |_, _| Ok(()))
+                .unwrap()
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+        let mut generated = vec![Vec::new(); ids.len()];
+        let mut logprobs = Vec::new();
+        while !batch.is_empty() {
+            for token in batch.advance(None).unwrap() {
+                let index = ids.iter().position(|&id| id == token.sequence).unwrap();
+                generated[index].push(token.token);
+                logprobs.extend(token.logprobs);
+            }
+        }
+        assert_eq!(generated[0], [6, 6, 7, 0]);
+        assert_eq!(generated[1], [6]);
+        assert_ne!(generated[2][0], 4);
+        assert_eq!(generated[2].last(), Some(&4));
+        // Every row of the decoder's logits holds one 1 and seven 0s.
+        let unlikely = -(1.0_f32.exp() + 7.0).ln();
+        assert_eq!(logprobs.len(), 4);
+        assert!((logprobs[0].logprob - unlikely).abs() < 1e-5);
+        assert_eq!(logprobs[0].alternatives.len(), 2);
+        assert_eq!(logprobs[0].alternatives[0].0, 1);
+        assert!((logprobs[0].alternatives[0].1 - (1.0 + unlikely)).abs() < 1e-5);
     }
 }

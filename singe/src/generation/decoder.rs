@@ -1,6 +1,6 @@
 use crate::{
     error::{Error, Result},
-    generation::RunningBatch,
+    generation::{Penalties, RunningBatch},
     random::Generator,
     tensor::{SamplingOptions, Tensor},
 };
@@ -74,6 +74,7 @@ pub struct GenerationOptions {
     pub suppressed_tokens: Vec<i64>,
     // Tokens not chosen as a sequence's first, as Whisper's `begin_suppress_tokens`.
     pub first_suppressed_tokens: Vec<i64>,
+    pub penalties: Penalties,
 }
 
 impl GenerationOptions {
@@ -83,7 +84,8 @@ impl GenerationOptions {
             max_new_tokens: self.max_new_tokens,
             stop_tokens: self.stop_tokens.clone(),
             sampling: self.sampling,
-            seed: None,
+            penalties: self.penalties,
+            ..SequenceOptions::default()
         }
     }
 }
@@ -94,6 +96,26 @@ pub struct SequenceOptions {
     pub stop_tokens: Vec<i64>,
     pub sampling: Option<SamplingOptions>,
     pub seed: Option<u64>,
+    pub logit_bias: Vec<(i64, f32)>,
+    pub min_tokens: usize,
+    pub penalties: Penalties,
+    pub logprobs: Option<usize>,
+}
+
+impl SequenceOptions {
+    pub(crate) fn validate(&self) -> Result<()> {
+        if self.max_new_tokens == 0 {
+            return Err(Error::invalid_argument(
+                "a running batch generates at least one token per sequence",
+            ));
+        }
+
+        self.penalties.validate()?;
+        if self.logit_bias.iter().any(|(_, bias)| bias.is_nan()) {
+            return Err(Error::invalid_argument("a logit bias is not a number"));
+        }
+        Ok(())
+    }
 }
 
 // Generates tokens after `prompt`, calling `on_token` with each as it is chosen, and returns them.

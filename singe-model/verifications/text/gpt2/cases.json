@@ -37,6 +37,26 @@
           "end_token_ids": [50256]
         }
       ]
+    },
+    {
+      "name": "repetition",
+      "snapshot": "GPT2",
+      "task": "text-generation",
+      "data_type": "f32",
+      "inputs": ["The most important resource in Factorio is"],
+      "parameters": {
+        "max_new_tokens": 24,
+        "repetition_penalty": 1.3
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            262, 6831, 13, 632, 338, 257, 1049, 1295, 284, 923, 611, 345, 821, 2045, 329, 281, 2562,
+            835, 284, 651, 2067, 351, 534, 898
+          ],
+          "end_token_ids": [50256]
+        }
+      ]
     }
   ]
 }

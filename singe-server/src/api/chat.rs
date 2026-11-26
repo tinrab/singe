@@ -17,11 +17,11 @@ pub struct ChatCompletionRequest {
     /// The sampling, stopping, and streaming fields text completions share.
     #[serde(flatten)]
     pub generation: GenerationFields,
-    /// Whether to return token log probabilities; `true` is refused with 400.
+    /// Whether to return each generated token's log probability.
     #[serde(default)]
     pub logprobs: bool,
-    /// How many alternative tokens to return log probabilities for; any value is refused with 400.
-    pub top_logprobs: Option<u32>,
+    /// How many likeliest alternatives to return with each token's log probability, in [0, 20]; it needs `logprobs`.
+    pub top_logprobs: Option<usize>,
     /// Tools the model may call; a non-empty list is refused with 400.
     pub tools: Option<Vec<Value>>,
     /// Which tool the model must call; anything but `"none"` or `null` is refused with 400.
@@ -128,8 +128,39 @@ pub struct ChatChoice {
     pub message: AssistantMessage,
     /// Why generation ended: `stop` at a stop token or string, `length` at the token limit.
     pub finish_reason: &'static str,
-    /// Token log probabilities, always `null` because the server refuses requests for them.
-    pub logprobs: Option<Value>,
+    /// The log probabilities of the message's tokens, when the request asks for them.
+    pub logprobs: Option<ChatLogprobs>,
+}
+
+/// The log probabilities of a message's tokens; a stop token, which the message leaves out, is left out here too.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct ChatLogprobs {
+    /// Each token's log probability, in order.
+    pub content: Vec<ChatTokenLogprob>,
+}
+
+/// One token's log probability, with its likeliest alternatives.
+#[derive(Debug, Clone, Serialize)]
+pub struct ChatTokenLogprob {
+    /// The token's text.
+    pub token: String,
+    /// Its log probability under the model's distribution, before penalties, bias, and temperature.
+    pub logprob: f32,
+    /// The UTF-8 bytes of its text.
+    pub bytes: Vec<u8>,
+    /// The likeliest tokens, as many as `top_logprobs` asks.
+    pub top_logprobs: Vec<TopLogprob>,
+}
+
+/// One of the likeliest tokens at a position.
+#[derive(Debug, Clone, Serialize)]
+pub struct TopLogprob {
+    /// The token's text.
+    pub token: String,
+    /// Its log probability.
+    pub logprob: f32,
+    /// The UTF-8 bytes of its text.
+    pub bytes: Vec<u8>,
 }
 
 /// The message a model generated.
@@ -169,8 +200,8 @@ pub struct ChunkChoice {
     pub delta: Delta,
     /// Why generation ended, set only in the chunk that ends the choice; see [`ChatChoice::finish_reason`].
     pub finish_reason: Option<&'static str>,
-    /// Token log probabilities, always `null`.
-    pub logprobs: Option<Value>,
+    /// The log probabilities of the tokens the chunk adds, when the request asks for them.
+    pub logprobs: Option<ChatLogprobs>,
 }
 
 /// The part of the message a chunk adds; fields a chunk does not change are left out.

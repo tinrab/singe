@@ -15,8 +15,10 @@ use crate::{
         Usage,
         chat::{
             AssistantMessage, ChatChoice, ChatCompletion, ChatCompletionChunk,
-            ChatCompletionRequest, ChatMessage, ChunkChoice, ContentPart, Delta, MessageContent,
+            ChatCompletionRequest, ChatLogprobs, ChatMessage, ChunkChoice, ContentPart, Delta,
+            MessageContent,
         },
+        completion::MAX_LOGPROBS,
         now, warn_unknown,
     },
     error::{ApiError, ApiResult},
@@ -61,13 +63,11 @@ pub async fn create(
         prompt.len(),
         engine.limits(),
     )?;
-    let options = format.sequence(
-        limit,
-        fields.sampling(),
-        &fields.stop_token_ids,
-        fields.ignore_eos,
-    )?;
+    let wants_logprobs = request.logprobs;
+    let sampling = fields.sampling(wants_logprobs.then(|| request.top_logprobs.unwrap_or(0)))?;
+    let options = format.sequence(limit, &sampling, &fields.stop_token_ids, fields.ignore_eos)?;
     let stop_tokens = options.stop_tokens.clone();
+    let min_tokens = options.min_tokens;
     let prompt_tokens = prompt.len();
     let detokenizer = Detokenizer::new(
         Arc::clone(&format.tokenizer),
@@ -79,13 +79,15 @@ pub async fn create(
         detokenizer,
         request.stops(),
         stop_tokens,
+        min_tokens,
     );
     let id = format!("chatcmpl-{}", request_id(&headers));
     let created = now();
     let name = model.name.clone();
+    let format = Arc::clone(format);
 
     if !fields.stream {
-        let (content, reason) = generation.collect().await?;
+        let output = generation.collect().await?;
         generation.log(&name, prompt_tokens);
         return Ok(Json(ChatCompletion {
             id,
@@ -94,12 +96,14 @@ pub async fn create(
             model: name,
             choices: vec![ChatChoice {
                 index: 0,
+                logprobs: wants_logprobs
+                    .then(|| format.chat_logprobs(&output.logprobs))
+                    .transpose()?,
                 message: AssistantMessage {
                     role: "assistant",
-                    content,
+                    content: output.text,
                 },
-                finish_reason: reason.as_str(),
-                logprobs: None,
+                finish_reason: output.reason.as_str(),
             }],
             usage: Usage::new(prompt_tokens, generation.tokens().len()),
         })
@@ -108,7 +112,9 @@ pub async fn create(
 
     let include_usage = fields.include_usage();
     Ok(stream(move |events| async move {
-        let chunk = |delta: Delta, finish_reason: Option<&'static str>| ChatCompletionChunk {
+        let chunk = |delta: Delta,
+                     finish_reason: Option<&'static str>,
+                     logprobs: Option<ChatLogprobs>| ChatCompletionChunk {
             id: id.clone(),
             object: "chat.completion.chunk",
             created,
@@ -117,7 +123,7 @@ pub async fn create(
                 index: 0,
                 delta,
                 finish_reason,
-                logprobs: None,
+                logprobs,
             }],
             usage: None,
         };
@@ -125,22 +131,32 @@ pub async fn create(
             role: Some("assistant"),
             content: Some(String::new()),
         };
-        if !events.json(&chunk(first, None)).await {
+        if !events.json(&chunk(first, None, None)).await {
             return;
         }
 
         loop {
             let sent = match generation.next().await {
-                Ok(Some(Piece::Text(text))) => {
+                Ok(Some(Piece::Text { text, logprobs })) => {
+                    let logprobs = match wants_logprobs
+                        .then(|| format.chat_logprobs(&logprobs))
+                        .transpose()
+                    {
+                        Ok(logprobs) => logprobs,
+                        Err(error) => {
+                            events.error(&error).await;
+                            return;
+                        }
+                    };
                     let delta = Delta {
                         role: None,
                         content: Some(text),
                     };
-                    events.json(&chunk(delta, None)).await
+                    events.json(&chunk(delta, None, logprobs)).await
                 }
                 Ok(Some(Piece::Finished(reason))) => {
                     events
-                        .json(&chunk(Delta::default(), Some(reason.as_str())))
+                        .json(&chunk(Delta::default(), Some(reason.as_str()), None))
                         .await
                 }
                 Ok(None) => break,
@@ -175,8 +191,21 @@ pub async fn create(
 
 fn check_supported(request: &ChatCompletionRequest) -> ApiResult<()> {
     request.generation.check_supported()?;
-    if request.logprobs || request.top_logprobs.is_some() {
-        return Err(ApiError::unsupported_field("logprobs"));
+    if request.top_logprobs.is_some() && !request.logprobs {
+        return Err(ApiError::invalid_field(
+            "top_logprobs",
+            "`top_logprobs` without `logprobs`",
+        ));
+    }
+
+    if request
+        .top_logprobs
+        .is_some_and(|alternatives| alternatives > MAX_LOGPROBS)
+    {
+        return Err(ApiError::invalid_field(
+            "top_logprobs",
+            format!("more than {MAX_LOGPROBS} alternatives"),
+        ));
     }
 
     if request

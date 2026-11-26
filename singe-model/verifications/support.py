@@ -679,7 +679,10 @@ def text_generation(snapshot, dtype):
             ).input_ids.to(DEVICE)
             with torch.no_grad():
                 generated = model.generate(
-                    ids, max_new_tokens=parameters["max_new_tokens"], do_sample=False
+                    ids,
+                    max_new_tokens=parameters["max_new_tokens"],
+                    repetition_penalty=parameters.get("repetition_penalty", 1.0),
+                    do_sample=False,
                 )
             outputs.append(generation(model, generated[0, ids.shape[1] :].tolist()))
         return outputs

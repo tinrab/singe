@@ -3,7 +3,7 @@
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use singe::{
-    generation::{Decoder, DecoderOptions, GenerationOptions, generate_batch},
+    generation::{Decoder, DecoderOptions, GenerationOptions, Penalties, generate_batch},
     random::Generator,
     tensor::SamplingOptions,
 };
@@ -41,6 +41,9 @@ pub struct GenerationDefaults {
     pub top_k: Option<usize>,
     pub top_p: Option<f32>,
     pub min_p: Option<f32>,
+    pub repetition_penalty: Option<f32>,
+    pub presence_penalty: Option<f32>,
+    pub frequency_penalty: Option<f32>,
 }
 
 /// A prompt, read as it is, or a conversation, which the snapshot's chat template turns into one.
@@ -60,6 +63,8 @@ pub struct TextGenerationParameters {
     pub temperature: f32,
     pub top_k: Option<usize>,
     pub top_p: f32,
+    /// The penalty on tokens in the prompt or already generated, as `transformers`' `repetition_penalty`: it divides their positive logits and multiplies their negative ones.
+    pub repetition_penalty: f32,
     pub seed: u64,
     /// Whether the decoder runs compiled steps rather than eager ones, `true` by default.
     pub compile: bool,
@@ -75,9 +80,21 @@ impl Default for TextGenerationParameters {
             temperature: 1.0,
             top_k: None,
             top_p: 1.0,
+            repetition_penalty: 1.0,
             seed: 0,
             compile: true,
             chat_template_kwargs: Map::new(),
+        }
+    }
+}
+
+impl TextGenerationParameters {
+    /// Returns the penalties these parameters ask for: `repetition_penalty`, and no frequency or presence penalty.
+    #[must_use]
+    pub fn penalties(&self) -> Penalties {
+        Penalties {
+            repetition: self.repetition_penalty,
+            ..Penalties::default()
         }
     }
 }
@@ -189,6 +206,7 @@ impl Pipeline for TextGenerationPipeline {
                     )
                     .with_top_p(parameters.top_p)
             }),
+            penalties: parameters.penalties(),
             ..GenerationOptions::default()
         };
         let generator = Generator::new(parameters.seed);

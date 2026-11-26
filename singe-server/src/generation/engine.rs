@@ -9,7 +9,9 @@ use std::{
 };
 
 use singe::{
-    generation::{Decoder, DecoderOptions, GenerationOptions, RunningBatch, SequenceOptions},
+    generation::{
+        Decoder, DecoderOptions, GenerationOptions, RunningBatch, SequenceOptions, TokenLogprobs,
+    },
     random::Generator,
 };
 use singe_model::task::text::text_generation::TextGenerationPipeline;
@@ -125,10 +127,15 @@ impl FinishReason {
 }
 
 /// What the engine sends a request.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GenerationEvent {
-    /// A generated token, the stop token included.
-    Token(i64),
+    /// A generated token, the stop token included, with its log probabilities when the request asks for them.
+    Token {
+        /// The token's id.
+        token: i64,
+        /// Its log probability and alternatives.
+        logprobs: Option<TokenLogprobs>,
+    },
     /// The sequence ended; no event follows.
     Finished(FinishReason),
     /// The request failed to join, or a step failed, for this reason; no event follows.
@@ -368,7 +375,10 @@ fn run<M: TextModel>(
                     };
                     let delivered = request
                         .events
-                        .send(GenerationEvent::Token(token.token))
+                        .send(GenerationEvent::Token {
+                            token: token.token,
+                            logprobs: token.logprobs,
+                        })
                         .is_ok();
                     if token.finished {
                         let reason = if request.stop_tokens.contains(&token.token) {

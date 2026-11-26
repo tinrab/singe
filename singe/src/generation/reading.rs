@@ -1,50 +1,55 @@
 #[cfg(feature = "cuda")]
+use crate::backend::cuda::{CudaTransfer, runtime::runtime_for_device};
 use crate::{
-    backend::cuda::{CudaTransfer, runtime::runtime_for_device},
-    data_type::DataType,
+    error::Result,
+    tensor::{Tensor, TensorDataType},
 };
-use crate::{error::Result, tensor::Tensor};
 
 #[derive(Debug, Default)]
-pub struct TokenReader {
+pub struct HostReader {
     #[cfg(feature = "cuda")]
     pinned: Option<Tensor>,
 }
 
 #[derive(Debug)]
-pub enum PendingTokens {
-    Read(Vec<i64>),
+pub enum PendingRead {
+    Ready(Tensor),
     #[cfg(feature = "cuda")]
     Copying(CudaTransfer),
 }
 
-impl TokenReader {
-    pub fn start(&mut self, tokens: &Tensor) -> Result<PendingTokens> {
+impl HostReader {
+    pub fn start(&mut self, values: &Tensor) -> Result<PendingRead> {
         // On the device the copy is enqueued now, so work enqueued after it does not hold it back.
         #[cfg(feature = "cuda")]
-        if tokens.device().is_cuda() {
+        if values.device().is_cuda() {
             let destination = match self.pinned.take() {
-                Some(pinned) if pinned.shape() == tokens.shape() => pinned,
-                _ => Tensor::zeros_pinned(DataType::I64, tokens.shape().clone())?,
+                Some(pinned)
+                    if pinned.shape() == values.shape()
+                        && pinned.data_type() == values.data_type() =>
+                {
+                    pinned
+                }
+                _ => Tensor::zeros_pinned(values.data_type(), values.shape().clone())?,
             };
-            let runtime = runtime_for_device(tokens.device())?;
-            return Ok(PendingTokens::Copying(
-                tokens.copy_to_non_blocking(destination, runtime.eager_stream()?)?,
+            let runtime = runtime_for_device(values.device())?;
+            return Ok(PendingRead::Copying(
+                values.copy_to_non_blocking(destination, runtime.eager_stream()?)?,
             ));
         }
 
-        Ok(PendingTokens::Read(tokens.to_vec()?))
+        Ok(PendingRead::Ready(values.clone()))
     }
 
-    pub fn finish(&mut self, pending: PendingTokens) -> Result<Vec<i64>> {
+    pub fn finish<T: TensorDataType>(&mut self, pending: PendingRead) -> Result<Vec<T>> {
         match pending {
-            PendingTokens::Read(tokens) => Ok(tokens),
+            PendingRead::Ready(values) => values.to_vec(),
             #[cfg(feature = "cuda")]
-            PendingTokens::Copying(transfer) => {
+            PendingRead::Copying(transfer) => {
                 let destination = transfer.wait()?;
-                let tokens = destination.to_vec()?;
+                let values = destination.to_vec()?;
                 self.pinned = Some(destination);
-                Ok(tokens)
+                Ok(values)
             }
         }
     }

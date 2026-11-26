@@ -7,7 +7,7 @@ use crate::{
     device::Device,
     error::{Error, Result},
     generation::{
-        Decoder, GenerationOptions, choose,
+        Choice, Decoder, GenerationOptions, choose,
         compiled::{CompiledSteps, capture_step},
     },
     graph::{Graph, GraphExecutor, GraphPrepareOptions, SharedBuffers},
@@ -192,13 +192,9 @@ fn step_forward<L: DecoderModel>(
         [first, streams] => (first, Draws::Streams(streams)),
         _ => return Err(Error::missing_input("the rows choosing their first token")),
     };
-    Ok(vec![choose(
-        &logits,
-        first,
-        options,
-        &[options.sampling],
-        draws,
-    )?])
+    let sampling = [options.sampling];
+    let chosen = choose(&logits, &Choice::new(first, options, &sampling, draws))?;
+    Ok(vec![chosen.tokens])
 }
 
 impl<L: DecoderModel> CachedDecoder<L> {

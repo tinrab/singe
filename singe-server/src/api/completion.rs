@@ -9,6 +9,9 @@ use crate::{
     generation::format::Sampling,
 };
 
+/// The most alternatives a request may ask log probabilities for, as OpenAI allows.
+pub const MAX_LOGPROBS: usize = 20;
+
 /// What chat and text completions both read about generating.
 /// A missing field takes its default; fields this server does not do yet are refused by [`GenerationFields::check_supported`].
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -45,15 +48,15 @@ pub struct GenerationFields {
     pub n: Option<usize>,
     /// An id for the end user, which the server ignores.
     pub user: Option<String>,
-    /// OpenAI's penalty on tokens already present; anything but 0 is refused with 400.
+    /// OpenAI's penalty on tokens already generated, subtracted once from the logit of each, in [-2, 2]; defaults to the model's generation config, else 0.
     pub presence_penalty: Option<f32>,
-    /// OpenAI's penalty on tokens by how often they appeared; anything but 0 is refused with 400.
+    /// OpenAI's penalty on tokens already generated, subtracted from the logit of each once per time it was generated, in [-2, 2]; defaults to the model's generation config, else 0.
     pub frequency_penalty: Option<f32>,
-    /// vLLM's multiplicative penalty on repeated tokens; anything but 1 is refused with 400.
+    /// vLLM's penalty on tokens in the prompt or already generated, dividing positive logits by it and multiplying negative ones, above 0; defaults to the model's generation config, else 1.
     pub repetition_penalty: Option<f32>,
-    /// Biases added to token ids' logits; a non-empty map is refused with 400.
+    /// Biases added to token ids' logits, keyed by the id as a string, each in [-100, 100].
     pub logit_bias: Option<Map<String, Value>>,
-    /// The fewest tokens to generate before stopping; anything but 0 is refused with 400.
+    /// The fewest tokens to generate before a stop token or stop string may end generation, at most the token limit.
     pub min_tokens: Option<usize>,
 }
 
@@ -66,16 +69,48 @@ pub struct StreamOptions {
 }
 
 impl GenerationFields {
-    /// Returns the sampling fields, unset where the request leaves them out.
-    #[must_use]
-    pub const fn sampling(&self) -> Sampling {
-        Sampling {
+    /// Returns the sampling fields, unset where the request leaves them out, with `logprobs` alternatives to each token's log probability, which each endpoint asks for in its own field.
+    ///
+    /// # Errors
+    ///
+    /// Returns a 400 error if a `logit_bias` key is not a token id or a bias is not a number in [-100, 100].
+    pub fn sampling(&self, logprobs: Option<usize>) -> ApiResult<Sampling> {
+        let logit_bias = self
+            .logit_bias
+            .iter()
+            .flatten()
+            .map(|(token, bias)| {
+                let token = token.parse::<i64>().map_err(|_| {
+                    ApiError::invalid_field(
+                        "logit_bias",
+                        format!("a key {token} that is not a token id"),
+                    )
+                })?;
+                let bias = bias
+                    .as_f64()
+                    .filter(|bias| (-100.0..=100.0).contains(bias))
+                    .ok_or_else(|| {
+                        ApiError::invalid_field(
+                            "logit_bias",
+                            format!("a bias for token {token} that is not a number in [-100, 100]"),
+                        )
+                    })?;
+                Ok((token, bias as f32))
+            })
+            .collect::<ApiResult<Vec<_>>>()?;
+        Ok(Sampling {
             temperature: self.temperature,
             top_p: self.top_p,
             top_k: self.top_k,
             min_p: self.min_p,
             seed: self.seed,
-        }
+            presence_penalty: self.presence_penalty,
+            frequency_penalty: self.frequency_penalty,
+            repetition_penalty: self.repetition_penalty,
+            logit_bias,
+            min_tokens: self.min_tokens.unwrap_or(0),
+            logprobs,
+        })
     }
 
     /// Returns whether a streamed response ends with a usage chunk.
@@ -89,33 +124,10 @@ impl GenerationFields {
     ///
     /// # Errors
     ///
-    /// Returns an error if `n` is not 1, a penalty is not neutral, `logit_bias` is not empty, `min_tokens` is not 0, or `stream_options` is set without `stream`.
+    /// Returns an error if `n` is not 1, or `stream_options` is set without `stream`.
     pub fn check_supported(&self) -> ApiResult<()> {
         if self.n.is_some_and(|n| n != 1) {
             return Err(ApiError::unsupported_field("n"));
-        }
-
-        let penalties = [
-            ("presence_penalty", self.presence_penalty, 0.0),
-            ("frequency_penalty", self.frequency_penalty, 0.0),
-            ("repetition_penalty", self.repetition_penalty, 1.0),
-        ];
-        for (name, value, neutral) in penalties {
-            if value.is_some_and(|value| (value - neutral).abs() > f32::EPSILON) {
-                return Err(ApiError::unsupported_field(name));
-            }
-        }
-
-        if self
-            .logit_bias
-            .as_ref()
-            .is_some_and(|bias| !bias.is_empty())
-        {
-            return Err(ApiError::unsupported_field("logit_bias"));
-        }
-
-        if self.min_tokens.is_some_and(|tokens| tokens > 0) {
-            return Err(ApiError::unsupported_field("min_tokens"));
         }
 
         if self.stream_options.is_some() && !self.stream {
@@ -145,8 +157,8 @@ pub struct CompletionRequest {
     pub suffix: Option<String>,
     /// How many completions to generate to return the best; anything but 1 is refused with 400.
     pub best_of: Option<usize>,
-    /// How many likeliest tokens to return log probabilities for; any value is refused with 400.
-    pub logprobs: Option<u32>,
+    /// Returns each generated token's log probability, with this many likeliest alternatives, in [0, 20].
+    pub logprobs: Option<usize>,
     /// The fields the server does not read, logged by name and otherwise ignored.
     #[serde(flatten)]
     pub unknown: Map<String, Value>,
@@ -216,6 +228,20 @@ pub struct CompletionChoice {
     pub text: String,
     /// Why generation ended: `stop` at a stop token or string, `length` at the token limit; unset in streamed chunks before the choice ends.
     pub finish_reason: Option<&'static str>,
-    /// Token log probabilities, always `null` because the server refuses requests for them.
-    pub logprobs: Option<Value>,
+    /// The log probabilities of the tokens `text` holds, when the request asks for them.
+    pub logprobs: Option<CompletionLogprobs>,
+}
+
+/// The log probabilities of a completion's tokens, in the shape of OpenAI's legacy completions.
+/// A stop token, which the text leaves out, is left out here too.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct CompletionLogprobs {
+    /// Each token's text.
+    pub tokens: Vec<String>,
+    /// Each token's log probability under the model's distribution, before penalties, bias, and temperature.
+    pub token_logprobs: Vec<f32>,
+    /// Each token's likeliest alternatives, by their text, the chosen token among them.
+    pub top_logprobs: Vec<Map<String, Value>>,
+    /// Where each token's text starts in the choice's text, in characters.
+    pub text_offset: Vec<usize>,
 }

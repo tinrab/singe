@@ -1,6 +1,8 @@
 //! A request's generated text, piece by piece: its tokens detokenized, cut at its stop strings, without the stop token's own text.
 
-use std::{collections::VecDeque, time::Instant};
+use std::{collections::VecDeque, mem, time::Instant};
+
+use singe::generation::TokenLogprobs;
 
 use crate::{
     error::{ApiError, ApiResult},
@@ -9,12 +11,37 @@ use crate::{
 };
 
 /// A part of a request's output.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Piece {
-    /// Text, never empty.
-    Text(String),
+    /// Text, with the log probabilities of the tokens it came from when the request asks for them; empty only when it carries the last tokens' log probabilities.
+    Text {
+        /// The text.
+        text: String,
+        /// The tokens it came from, in order, without stop tokens.
+        logprobs: Vec<LoggedToken>,
+    },
     /// The last piece, with why the text ended.
     Finished(FinishReason),
+}
+
+/// A generated token with its log probabilities.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LoggedToken {
+    /// The token's id.
+    pub token: i64,
+    /// Its log probability and alternatives.
+    pub logprobs: TokenLogprobs,
+}
+
+/// A whole output: its text, its tokens' log probabilities, and why it ended.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Output {
+    /// The text.
+    pub text: String,
+    /// The log probabilities of the tokens it came from, empty unless the request asks for them.
+    pub logprobs: Vec<LoggedToken>,
+    /// Why it ended.
+    pub reason: FinishReason,
 }
 
 /// A request's [`GenerationStream`] turned into text.
@@ -25,14 +52,16 @@ pub struct TextGeneration {
     detokenizer: Detokenizer,
     stops: StopMatcher,
     stop_tokens: Vec<i64>,
+    min_tokens: usize,
     pending: VecDeque<Piece>,
+    logprobs: Vec<LoggedToken>,
     tokens: Vec<i64>,
     started: Instant,
     first_token: Option<Instant>,
 }
 
 impl TextGeneration {
-    /// Creates the output of `stream`, cut at `stops`, without the text of `stop_tokens`.
+    /// Creates the output of `stream`, cut at `stops` after its first `min_tokens` tokens, without the text of `stop_tokens`.
     /// `detokenizer` starts after the request's prompt, which `stream` generates from.
     #[must_use]
     pub fn new(
@@ -40,13 +69,16 @@ impl TextGeneration {
         detokenizer: Detokenizer,
         stops: Vec<String>,
         stop_tokens: Vec<i64>,
+        min_tokens: usize,
     ) -> Self {
         Self {
             stream: Some(stream),
             detokenizer,
             stops: StopMatcher::new(stops),
             stop_tokens,
+            min_tokens,
             pending: VecDeque::new(),
+            logprobs: Vec::new(),
             tokens: Vec::new(),
             started: Instant::now(),
             first_token: None,
@@ -69,17 +101,21 @@ impl TextGeneration {
                 return Ok(None);
             };
             match stream.recv().await {
-                Some(GenerationEvent::Token(token)) => {
+                Some(GenerationEvent::Token { token, logprobs }) => {
                     self.first_token.get_or_insert_with(Instant::now);
                     self.tokens.push(token);
                     if self.stop_tokens.contains(&token) {
                         continue;
                     }
 
+                    if let Some(logprobs) = logprobs {
+                        self.logprobs.push(LoggedToken { token, logprobs });
+                    }
+
                     let added = self.detokenizer.push(token)?;
-                    let (text, stopped) = self.stops.push(&added);
+                    let (text, stopped) = self.match_stops(added);
                     if !text.is_empty() {
-                        self.pending.push_back(Piece::Text(text));
+                        self.push_text(text);
                     }
                     if stopped {
                         self.pending.push_back(Piece::Finished(FinishReason::Stop));
@@ -88,13 +124,13 @@ impl TextGeneration {
                 }
                 Some(GenerationEvent::Finished(reason)) => {
                     let rest = self.detokenizer.finish()?;
-                    let (mut text, stopped) = self.stops.push(&rest);
+                    let (mut text, stopped) = self.match_stops(rest);
                     if !stopped {
                         text.push_str(&self.stops.finish());
                     }
 
-                    if !text.is_empty() {
-                        self.pending.push_back(Piece::Text(text));
+                    if !text.is_empty() || !self.logprobs.is_empty() {
+                        self.push_text(text);
                     }
 
                     let reason = if stopped { FinishReason::Stop } else { reason };
@@ -113,21 +149,42 @@ impl TextGeneration {
         }
     }
 
-    /// Reads every piece, and returns the text and why it ended.
+    fn match_stops(&mut self, text: String) -> (String, bool) {
+        if self.tokens.len() <= self.min_tokens {
+            (text, false)
+        } else {
+            self.stops.push(&text)
+        }
+    }
+
+    fn push_text(&mut self, text: String) {
+        self.pending.push_back(Piece::Text {
+            text,
+            logprobs: mem::take(&mut self.logprobs),
+        });
+    }
+
+    /// Reads every piece into one output.
     ///
     /// # Errors
     ///
     /// Returns the first error [`TextGeneration::next`] returns.
-    pub async fn collect(&mut self) -> ApiResult<(String, FinishReason)> {
-        let mut text = String::new();
-        let mut reason = FinishReason::Length;
+    pub async fn collect(&mut self) -> ApiResult<Output> {
+        let mut output = Output {
+            text: String::new(),
+            logprobs: Vec::new(),
+            reason: FinishReason::Length,
+        };
         while let Some(piece) = self.next().await? {
             match piece {
-                Piece::Text(piece) => text.push_str(&piece),
-                Piece::Finished(finished) => reason = finished,
+                Piece::Text { text, logprobs } => {
+                    output.text.push_str(&text);
+                    output.logprobs.extend(logprobs);
+                }
+                Piece::Finished(reason) => output.reason = reason,
             }
         }
-        Ok((text, reason))
+        Ok(output)
     }
 
     /// Returns the tokens generated so far, the stop token included.

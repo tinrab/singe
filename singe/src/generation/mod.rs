@@ -10,9 +10,9 @@ mod reading;
 mod speculative;
 
 pub use self::{
-    batch::{GeneratedToken, RunningBatch},
+    batch::{GeneratedToken, RunningBatch, TokenLogprobs},
     cached::{CachedDecoder, DecoderOptions, DecoderStepGraph, PromptChunks},
-    choosing::choose,
+    choosing::{Bias, Choice, Chosen, ChosenLogprobs, Penalties, PenaltyCounts, choose},
     decoder::{Decoder, GenerationOptions, SequenceOptions, generate, generate_batch},
     speculative::{DraftingModel, Speculation, SpeculativeDecoder},
 };

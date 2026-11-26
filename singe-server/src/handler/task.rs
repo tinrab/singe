@@ -127,6 +127,13 @@ async fn generate(
     .await?;
 
     // A sequence's sampling runs in the step it shares with others, so what would fail it is refused here.
+    if !(parameters.repetition_penalty.is_finite() && parameters.repetition_penalty > 0.0) {
+        return Err(ApiError::invalid_field(
+            "parameters",
+            "a repetition_penalty that is not positive",
+        ));
+    }
+
     if parameters.do_sample {
         if !(parameters.temperature.is_finite() && parameters.temperature > 0.0) {
             return Err(ApiError::invalid_field(
@@ -163,6 +170,8 @@ async fn generate(
                 stop_tokens: format.stop_tokens.clone(),
                 sampling,
                 seed: Some(parameters.seed.wrapping_add(index)),
+                penalties: parameters.penalties(),
+                ..SequenceOptions::default()
             };
             let detokenizer = Detokenizer::new(Arc::clone(&format.tokenizer), true, &prompt)?;
             Ok(TextGeneration::new(
@@ -170,6 +179,7 @@ async fn generate(
                 detokenizer,
                 Vec::new(),
                 format.stop_tokens.clone(),
+                0,
             ))
         })
         .collect::<ApiResult<Vec<_>>>()?;
