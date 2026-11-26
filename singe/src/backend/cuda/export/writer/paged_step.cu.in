@@ -6,6 +6,10 @@ struct Row {
     std::vector<int64_t> pages;
     int64_t length = 0;
     long generated = 0;
+    // The sequence's random stream: its seed, once drawn, and the block its next token draws from.
+    bool seeded = false;
+    int64_t seed = 0;
+    int64_t draws = 0;
 };
 
 // A step enqueued and not yet read: whether it ran the decode graph, which of the two staging and reading buffers it took, where its tokens are, and the prompt each row chose a token for, or -1.

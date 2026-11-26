@@ -42,6 +42,8 @@ pub struct Sampling {
     pub top_k: Option<i64>,
     /// In [0, 1].
     pub min_p: Option<f32>,
+    /// The seed of the sequence's random stream; unset, the engine draws one.
+    pub seed: Option<u64>,
 }
 
 /// Temperatures at or below this choose the likeliest token.
@@ -113,6 +115,7 @@ impl TextFormat {
             max_new_tokens: max_tokens,
             stop_tokens,
             sampling: self.sampling(sampling)?,
+            seed: sampling.seed,
         })
     }
 

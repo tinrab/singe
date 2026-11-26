@@ -39,7 +39,7 @@ pub struct GenerationFields {
     pub stream: bool,
     /// Options for a streamed response; setting them without `stream` is refused with 400.
     pub stream_options: Option<StreamOptions>,
-    /// A seed for sampling; any value is refused with 400.
+    /// The seed of the request's random stream: its `k`-th sampled token draws from the stream's `k`-th block, whatever else runs beside it; unset, the engine draws one.
     pub seed: Option<u64>,
     /// How many choices to generate for each prompt; anything but 1 is refused with 400.
     pub n: Option<usize>,
@@ -74,6 +74,7 @@ impl GenerationFields {
             top_p: self.top_p,
             top_k: self.top_k,
             min_p: self.min_p,
+            seed: self.seed,
         }
     }
 
@@ -88,7 +89,7 @@ impl GenerationFields {
     ///
     /// # Errors
     ///
-    /// Returns an error if `n` is not 1, a penalty is not neutral, `logit_bias` is not empty, `seed` is set, `min_tokens` is not 0, or `stream_options` is set without `stream`.
+    /// Returns an error if `n` is not 1, a penalty is not neutral, `logit_bias` is not empty, `min_tokens` is not 0, or `stream_options` is set without `stream`.
     pub fn check_supported(&self) -> ApiResult<()> {
         if self.n.is_some_and(|n| n != 1) {
             return Err(ApiError::unsupported_field("n"));
@@ -111,10 +112,6 @@ impl GenerationFields {
             .is_some_and(|bias| !bias.is_empty())
         {
             return Err(ApiError::unsupported_field("logit_bias"));
-        }
-
-        if self.seed.is_some() {
-            return Err(ApiError::unsupported_field("seed"));
         }
 
         if self.min_tokens.is_some_and(|tokens| tokens > 0) {

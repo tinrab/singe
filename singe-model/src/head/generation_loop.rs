@@ -4,7 +4,6 @@ use singe::{
     generation::{CachedDecoder, DecoderOptions, DecoderStepGraph, GenerationOptions},
     graph::Graph,
     nn::{DecoderModel, Model},
-    random::Generator,
 };
 
 use crate::error::Result;
@@ -41,17 +40,9 @@ impl LoopSteps {
         generation: &GenerationOptions,
         prompt_rows: Option<usize>,
     ) -> Result<Self> {
-        // The loop seeds the draws, so the generator's own seed is never read.
-        let generator = Generator::new(0);
-        let step = decoder.choosing_step_graph(0, generation, Some(&generator))?;
+        let step = decoder.choosing_step_graph(0, generation)?;
         let prompt = prompt_rows
-            .map(|rows| {
-                decoder.choosing_step_graph(
-                    rows.saturating_sub(1).max(1),
-                    generation,
-                    Some(&generator),
-                )
-            })
+            .map(|rows| decoder.choosing_step_graph(rows.saturating_sub(1).max(1), generation))
             .transpose()?;
         Ok(Self {
             encode,

@@ -15,9 +15,8 @@ use crate::{
         DecodeCache, DecodeStep, DecoderModel, Model, ModelState, PageLayout, PageTable,
         TensorGroup, caches_from_inputs, named_cache_inputs,
     },
-    random::Generator,
     shape::Shape,
-    tensor::Tensor,
+    tensor::{Draws, Tensor},
 };
 
 // The steps past one token per row that a compiled decoder compiles, by the extra tokens they read: `smallest`, then twice as many each time, up to `largest` and to one less than a sequence's capacity, which is always the last.
@@ -164,6 +163,7 @@ pub struct CachedDecoder<L: DecoderModel> {
 const PREVIOUS: &str = "previous";
 
 const FIRST_TOKENS: &str = "first_tokens";
+const STREAMS: &str = "streams";
 
 fn previous_tokens(device: Device, sequences: usize) -> Result<Tensor> {
     let sequences = i64::try_from(sequences).map_err(|_| Error::out_of_range("sequences"))?;
@@ -172,22 +172,33 @@ fn previous_tokens(device: Device, sequences: usize) -> Result<Tensor> {
 
 fn step_forward<L: DecoderModel>(
     layer: &L,
-    choice: Option<(&GenerationOptions, Option<&Generator>)>,
+    choice: Option<&GenerationOptions>,
     step: &DecodeStep,
     tables: &L::Tables,
     caches: &[L::Cache],
     extra: &[Tensor],
     state: &ModelState,
 ) -> Result<Vec<Tensor>> {
-    // A step reads the tokens the step before chose, then `first_tokens` when it chooses.
-    let [previous, first @ ..] = extra else {
+    // A step reads the tokens the step before chose, then `first_tokens` when it chooses, and `streams` when it samples.
+    let [previous, rest @ ..] = extra else {
         return Err(Error::missing_input("the tokens the step before chose"));
     };
     let logits = layer.forward(&step.follow(previous)?, tables, caches, state)?;
-    Ok(vec![match (choice, first) {
-        (Some((options, generator)), [first]) => choose(&logits, first, options, generator)?,
-        _ => logits,
-    }])
+    let Some(options) = choice else {
+        return Ok(vec![logits]);
+    };
+    let (first, draws) = match rest {
+        [first] => (first, Draws::Generator(None)),
+        [first, streams] => (first, Draws::Streams(streams)),
+        _ => return Err(Error::missing_input("the rows choosing their first token")),
+    };
+    Ok(vec![choose(
+        &logits,
+        first,
+        options,
+        &[options.sampling],
+        draws,
+    )?])
 }
 
 impl<L: DecoderModel> CachedDecoder<L> {
@@ -290,21 +301,20 @@ impl<L: DecoderModel> CachedDecoder<L> {
         self.capture_step(chunk, None)
     }
 
-    // The step that reads `chunk` extra tokens and chooses each sequence's next token as `options` asks, drawing from `generator` when it samples.
-    // Besides the step's own inputs it reads `first_tokens`, `[S]` of `I64`, one where a sequence's next token is its first, and it returns the chosen tokens, `[S]` of `I64`, so a program of it chooses as a running batch does.
+    // The step that reads `chunk` extra tokens and chooses each sequence's next token as `options` asks.
+    // Besides the step's own inputs it reads `first_tokens`, `[S]` of `I64`, one where a sequence's next token is its first, and when it samples, `streams`, `[S, 2]` of `I64`, each sequence's random stream as a running batch keeps it; it returns the chosen tokens, `[S]` of `I64`, so a program of it chooses as a running batch does.
     pub fn choosing_step_graph(
         &self,
         chunk: usize,
         options: &GenerationOptions,
-        generator: Option<&Generator>,
     ) -> Result<DecoderStepGraph> {
-        self.capture_step(chunk, Some((options, generator)))
+        self.capture_step(chunk, Some(options))
     }
 
     fn capture_step(
         &self,
         chunk: usize,
-        choice: Option<(&GenerationOptions, Option<&Generator>)>,
+        choice: Option<&GenerationOptions>,
     ) -> Result<DecoderStepGraph> {
         let layer = self.model.layer();
         let data_type = self.model.state().floating_type()?;
@@ -323,11 +333,19 @@ impl<L: DecoderModel> CachedDecoder<L> {
             PREVIOUS.to_owned(),
             previous_tokens(self.device, pages.sequences())?,
         )];
-        if choice.is_some() {
+        if let Some(options) = choice {
             extra.push((
                 FIRST_TOKENS.to_owned(),
                 previous_tokens(self.device, pages.sequences())?,
             ));
+            if options.sampling.is_some() {
+                let sequences = i64::try_from(pages.sequences())
+                    .map_err(|_| Error::out_of_range("sequences"))?;
+                extra.push((
+                    STREAMS.to_owned(),
+                    Tensor::zeroed_on(self.device, DataType::I64, Shape::create([sequences, 2])?)?,
+                ));
+            }
         }
 
         let (graph, outputs) = capture_step(

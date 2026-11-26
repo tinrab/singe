@@ -58,7 +58,7 @@ pub struct TextEngineOptions {
     pub compile: bool,
     /// The requests that wait for a row at most; more are refused with 429.
     pub max_queued_requests: usize,
-    /// Seeds the generator sampled tokens are drawn from.
+    /// Seeds the generator that draws a seed for each request that names none.
     pub seed: u64,
 }
 

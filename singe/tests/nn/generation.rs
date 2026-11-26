@@ -188,13 +188,8 @@ fn test_an_exported_loop_generates_what_a_running_batch_generates() {
     assert_eq!(expected[0].len(), 4, "{expected:?}");
 
     let decoder = CachedDecoder::create(&model, options()).unwrap();
-    let generator = Generator::new(0);
-    let step = decoder
-        .choosing_step_graph(0, &generation, Some(&generator))
-        .unwrap();
-    let prompt = decoder
-        .choosing_step_graph(3, &generation, Some(&generator))
-        .unwrap();
+    let step = decoder.choosing_step_graph(0, &generation).unwrap();
+    let prompt = decoder.choosing_step_graph(3, &generation).unwrap();
     let program = CudaExport::new(architecture)
         .with_decoding(Decoding {
             layout: step.layout,

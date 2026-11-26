@@ -877,10 +877,17 @@ impl Exporter<'_> {
     fn multinomial(&mut self, op: OperationExport<'_>, samples: i64) -> Result<()> {
         let OperationExport {
             value,
+            node,
             inputs,
             output,
             ..
         } = op;
+        if self.source.required_value_shape(node.inputs()[1])?.rank() == 2 {
+            return Err(unsupported(
+                "a multinomial with a random stream per row, since onnx's takes one seed",
+            ));
+        }
+
         // ONNX samples from unnormalized log-probabilities of a `[batch, classes]` input.
         let vector = self.source.required_value_shape(value)?.rank() == 1;
         let mut logits = self.temporary("Log", vec![inputs[0].clone()], vec![]);

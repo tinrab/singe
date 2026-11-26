@@ -30,7 +30,13 @@ pub fn multinomial(context: &InferenceContext<'_>) -> Result<OperationInference>
     let random = context.attributes(OperationAttributes::random)?;
     let weights = context.first();
     require_float(weights)?;
-    require_state(context.input(1)?)?;
+    let state = context.input(1)?;
+    match (weights.shape().dimensions(), state.shape().dimensions()) {
+        (&[rows, _], &[state_rows, 2])
+            if state.data_type() == DataType::I64 && state_rows == rows => {}
+        _ => require_state(state)?,
+    }
+
     if random.samples < 1 {
         return Err(Error::invalid_argument(
             "multinomial needs at least one sample",

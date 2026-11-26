@@ -4,8 +4,8 @@
 // A prompt is its tokens, or with a tokenizer that encodes, its text, which goes inside the export's template unless `--raw` is given, and `--tokens` reads tokens again; `--prompts FILE` reads a prompt from each line of a file, where text writes `\n` for a line break and `\\` for a backslash.
 // A token written `TOKEN*` stands for as many copies as the encode step gives its source rows, as the first of the template's placeholder token does in text.
 // With a tokenizer, one prompt prints its text as it completes, and several print each prompt's text when it ends, after its number in brackets; `--ids`, or no tokenizer, prints a token per line instead, and with several prompts each token after its prompt's number, from zero.
-// `--seed N` starts the draws of a program that samples, zero if it is not given.
-// Each decoding step replays as a CUDA graph after its first run, unless the program samples, whose draws its run sets on the host, or `--stream` asks for every step to launch on the stream; `--time` says how long the steps took.
+// `--seed N` starts the draws of a program that samples, zero if it is not given: each sequence draws from its own stream, whose seed the loop draws from N as `RunningBatch` draws one from its generator.
+// Each decoding step replays as a CUDA graph after its first run, unless `--stream` asks for every step to launch on the stream; `--time` says how long the steps took.
 // A model with an encode step reads SOURCE, a file of its input's bytes, encodes it once, and then decodes one prompt.
 // `@prefix@_generate --encode [--raw] (PROMPT... | --prompts FILE)` prints each prompt's tokens on a line, and generates nothing.
 #include <cuda_fp16.h>
@@ -49,8 +49,30 @@ static void check(int status, const char* what) {
     }
 }
 
-// Whether a program's steps draw samples, with the generator state their run sets on the host, which a graph would replay unchanged.
+// Whether a program's steps sample, each row from its own stream, `[seed, offset]`, which the loop writes beside each step's packed inputs.
 static const bool samples = @samples@;
+
+// Philox 4x32-10 of a 64-bit counter under a 64-bit key, as Singe's `random::philox` computes it.
+static void philox(uint64_t seed, uint64_t counter, uint32_t lanes[4]) {
+    uint32_t key0 = static_cast<uint32_t>(seed), key1 = static_cast<uint32_t>(seed >> 32);
+    lanes[0] = static_cast<uint32_t>(counter);
+    lanes[1] = static_cast<uint32_t>(counter >> 32);
+    lanes[2] = 0;
+    lanes[3] = 0;
+    for (int round = 0; round < 10; ++round) {
+        const uint64_t product0 = 0xD2511F53ULL * lanes[0];
+        const uint64_t product1 = 0xCD9E8D57ULL * lanes[2];
+        const uint32_t next[4] = {
+            static_cast<uint32_t>(product1 >> 32) ^ lanes[1] ^ key0,
+            static_cast<uint32_t>(product1),
+            static_cast<uint32_t>(product0 >> 32) ^ lanes[3] ^ key1,
+            static_cast<uint32_t>(product0),
+        };
+        std::copy(next, next + 4, lanes);
+        key0 += 0x9E3779B9U;
+        key1 += 0xBB67AE85U;
+    }
+}
 
 static void check_cuda(cudaError_t status, const char* what) {
     if (status != cudaSuccess) {
@@ -154,13 +176,12 @@ int main(int argc, char** argv) {
     check(@prefix@_create(&state), "@prefix@_create");
     check(@prefix@_load_weights(state, weights.empty() ? nullptr : weights.data()), "@prefix@_load_weights");
     check_cuda(cudaStreamCreate(&loop_stream), "cudaStreamCreate");
-    use_graphs = !samples && !on_stream;
+    use_graphs = !on_stream;
     // The decode step's graph and the prompt step's.
     StepGraph step_graphs[2];
     // How many decode and prompt steps ran, and how long they took, in seconds.
     long step_counts[2] = {0, 0};
     double step_seconds[2] = {0.0, 0.0};
-@seed@    (void)seed;
 @structs@
 @buffers@
 @allocations@
@@ -201,6 +222,13 @@ int main(int argc, char** argv) {
     }
     bool ran[2] = {false, false};
     long launches = 0;
+    // A seed for a sequence's stream, from the next block of `seed`'s, as `RunningBatch` seeds a sequence that names none.
+    uint64_t seed_blocks = 0;
+    const auto fresh_seed = [&]() {
+        uint32_t lanes[4];
+        philox(static_cast<uint64_t>(seed), seed_blocks++, lanes);
+        return static_cast<int64_t>(static_cast<uint64_t>(lanes[0]) | (static_cast<uint64_t>(lanes[1]) << 32));
+    };
     // Enqueues the next step, as `RunningBatch` does: a row reads its pending tokens, or after `previous`, the token `previous` chose for it, on the device, if it may take another.
     const auto enqueue_step = [&](const UnreadStep* previous, UnreadStep& unread) -> bool {
         std::vector<std::vector<int64_t>> reads(rows.size());
@@ -221,6 +249,7 @@ int main(int argc, char** argv) {
         for (const std::vector<int64_t>& tokens : reads) extra += std::max<int64_t>(static_cast<int64_t>(tokens.size()) - 1, 0);
         extra = std::min(extra, largest);
         std::vector<int64_t> first_tokens(rows.size(), 0);
+        std::vector<int64_t> streams(samples ? 2 * rows.size() : 0, 0);
         std::vector<long long> choosing(rows.size(), -1);
         int64_t taken = 0;
         bool any = false;
@@ -244,6 +273,15 @@ int main(int argc, char** argv) {
             reads[index].resize(static_cast<size_t>(portion));
             if (portion == length) choosing[index] = static_cast<long long>(row.prompt);
             first_tokens[index] = choosing[index] >= 0 && row.generated + (awaiting[index] ? 1 : 0) == 0;
+            // A choosing row draws from the next block of its stream.
+            if (samples && choosing[index] >= 0) {
+                if (!row.seeded) {
+                    row.seed = fresh_seed();
+                    row.seeded = true;
+                }
+                streams[2 * index] = row.seed;
+                streams[2 * index + 1] = row.draws++;
+            }
             taken += portion;
             any = true;
         }

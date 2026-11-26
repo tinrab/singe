@@ -83,6 +83,7 @@ impl GenerationOptions {
             max_new_tokens: self.max_new_tokens,
             stop_tokens: self.stop_tokens.clone(),
             sampling: self.sampling,
+            seed: None,
         }
     }
 }
@@ -92,6 +93,7 @@ pub struct SequenceOptions {
     pub max_new_tokens: usize,
     pub stop_tokens: Vec<i64>,
     pub sampling: Option<SamplingOptions>,
+    pub seed: Option<u64>,
 }
 
 // Generates tokens after `prompt`, calling `on_token` with each as it is chosen, and returns them.

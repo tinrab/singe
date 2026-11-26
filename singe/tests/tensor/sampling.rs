@@ -1,4 +1,8 @@
-use singe::{Device, Shape, Tensor, random::Generator, tensor::SamplingOptions};
+use singe::{
+    Device, Shape, Tensor,
+    random::Generator,
+    tensor::{Draws, SamplingOptions},
+};
 
 #[cfg(all(feature = "testing", feature = "cuda"))]
 use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
@@ -30,107 +34,134 @@ fn frequencies(indices: &[i64], categories: usize) -> Vec<f64> {
 #[test]
 fn test_near_zero_temperature_selects_the_most_likely_tokens() {
     let logits = logits(Device::Cpu, 2, &[0.5, 3., -1., 2.]);
-    let options = SamplingOptions::new().with_temperature(0.);
-    let greedy = logits.sample(&options, None).unwrap();
-    assert_eq!(greedy.shape().dimensions(), [2, 1]);
-    assert_eq!(greedy.to_vec::<i64>().unwrap(), [1, 1]);
-    let two = logits
-        .sample(&options.with_samples(2), None)
-        .unwrap()
-        .to_vec::<i64>()
-        .unwrap();
-    assert_eq!(two, [1, 3, 1, 3]);
+    let greedy = SamplingOptions::new().with_temperature(0.);
+    for options in [vec![Some(greedy)], vec![Some(greedy), None], vec![None]] {
+        let chosen = logits.sample(&options, Draws::Generator(None)).unwrap();
+        assert_eq!(chosen.shape().dimensions(), [2]);
+        assert_eq!(chosen.to_vec::<i64>().unwrap(), [1, 1], "{options:?}");
+    }
 }
 
 #[test]
 fn test_filtered_tokens_are_never_drawn_and_frequencies_match() {
     let generator = Generator::new(11);
-    let values = linear_probabilities(8);
-    let vector = Tensor::from_vec(Device::Cpu, Shape::create([8]).unwrap(), values).unwrap();
-    let draws = 20_000;
-
-    let top_k = vector
-        .sample(
-            &SamplingOptions::new()
-                .with_top_k(Some(3))
-                .with_samples(draws),
-            Some(&generator),
-        )
-        .unwrap()
-        .to_vec::<i64>()
-        .unwrap();
-    assert!(top_k.iter().all(|&index| index >= 5));
-    let observed = frequencies(&top_k, 8);
-    for (index, weight) in [(5, 6.), (6, 7.), (7, 8.)] {
-        assert!(
-            (observed[index] - weight / 21.).abs() < 0.02,
-            "{observed:?}"
-        );
-    }
-
+    let rows = 20_000;
+    let logits = logits(Device::Cpu, rows, &linear_probabilities(8));
+    let top_k = SamplingOptions::new().with_top_k(Some(3));
     // Probabilities are 1/36, ..., 8/36; the four most likely sum to 26/36, the first past 0.6.
-    let top_p = vector
-        .sample(
-            &SamplingOptions::new().with_top_p(0.6).with_samples(draws),
-            Some(&generator),
-        )
+    let top_p = SamplingOptions::new().with_top_p(0.6);
+    let check = |drawn: &[i64], least: i64, weights: &[(usize, f64)]| {
+        assert!(drawn.iter().all(|&index| index >= least));
+        let observed = frequencies(drawn, 8);
+        let total = weights.iter().map(|(_, weight)| weight).sum::<f64>();
+        for &(index, weight) in weights {
+            assert!(
+                (observed[index] - weight / total).abs() < 0.02,
+                "{observed:?}"
+            );
+        }
+    };
+    let top_k_weights = [(5, 6.), (6, 7.), (7, 8.)];
+    let top_p_weights = [(4, 5.), (5, 6.), (6, 7.), (7, 8.)];
+    for (options, least, weights) in [
+        (top_k, 5, &top_k_weights[..]),
+        (top_p, 4, &top_p_weights[..]),
+    ] {
+        let drawn = logits
+            .sample(&[Some(options)], Draws::Generator(Some(&generator)))
+            .unwrap()
+            .to_vec::<i64>()
+            .unwrap();
+        check(&drawn, least, weights);
+    }
+
+    // Rows alternate top-k and top-p in one call, each from a stream of its own.
+    let options = (0..rows)
+        .map(|row| Some(if row % 2 == 0 { top_k } else { top_p }))
+        .collect::<Vec<_>>();
+    let states = streams(Device::Cpu, rows);
+    let drawn = logits
+        .sample(&options, Draws::Streams(&states))
         .unwrap()
         .to_vec::<i64>()
         .unwrap();
-    assert!(top_p.iter().all(|&index| index >= 4));
-    let observed = frequencies(&top_p, 8);
-    for (index, weight) in [(4, 5.), (5, 6.), (6, 7.), (7, 8.)] {
-        assert!(
-            (observed[index] - weight / 26.).abs() < 0.02,
-            "{observed:?}"
-        );
-    }
+    let alternate = |parity| {
+        drawn
+            .iter()
+            .skip(parity)
+            .step_by(2)
+            .copied()
+            .collect::<Vec<_>>()
+    };
+    check(&alternate(0), 5, &top_k_weights);
+    check(&alternate(1), 4, &top_p_weights);
 
-    let unique = vector
-        .sample(
-            &SamplingOptions::new()
-                .with_samples(8)
-                .with_replacement(false),
-            Some(&generator),
-        )
-        .unwrap();
-    let mut distinct = unique.to_vec::<i64>().unwrap();
-    distinct.sort_unstable();
-    assert_eq!(distinct, (0..8).collect::<Vec<_>>());
-    assert!(
-        vector
+    // A row's draw depends only on its stream, not on the rows beside it.
+    for row in [0, 1, 4_321] {
+        let alone = logits
+            .narrow(0, row, 1)
+            .unwrap()
             .sample(
-                &SamplingOptions::new()
-                    .with_samples(9)
-                    .with_replacement(false),
-                None,
+                &[options[usize::try_from(row).unwrap()]],
+                Draws::Streams(&states.narrow(0, row, 1).unwrap().contiguous().unwrap()),
             )
-            .is_err()
-    );
+            .unwrap()
+            .to_vec::<i64>()
+            .unwrap();
+        assert_eq!(alone, [drawn[usize::try_from(row).unwrap()]]);
+    }
+}
+
+fn streams(device: Device, rows: i64) -> Tensor {
+    let states = (0..rows)
+        .flat_map(|row| [row * 7 + 1, row % 5])
+        .collect::<Vec<_>>();
+    Tensor::from_vec(device, Shape::create([rows, 2]).unwrap(), states).unwrap()
 }
 
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_cuda_sampling_draws_the_same_tokens_as_cpu() {
     let _lock = device_lock(CudaDevice::new(0)).unwrap();
-    let values = linear_probabilities(32);
-    let cpu = logits(Device::Cpu, 2, &values);
+    let rows = 16;
+    let cpu = logits(Device::Cpu, rows, &linear_probabilities(32));
     let cuda = cpu.to_device(Device::Cuda(0)).unwrap();
+    let filtered = SamplingOptions::new()
+        .with_temperature(0.8)
+        .with_top_k(Some(10))
+        .with_top_p(0.8);
+    let mixed = (0..rows)
+        .map(|row| match row % 4 {
+            0 => None,
+            1 => Some(SamplingOptions::new()),
+            2 => Some(filtered),
+            _ => Some(SamplingOptions::new().with_min_p(0.2)),
+        })
+        .collect::<Vec<_>>();
     for options in [
-        SamplingOptions::new().with_samples(16),
-        SamplingOptions::new()
-            .with_temperature(0.8)
-            .with_top_k(Some(10))
-            .with_top_p(0.8)
-            .with_samples(16),
-        SamplingOptions::new()
-            .with_samples(5)
-            .with_replacement(false),
-        SamplingOptions::new().with_temperature(0.),
+        vec![Some(SamplingOptions::new())],
+        vec![Some(filtered)],
+        mixed,
     ] {
-        let expected = cpu.sample(&options, Some(&Generator::new(3))).unwrap();
-        let actual = cuda.sample(&options, Some(&Generator::new(3))).unwrap();
+        let expected = cpu
+            .sample(&options, Draws::Generator(Some(&Generator::new(3))))
+            .unwrap();
+        let actual = cuda
+            .sample(&options, Draws::Generator(Some(&Generator::new(3))))
+            .unwrap();
         assert_eq!(actual.device(), Device::Cuda(0));
+        assert_eq!(
+            actual.to_vec::<i64>().unwrap(),
+            expected.to_vec::<i64>().unwrap(),
+            "{options:?}"
+        );
+
+        let expected = cpu
+            .sample(&options, Draws::Streams(&streams(Device::Cpu, rows)))
+            .unwrap();
+        let actual = cuda
+            .sample(&options, Draws::Streams(&streams(Device::Cuda(0), rows)))
+            .unwrap();
         assert_eq!(
             actual.to_vec::<i64>().unwrap(),
             expected.to_vec::<i64>().unwrap(),

@@ -2232,6 +2232,7 @@ operation_table! {
         onnx: None,
     },
     /// Samples category indices per row, with replacement, in proportion to nonnegative weights.
+    /// Its state is one generator's `[seed, offset]`, or a matrix's `[rows, 2]`, a stream per row.
     Multinomial {
         name: "multinomial",
         support: Random,

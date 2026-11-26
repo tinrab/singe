@@ -26,8 +26,28 @@ const PHILOX_M1: u32 = 0xCD9E_8D57;
 const PHILOX_W0: u32 = 0x9E37_79B9;
 const PHILOX_W1: u32 = 0xBB67_AE85;
 
-/// Seed used by default generators before `manual_seed`.
+/// Seed used by default generators before [`manual_seed`].
 pub const DEFAULT_SEED: u64 = 67_280_421_310_721;
+
+static SEED: AtomicU64 = AtomicU64::new(DEFAULT_SEED);
+
+fn defaults() -> &'static Mutex<HashMap<Device, Generator>> {
+    static DEFAULTS: OnceLock<Mutex<HashMap<Device, Generator>>> = OnceLock::new();
+    DEFAULTS.get_or_init(Mutex::default)
+}
+
+pub fn manual_seed(seed: u64) -> Result<()> {
+    let defaults = defaults().locked("generator")?;
+    SEED.store(seed, Ordering::Relaxed);
+    defaults
+        .values()
+        .try_for_each(|generator| generator.manual_seed(seed))
+}
+
+#[must_use]
+pub fn initial_seed() -> u64 {
+    SEED.load(Ordering::Relaxed)
+}
 
 /// A shared source of random numbers: a seed and the offset of the next unused Philox block.
 ///
@@ -64,11 +84,10 @@ impl Generator {
     ///
     /// Returns an error if a thread panicked while holding the default generator table.
     pub fn default_for(device: Device) -> Result<Self> {
-        static DEFAULTS: OnceLock<Mutex<HashMap<Device, Generator>>> = OnceLock::new();
-        let mut defaults = DEFAULTS.get_or_init(Mutex::default).locked("generator")?;
+        let mut defaults = defaults().locked("generator")?;
         Ok(defaults
             .entry(device)
-            .or_insert_with(|| Self::new(DEFAULT_SEED))
+            .or_insert_with(|| Self::new(initial_seed()))
             .clone())
     }
 

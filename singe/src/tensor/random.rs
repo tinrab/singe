@@ -130,6 +130,20 @@ impl Tensor {
             generator,
         )
     }
+
+    pub fn multinomial_rows(&self, samples: i64, states: &Self) -> Result<Self> {
+        call_one(
+            Operation::Multinomial,
+            OperationAttributes::Random(random_attributes(
+                &Shape::scalar(),
+                self.data_type(),
+                0.0,
+                0.0,
+                samples,
+            )),
+            &[self, states],
+        )
+    }
 }
 
 fn random_attributes(

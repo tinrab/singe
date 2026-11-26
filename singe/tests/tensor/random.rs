@@ -2,7 +2,11 @@ use std::collections::HashMap;
 
 #[cfg(feature = "cuda")]
 use singe::graph::GraphPrepareOptions;
-use singe::{DataType, Device, Shape, Tensor, graph::Graph, random::Generator};
+use singe::{
+    DataType, Device, Shape, Tensor,
+    graph::Graph,
+    random::{self, Generator},
+};
 
 #[cfg(all(feature = "testing", feature = "cuda"))]
 use singe_cuda::{device::Device as CudaDevice, testing::device_lock};
@@ -33,6 +37,11 @@ fn test_generators_are_reproducible_and_advance() {
     assert_ne!(a, uniform(Device::Cpu, 9, &Generator::new(8)));
     first.manual_seed(7).unwrap();
     assert_eq!(a, uniform(Device::Cpu, 9, &first));
+    // The global seed restarts every device's default generator, as `torch.manual_seed` does.
+    random::manual_seed(7).unwrap();
+    assert_eq!(random::initial_seed(), 7);
+    let default = Generator::default_for(Device::Cpu).unwrap();
+    assert_eq!(a, uniform(Device::Cpu, 9, &default));
 }
 
 #[test]

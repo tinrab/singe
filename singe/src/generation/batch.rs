@@ -2,9 +2,9 @@ use crate::{
     device::Device,
     error::{Error, Result},
     generation::{Decoder, GenerationOptions, SequenceOptions, choose, reading::TokenReader},
-    random::Generator,
+    random::{self, Generator},
     shape::Shape,
-    tensor::{SamplingOptions, Tensor},
+    tensor::{Draws, Tensor},
 };
 
 // One token a running batch chose.
@@ -23,6 +23,7 @@ struct RunningSequence {
     pending: Vec<i64>,
     generated: usize,
     options: SequenceOptions,
+    draws: u64,
 }
 
 pub struct RunningBatch<'a, D: Decoder + ?Sized> {
@@ -102,6 +103,7 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
             pending: prompt.to_vec(),
             generated: 0,
             options,
+            draws: 0,
         });
         self.joined += 1;
         Ok(Some(id))
@@ -231,51 +233,68 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
     }
 
     fn choose_rows(
-        &self,
+        &mut self,
         logits: &Tensor,
         first: &Tensor,
         choosing: &[Option<usize>],
         generator: Option<&Generator>,
     ) -> Result<Tensor> {
-        let samplings = self
+        let sampling = self
             .rows
             .iter()
             .zip(choosing)
             .map(|(row, choosing)| {
                 row.as_ref()
                     .filter(|_| choosing.is_some())
-                    .map(|row| row.options.sampling)
+                    .and_then(|row| row.options.sampling)
             })
             .collect::<Vec<_>>();
-        let mut kinds = samplings.iter().flatten();
-        let shared = kinds.next().copied().unwrap_or(None);
-        let options = |sampling: Option<SamplingOptions>| GenerationOptions {
-            sampling,
-            ..self.options.clone()
-        };
-        if kinds.all(|sampling| *sampling == shared) {
-            return choose(logits, first, &options(shared), generator);
+        if sampling.iter().all(Option::is_none) {
+            return choose(
+                logits,
+                first,
+                &self.options,
+                &sampling,
+                Draws::Generator(None),
+            );
         }
 
-        let greedy = choose(logits, first, &options(None), generator)?;
-        let rows = samplings
-            .iter()
-            .enumerate()
-            .map(|(index, sampling)| {
-                let index =
-                    i64::try_from(index).map_err(|_| Error::out_of_range("generation row"))?;
-                match sampling {
-                    Some(Some(sampling)) => choose(
-                        &logits.narrow(0, index, 1)?,
-                        &first.narrow(0, index, 1)?,
-                        &options(Some(*sampling)),
-                        generator,
-                    ),
-                    _ => greedy.narrow(0, index, 1),
+        let generator = match generator {
+            Some(generator) => generator.clone(),
+            None => Generator::default_for(logits.device())?,
+        };
+        let mut states = Vec::with_capacity(2 * self.rows.len());
+        for (row, sampling) in self.rows.iter_mut().zip(&sampling) {
+            let stream = match row {
+                Some(row) if sampling.is_some() => {
+                    let seed = match row.options.seed {
+                        Some(seed) => seed,
+                        None => fresh_seed(&generator)?,
+                    };
+                    row.options.seed = Some(seed);
+                    [seed, row.draws]
                 }
-            })
-            .collect::<Result<Vec<_>>>()?;
-        Tensor::concat(&rows, 0)
+                _ => [0, 0],
+            };
+            states.extend(stream.map(u64::cast_signed));
+        }
+
+        let rows =
+            i64::try_from(self.rows.len()).map_err(|_| Error::out_of_range("generation rows"))?;
+        let states = Tensor::from_vec(logits.device(), Shape::create([rows, 2])?, states)?;
+        let chosen = choose(
+            logits,
+            first,
+            &self.options,
+            &sampling,
+            Draws::Streams(&states),
+        )?;
+        for (row, sampling) in self.rows.iter_mut().zip(&sampling) {
+            if let Some(row) = row.as_mut().filter(|_| sampling.is_some()) {
+                row.draws += 1;
+            }
+        }
+        Ok(chosen)
     }
 
     fn first_tokens(
@@ -306,6 +325,12 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
 }
 
 const PREVIOUS_CHOICE: &[i64] = &[-1];
+
+fn fresh_seed(generator: &Generator) -> Result<u64> {
+    let state = generator.reserve(1)?;
+    let [low, high, ..] = random::philox(state.seed, state.offset);
+    Ok(u64::from(low) | (u64::from(high) << 32))
+}
 
 fn row_reads<'a>(
     rows: &'a [Option<RunningSequence>],
@@ -354,7 +379,10 @@ fn step_portions(pending: &[usize], largest: Option<usize>) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::generation::{generate, generate_batch};
+    use crate::{
+        generation::{generate, generate_batch},
+        tensor::SamplingOptions,
+    };
 
     // Answers each step with logits favouring a token one above each sequence's last.
     struct Counting {
@@ -633,5 +661,60 @@ mod tests {
                 vec![vec![7], vec![]],
             ]
         );
+
+        // A seeded sequence draws the same tokens alone as beside sequences that choose otherwise.
+        let seeded = SequenceOptions {
+            max_new_tokens: 6,
+            sampling: Some(SamplingOptions::new()),
+            seed: Some(5),
+            ..SequenceOptions::default()
+        };
+        let generator = Generator::new(1);
+        let draw = |neighbours: &[SequenceOptions]| {
+            let mut decoder = Counting::new(3);
+            let options = GenerationOptions {
+                max_new_tokens: 1,
+                ..GenerationOptions::default()
+            };
+            let mut batch = RunningBatch::create(&mut decoder, options).unwrap();
+            for neighbour in neighbours {
+                batch
+                    .join_with_options(&[3], neighbour.clone(), |_, _| Ok(()))
+                    .unwrap();
+            }
+            let id = batch
+                .join_with_options(&[0], seeded.clone(), |_, _| Ok(()))
+                .unwrap()
+                .unwrap();
+            let mut tokens = Vec::new();
+            while !batch.is_empty() {
+                let generated = batch.advance(Some(&generator)).unwrap();
+                tokens.extend(
+                    generated
+                        .iter()
+                        .filter(|token| token.sequence == id)
+                        .map(|token| token.token),
+                );
+            }
+            tokens
+        };
+        let neighbours = [
+            SequenceOptions {
+                max_new_tokens: 4,
+                ..SequenceOptions::default()
+            },
+            SequenceOptions {
+                max_new_tokens: 8,
+                sampling: Some(
+                    SamplingOptions::new()
+                        .with_temperature(0.5)
+                        .with_top_k(Some(2)),
+                ),
+                ..SequenceOptions::default()
+            },
+        ];
+        let alone = draw(&[]);
+        assert_eq!(alone.len(), 6);
+        assert_eq!(draw(&neighbours), alone);
     }
 }

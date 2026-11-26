@@ -214,7 +214,6 @@ impl CudaProgramSet {
                         prompt: prompt.as_ref().map(loop_step),
                         encode: encode.as_ref().map(loop_step),
                     },
-                    &format!("    {prefix}_seed(state, seed);\n"),
                     weights.len(),
                 )?;
                 files.push((format!("{prefix}_generate.cu"), source));

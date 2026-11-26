@@ -1,25 +1,24 @@
 use crate::{
     data_type::DataType,
     error::{Error, Result},
-    graph::capture,
+    graph::{DimensionExpr, capture},
     random::Generator,
+    shape::Shape,
     tensor::Tensor,
 };
 
 /// Temperatures at or below this value select the most likely tokens instead of sampling.
 const GREEDY_TEMPERATURE: f32 = 1.0e-5;
 
-/// Settings for drawing token indices from logits with [`Tensor::sample`].
+/// Settings for drawing a token index per row of logits with [`Tensor::sample`].
 ///
-/// The defaults draw one sample with replacement at temperature one, without top-k or top-p filtering.
+/// The defaults draw at temperature one, without top-k or top-p filtering.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SamplingOptions {
     temperature: f32,
     top_k: Option<i64>,
     top_p: f32,
     min_p: f32,
-    samples: i64,
-    replacement: bool,
 }
 
 impl Default for SamplingOptions {
@@ -29,8 +28,6 @@ impl Default for SamplingOptions {
             top_k: None,
             top_p: 1.0,
             min_p: 0.0,
-            samples: 1,
-            replacement: true,
         }
     }
 }
@@ -69,21 +66,7 @@ impl SamplingOptions {
         self
     }
 
-    /// Draws `samples` indices per row.
-    #[must_use]
-    pub const fn with_samples(mut self, samples: i64) -> Self {
-        self.samples = samples;
-        self
-    }
-
-    /// Draws with replacement, so an index may repeat, or without, so the indices of a row differ.
-    #[must_use]
-    pub const fn with_replacement(mut self, replacement: bool) -> Self {
-        self.replacement = replacement;
-        self
-    }
-
-    fn validate(&self, vocabulary: i64) -> Result<()> {
+    fn validate(&self) -> Result<()> {
         if !self.temperature.is_finite() || self.temperature < 0.0 {
             return Err(Error::invalid_argument(
                 "sampling temperature must be finite and nonnegative",
@@ -101,93 +84,115 @@ impl SamplingOptions {
         if self.top_k.is_some_and(|top_k| top_k < 1) {
             return Err(Error::out_of_range("sampling top-k"));
         }
-
-        if self.samples < 1 {
-            return Err(Error::invalid_argument(
-                "sampling needs at least one sample",
-            ));
-        }
-
-        if !self.replacement && self.samples > vocabulary {
-            return Err(Error::invalid_argument(
-                "sampling without replacement needs at most one sample per category",
-            ));
-        }
         Ok(())
+    }
+
+    fn settings(options: Option<&Self>, vocabulary: i64) -> [f32; 4] {
+        let Some(options) = options else {
+            return [0.0, vocabulary as f32, f32::INFINITY, 0.0];
+        };
+        let kept = options
+            .top_k
+            .map_or(vocabulary, |top_k| top_k.min(vocabulary));
+        let top_p = if options.top_p < 1.0 {
+            options.top_p
+        } else {
+            f32::INFINITY
+        };
+        [options.temperature, kept as f32, top_p, options.min_p]
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Draws<'a> {
+    Generator(Option<&'a Generator>),
+    Streams(&'a Tensor),
+}
+
 impl Tensor {
-    /// Draws token indices from logits of shape `[vocabulary]` or `[batch, vocabulary]`, returning `I64` indices of shape `[samples]` or `[batch, samples]`.
+    /// Draws a token index per row of `[rows, vocabulary]` logits, returning `[rows]` of `I64`.
     ///
-    /// Logits are divided by the temperature, filtered by min-p, top-k, and then top-p, and sampled from their softmax, with replacement through `multinomial` or without replacement through the Gumbel top-k trick.
-    /// Filtered tokens are never drawn; tokens tied with the last one top-p keeps are kept too.
-    /// The work runs on the logits' device from `generator`, or the device's default generator, so graph capture records it like other random operations.
+    /// `options` holds a row's settings each, or one for every row; a row without settings takes its most likely token.
+    /// Logits are divided by the temperature, filtered by min-p, top-k, and then top-p, and sampled from their softmax.
+    /// The filters are thresholds on one descending sort of each row, so filtered tokens are never drawn, and tokens tied with the last one a filter keeps are kept too.
+    /// `draws` names where the random values come from: one generator, or the device's default, or a stream per row, `[rows, 2]` of `I64` `[seed, offset]`, which makes a row's draw independent of the others.
     ///
     /// # Errors
     ///
-    /// Returns an error if the logits are not a floating vector or matrix, an option is out of range, or the backend fails.
-    pub fn sample(&self, options: &SamplingOptions, generator: Option<&Generator>) -> Result<Self> {
-        let vocabulary = match *self.shape().dimensions() {
-            [vocabulary] | [_, vocabulary] if self.data_type().is_float() => vocabulary,
+    /// Returns an error if the logits are not a floating matrix, `options` has neither one entry nor one per row, an option is out of range, or the backend fails.
+    pub fn sample(&self, options: &[Option<SamplingOptions>], draws: Draws<'_>) -> Result<Self> {
+        let (rows, vocabulary) = match *self.shape().dimensions() {
+            [rows, vocabulary] if self.data_type().is_float() => (rows, vocabulary),
             _ => {
                 return Err(Error::invalid_argument(
-                    "sampling needs a floating vector or matrix of logits",
+                    "sampling needs a floating matrix of logits",
                 ));
             }
         };
-        options.validate(vocabulary)?;
+        if options.len() != 1 && i64::try_from(options.len()).ok() != Some(rows) {
+            return Err(Error::length_mismatch(
+                "sampling options per row",
+                usize::try_from(rows).unwrap_or(usize::MAX),
+                options.len(),
+            ));
+        }
+
+        for options in options.iter().flatten() {
+            options.validate()?;
+        }
+
         let logits = if self.data_type() == DataType::F32 {
             self.clone()
         } else {
             self.cast(DataType::F32)?
         };
-        if options.temperature <= GREEDY_TEMPERATURE {
-            return logits
-                .topk(options.samples.min(vocabulary), -1, true, true)
-                .map(|(_, indices)| indices);
+        let greedy = logits.argmax(-1)?;
+        let row_dimension = self.dimension(0)?;
+        if options.iter().all(Option::is_none) {
+            return Ok(greedy);
         }
 
-        let mut logits = logits.mul_scalar(1.0 / options.temperature)?;
-        if options.min_p > 0.0 {
-            // A token's probability over the likeliest's is the exponential of their logits' difference.
-            let threshold = logits
-                .max_reduce(&[-1], true)?
-                .add_scalar(f64::from(options.min_p.ln()))?;
-            logits = masked_below(&logits, &threshold)?;
-        }
+        let settings = options
+            .iter()
+            .flat_map(|options| SamplingOptions::settings(options.as_ref(), vocabulary))
+            .collect::<Vec<_>>();
+        let setting_rows = if options.len() == 1 { 1 } else { rows };
+        let settings = capture::literal(logits.device(), |device| {
+            Self::from_vec(device, Shape::create([setting_rows, 4])?, settings)
+        })?;
+        let setting = |index| settings.narrow(1, index, 1);
+        let (temperature, kept, top_p, min_p) =
+            (setting(0)?, setting(1)?, setting(2)?, setting(3)?);
 
-        if let Some(top_k) = options.top_k.filter(|&top_k| top_k < vocabulary) {
-            let (values, _) = logits.topk(top_k, -1, true, true)?;
-            let threshold = values.narrow(-1, top_k - 1, 1)?;
-            logits = masked_below(&logits, &threshold)?;
-        }
+        let tempered = logits.div(&temperature.clamp(GREEDY_TEMPERATURE, f32::MAX)?)?;
+        let (sorted, _) = tempered.sort(-1, true)?;
+        // A token's probability over the likeliest's is the exponential of their logits' difference.
+        let by_min_p = sorted.narrow(-1, 0, 1)?.add(&min_p.log()?)?;
+        // One setting for every row gathers each row's own position, which `gather` would not broadcast to.
+        let positions = kept
+            .sub_scalar(1.0)?
+            .cast(DataType::I64)?
+            .expand_with(&[row_dimension.clone(), DimensionExpr::constant(1)])?;
+        let by_top_k = sorted.gather(-1, &positions)?;
+        let threshold = by_min_p.maximum(&by_top_k)?;
+        let filtered = masked_below(&sorted, &threshold)?;
+        let probabilities = filtered.softmax(-1)?;
+        let preceding = probabilities.cumsum(-1)?.sub(&probabilities)?;
+        let removed = preceding.greater_equal(&top_p)?;
+        let by_top_p = Self::where_select(&removed, &literal(&logits, f32::INFINITY)?, &filtered)?
+            .min_reduce(&[-1], true)?;
+        let weights = masked_below(&tempered, &threshold.maximum(&by_top_p)?)?.softmax(-1)?;
 
-        if options.top_p < 1.0 {
-            logits = nucleus(&logits, options.top_p)?;
+        let drawn = match draws {
+            Draws::Generator(generator) => weights.multinomial(1, generator)?,
+            Draws::Streams(states) => weights.multinomial_rows(1, states)?,
         }
-        if options.replacement {
-            logits.softmax(-1)?.multinomial(options.samples, generator)
-        } else {
-            let uniform = Self::rand(self.device(), logits.shape(), DataType::F32, generator)?;
-            let gumbel = uniform.log()?.neg()?.log()?.neg()?;
-            logits
-                .add(&gumbel)?
-                .topk(options.samples, -1, true, true)
-                .map(|(_, indices)| indices)
-        }
+        .reshape_with(&[row_dimension])?;
+        let is_greedy = temperature
+            .less_equal(&literal(&logits, GREEDY_TEMPERATURE)?)?
+            .squeeze(1)?;
+        Self::where_select(&is_greedy, &greedy, &drawn)
     }
-}
-
-/// Keeps the most likely logits whose probabilities before them sum to less than `top_p`, so the most likely one always stays.
-fn nucleus(logits: &Tensor, top_p: f32) -> Result<Tensor> {
-    let (sorted, _) = logits.sort(-1, true)?;
-    let probabilities = sorted.softmax(-1)?;
-    let preceding = probabilities.cumsum(-1)?.sub(&probabilities)?;
-    let removed = preceding.greater_equal(&literal(logits, top_p)?)?;
-    let kept = Tensor::where_select(&removed, &literal(logits, f32::INFINITY)?, &sorted)?;
-    let threshold = kept.min_reduce(&[-1], true)?;
-    masked_below(logits, &threshold)
 }
 
 /// Replaces logits below `threshold`, which broadcasts along the last dimension, with negative infinity.

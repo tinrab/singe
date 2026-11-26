@@ -23,6 +23,18 @@ fn generator_state(state: &Tensor) -> Result<GeneratorState> {
     }
 }
 
+fn row_states(state: &Tensor) -> Result<Vec<GeneratorState>> {
+    let values = state.to_vec::<i64>()?;
+    let (rows, _) = values.as_chunks::<2>();
+    Ok(rows
+        .iter()
+        .map(|&[seed, offset]| GeneratorState {
+            seed: seed.cast_unsigned(),
+            offset: offset.cast_unsigned(),
+        })
+        .collect())
+}
+
 fn floating(values: Vec<f32>, shape: Shape, data_type: DataType, state: &Tensor) -> Result<Tensor> {
     match data_type {
         DataType::F32 => Tensor::from_vec(state.device(), shape, values),
@@ -113,7 +125,14 @@ pub fn multinomial(weights: &Tensor, state: &Tensor, random: &RandomAttributes) 
     let rows = to_usize(rows, "multinomial rows")?;
     let categories = to_usize(categories, "multinomial categories")?;
     let samples = to_usize(random.samples, "multinomial samples")?;
-    let units = unit_values(generator_state(state)?, random.offset, rows * samples);
+    let units = if state.shape().rank() == 2 {
+        row_states(state)?
+            .into_iter()
+            .flat_map(|row| unit_values(row, random.offset, samples))
+            .collect()
+    } else {
+        unit_values(generator_state(state)?, random.offset, rows * samples)
+    };
     let indices = match weights.data_type() {
         DataType::F32 => sample_rows(
             &weights.to_vec::<f32>()?,

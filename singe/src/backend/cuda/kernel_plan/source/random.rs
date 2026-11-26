@@ -40,12 +40,18 @@ __device__ float unit_float(unsigned int bits) {
 ";
 
 /// Plans a random operation whose generator state is its last input, with one thread per sample.
+/// A multinomial's state may hold a stream per row, `[rows, 2]`, whose samples count from the row's own offset.
 pub fn plan(
     operation: Operation,
     random: &RandomAttributes,
     inputs: &[KernelInput],
 ) -> Result<KernelPlan> {
     let mut writer = KernelWriter::new();
+    // A `[1, 2]` state draws as a `[2]` one does, so the state's size tells the forms apart.
+    let per_row = operation == Operation::Multinomial
+        && inputs
+            .last()
+            .is_some_and(|state| state.layout.element_count() > 2);
     let (output, sample) = match operation {
         Operation::Uniform | Operation::Normal => {
             let state = writer.input(DataType::I64, "state")?;
@@ -128,11 +134,11 @@ const float unit = unit_float(lanes[index % 4]);
                 (ValueSpec::new(DataType::I64, Shape::create(shape)?), state),
                 format!(
                     "
-philox(seed, offset + index / 4, lanes);
+philox(seed, offset + draw / 4, lanes);
 const {ty}* row = {read} + (index / {samples}ULL) * {categories}ULL;
 {ty} total = 0;
 for (long long category = 0; category < {categories}; ++category) total = total + row[category];
-const {ty} target = static_cast<{ty}>(unit_float(lanes[index % 4])) * total;
+const {ty} target = static_cast<{ty}>(unit_float(lanes[draw % 4])) * total;
 {ty} cumulative = 0;
 long long chosen = {categories} - 1;
 for (long long category = 0; category < {categories}; ++category) {{
@@ -153,12 +159,28 @@ for (long long category = 0; category < {categories}; ++category) {{
     );
     let launch = writer.elements(output.shape().element_count());
     writer.declare(PHILOX);
-    writer.lines(&format!(
-        "
+    if per_row {
+        let samples = random.samples;
+        writer.lines(&format!(
+            "
+const unsigned long long stream = (index / {samples}ULL) * 2;
+const unsigned long long seed = static_cast<unsigned long long>({state}[stream]);
+const unsigned long long offset = static_cast<unsigned long long>({state}[stream + 1]) + {block_offset};
+const unsigned long long draw = index % {samples}ULL;
+unsigned int lanes[4];"
+        ));
+    } else {
+        writer.lines(&format!(
+            "
 const unsigned long long seed = static_cast<unsigned long long>({state}[0]);
 const unsigned long long offset = static_cast<unsigned long long>({state}[1]) + {block_offset};
 unsigned int lanes[4];"
-    ));
+        ));
+        if operation == Operation::Multinomial {
+            writer.lines("const unsigned long long draw = index;");
+        }
+    }
+
     writer.lines(&sample);
     Ok(writer.finish(operation.name(), launch, vec![output], inputs, &[operation]))
 }

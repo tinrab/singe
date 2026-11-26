@@ -155,11 +155,14 @@ async fn generate(
     });
     let mut generations = prompts
         .into_iter()
-        .map(|prompt| {
+        .zip(0_u64..)
+        .map(|(prompt, index)| {
+            // Each prompt takes the seed after the last's, as image generation seeds its images.
             let options = SequenceOptions {
                 max_new_tokens: parameters.max_new_tokens,
                 stop_tokens: format.stop_tokens.clone(),
                 sampling,
+                seed: Some(parameters.seed.wrapping_add(index)),
             };
             let detokenizer = Detokenizer::new(Arc::clone(&format.tokenizer), true, &prompt)?;
             Ok(TextGeneration::new(

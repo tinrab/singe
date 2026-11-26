@@ -2,18 +2,18 @@ use crate::{
     error::{Error, Result},
     generation::GenerationOptions,
     graph::capture,
-    random::Generator,
     shape::Shape,
-    tensor::Tensor,
+    tensor::{Draws, SamplingOptions, Tensor},
 };
 
-// Chooses a token for each row of `logits`, `[S, V]`, as `options` asks: never a suppressed token, nor a first-suppressed one in a row whose `first`, `[S]` of `I64`, is one, then the most likely token or a draw from `generator`.
+// Chooses a token for each row of `logits`, `[S, V]`: never a token `options` suppresses, nor a first-suppressed one in a row whose `first`, `[S]` of `I64`, is one, then each row's most likely token or a draw as `sampling` asks, which holds a row's settings each or one for all.
 // Returns `[S]` of `I64`; a captured step chooses through this too, so a program chooses as a running batch does.
 pub fn choose(
     logits: &Tensor,
     first: &Tensor,
     options: &GenerationOptions,
-    generator: Option<&Generator>,
+    sampling: &[Option<SamplingOptions>],
+    draws: Draws<'_>,
 ) -> Result<Tensor> {
     let rows = logits.dimension(0)?;
     let logits =
@@ -55,12 +55,5 @@ pub fn choose(
             .cast(logits.data_type())?;
             logits.add(&table.index_select(0, first)?)?
         };
-    options
-        .sampling
-        .as_ref()
-        .map_or_else(
-            || logits.argmax(-1),
-            |sampling| logits.sample(sampling, generator),
-        )?
-        .reshape_with(&[rows])
+    logits.sample(sampling, draws)?.reshape_with(&[rows])
 }

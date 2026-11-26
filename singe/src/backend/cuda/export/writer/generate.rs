@@ -4,7 +4,7 @@ use crate::{
     backend::cuda::{
         export::{
             builder::span_bytes,
-            program::{CudaProgram, Decoding, StateKind},
+            program::{CudaProgram, Decoding},
             writer::{Renderer, fill_template},
         },
         kernel_plan::value_type,
@@ -19,6 +19,7 @@ const STEP_INPUT: &str = "step";
 
 // Where a choosing step reads which rows choose their sequence's first token.
 const FIRST_TOKENS: &str = "first_tokens";
+const STREAMS: &str = "streams";
 
 const PREVIOUS: &str = "previous";
 
@@ -122,31 +123,36 @@ fn step_code(
         ));
     }
 
-    // The rows choosing their first token follow the packed step in its buffer, so one copy writes both.
+    // The rows choosing their first token, then the rows' random streams, follow the packed step in its buffer, so one copy writes them all.
     let step_bytes = span_bytes(packed.data_type, &packed.layout)?;
-    let first_bytes = input(FIRST_TOKENS)
-        .map(|first| span_bytes(first.data_type, &first.layout))
-        .transpose()?
-        .unwrap_or(0);
-    let index = buffers.index(&format!("{variable}{STEP_INPUT}"), step_bytes + first_bytes)?;
-    let mut code = String::new();
-    if first_bytes > 0 {
-        buffers.alias(
-            &format!("{variable}{FIRST_TOKENS}"),
-            first_bytes,
-            index,
-            step_bytes,
-        );
-        emit!(
-            code,
-            "            std::vector<int64_t> packed = pack(step);\n            packed.insert(packed.end(), first_tokens.begin(), first_tokens.end());\n            upload_staged(buffer_{index}, packed, staging[parity]);"
-        );
-    } else {
-        emit!(
-            code,
-            "            upload_staged(buffer_{index}, pack(step), staging[parity]);"
-        );
+    let bytes_of = |name: &str| {
+        input(name)
+            .map(|value| span_bytes(value.data_type, &value.layout))
+            .transpose()
+            .map(Option::unwrap_or_default)
+    };
+    let (first_bytes, stream_bytes) = (bytes_of(FIRST_TOKENS)?, bytes_of(STREAMS)?);
+    let index = buffers.index(
+        &format!("{variable}{STEP_INPUT}"),
+        step_bytes + first_bytes + stream_bytes,
+    )?;
+    let mut code = String::from("            std::vector<int64_t> packed = pack(step);\n");
+    let mut offset = step_bytes;
+    for (name, bytes) in [(FIRST_TOKENS, first_bytes), (STREAMS, stream_bytes)] {
+        if bytes > 0 {
+            buffers.alias(&format!("{variable}{name}"), bytes, index, offset);
+            emit!(
+                code,
+                "            packed.insert(packed.end(), {name}.begin(), {name}.end());"
+            );
+            offset += bytes;
+        }
     }
+
+    emit!(
+        code,
+        "            upload_staged(buffer_{index}, packed, staging[parity]);"
+    );
 
     let [tokens] = step.program.outputs.as_slice() else {
         return Err(Error::invalid_argument(
@@ -177,7 +183,7 @@ fn step_code(
         "            if (previous != nullptr) check_cuda(cudaMemcpyAsync(buffer_{previous}, previous->tokens, {token_bytes}ULL, cudaMemcpyDeviceToDevice, loop_stream), \"cudaMemcpyAsync\");\n            check(launch(step_graphs[{slot}], [&] {{ return static_cast<int>({run}(state, &{variable}inputs, &{variable}outputs, loop_stream)); }}), \"{run}\");\n            step_tokens = buffer_{tokens};\n            ran[{slot}] = true;",
         run = step.run,
     );
-    Ok((code, step_bytes + first_bytes))
+    Ok((code, offset))
 }
 
 fn finish_code(step: &LoopStep<'_>, slot: usize) -> String {
@@ -187,13 +193,12 @@ fn finish_code(step: &LoopStep<'_>, slot: usize) -> String {
     )
 }
 
-// Writes a generation loop over `steps`, choosing steps of the rows and paged cache `decoding` describes, through the program declared by `prefix`, with `seed` the C++ that seeds its draws from `seed`.
+// Writes a generation loop over `steps`, choosing steps of the rows and paged cache `decoding` describes, through the program declared by `prefix`.
 // With an encode step, the loop first runs it once on a source the command line names, which writes what the decoding steps read, such as cross-attention keys and values, for one sequence.
 pub fn generation_loop_source(
     prefix: &str,
     decoding: &Decoding,
     steps: LoopSteps<'_>,
-    seed: &str,
     weights_bytes: usize,
 ) -> Result<String> {
     let layout = decoding.layout;
@@ -262,7 +267,7 @@ pub fn generation_loop_source(
         for value in &step.program.inputs {
             let name = value.graph_name.as_str();
             let bytes = span_bytes(value.data_type, &value.layout)?;
-            let is_step = decodes && (name == STEP_INPUT || name == FIRST_TOKENS);
+            let is_step = decodes && [STEP_INPUT, FIRST_TOKENS, STREAMS].contains(&name);
             let index = if is_step {
                 buffers
                     .find(&format!("{variable}{name}"))
@@ -410,7 +415,18 @@ pub fn generation_loop_source(
             ));
         }
     };
-    let samples = all.iter().any(|(_, step)| step.program.has_generators());
+    if all.iter().any(|(_, step)| step.program.has_generators()) {
+        return Err(Error::invalid_argument(
+            "a generation loop's steps sample from a stream per row, not a generator",
+        ));
+    }
+
+    let samples = all.iter().any(|(_, step)| {
+        step.program
+            .inputs
+            .iter()
+            .any(|input| input.graph_name == STREAMS)
+    });
     let tokenizer = if decoding.tokenizer.is_some() {
         format!("{prefix}.tokenizer")
     } else {
@@ -444,7 +460,6 @@ pub fn generation_loop_source(
             ("paged_step_code", include_str!("paged_step.cu.in")),
             ("samples", if samples { "true" } else { "false" }),
             ("weights", &weights),
-            ("seed", seed),
             ("structs", &struct_lines),
             ("buffers", &buffer_lines),
             ("allocations", &allocations),
@@ -458,23 +473,12 @@ pub fn generation_loop_source(
 }
 
 impl Renderer<'_> {
-    // The generation loop of a program exported with decoding, a choosing step of a token per row, whose generators it seeds itself.
+    // The generation loop of a program exported with decoding, a choosing step of a token per row.
     pub fn generation_loop(&self, weights_bytes: usize) -> Result<Option<String>> {
         let Some(decoding) = &self.program.decoding else {
             return Ok(None);
         };
         let prefix = self.prefix;
-        let mut seed = String::new();
-        for state in &self.program.state {
-            if matches!(state.kind, StateKind::Generator { .. }) {
-                emit!(
-                    seed,
-                    "    {{\n        const long long generator[2] = {{seed, 0}};\n        check({prefix}_set_{name}(state, generator), \"{prefix}_set_{name}\");\n    }}",
-                    name = state.name
-                );
-            }
-        }
-
         let (run, finish) = (format!("{prefix}_run"), format!("{prefix}_finish"));
         generation_loop_source(
             prefix,
@@ -489,7 +493,6 @@ impl Renderer<'_> {
                 prompt: None,
                 encode: None,
             },
-            &seed,
             weights_bytes,
         )
         .map(Some)

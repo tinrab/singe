@@ -36,7 +36,7 @@ pub use self::{
     neural::{AttentionOptions, Paging, SequenceSpans},
     reduction::NormOrder,
     resample::{InterpolateMode, Interpolation},
-    sampling::SamplingOptions,
+    sampling::{Draws, SamplingOptions},
 };
 pub use crate::tensor::{
     creation::{TensorLinspaceElement, TensorRangeElement},
