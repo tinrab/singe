@@ -3,7 +3,7 @@
 use serde::Deserialize;
 
 use crate::{
-    error::Result,
+    error::{Error, Result},
     head::VideoClassifier,
     model,
     processor::{image::ImageTransforms, video::Video},
@@ -44,9 +44,11 @@ impl Default for VideoClassificationParameters {
     }
 }
 
+/// The frames a model reads: its config's `num_frames`, or `frames_per_clip` where it names none, as V-JEPA 2's does.
 #[derive(Debug, Deserialize)]
 struct FrameCount {
-    num_frames: usize,
+    num_frames: Option<usize>,
+    frames_per_clip: Option<usize>,
 }
 
 impl Pipeline for VideoClassificationPipeline {
@@ -61,7 +63,12 @@ impl Pipeline for VideoClassificationPipeline {
             model: model::load(source, options)?,
             processor: ImageTransforms::load(source)?,
             options,
-            frames: source.json::<FrameCount>("config.json")?.num_frames,
+            frames: {
+                let count = source.json::<FrameCount>("config.json")?;
+                count.num_frames.or(count.frames_per_clip).ok_or_else(|| {
+                    Error::unsupported("a video model whose config names no frame count")
+                })?
+            },
         })
     }
 

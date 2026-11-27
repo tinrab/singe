@@ -1,4 +1,5 @@
 //! The tokenizers `transformers` converts a snapshot's slow-tokenizer files to when it has no `tokenizer.json`: BERT's `WordPiece` from `vocab.txt`, CLIP's and `RoBERTa`'s byte-level BPE from `vocab.json` and `merges.txt`, and `XLM-RoBERTa`'s Unigram from `sentencepiece.bpe.model`.
+//! ESM's `vocab.txt` is no `WordPiece` vocabulary, so it builds the tokenizer `EsmTokenizer` tokenizes as, and `BigBird`'s `spiece.model` the one `BigBirdTokenizer` builds.
 
 use std::{fs, str::FromStr};
 
@@ -12,15 +13,30 @@ use crate::{
 };
 
 pub(crate) fn convert(source: &Source) -> Result<Tokenizer> {
-    if source.has("vocab.txt") {
+    // A config that names no tokenizer class leaves it to the model's type, as `AutoTokenizer` chooses.
+    let model_type = source
+        .optional_json("config.json")?
+        .and_then(|config: Value| config["model_type"].as_str().map(str::to_owned));
+    let class = tokenizer_config(source)?["tokenizer_class"]
+        .as_str()
+        .map(str::to_owned)
+        .or_else(|| {
+            (model_type.as_deref() == Some("big_bird")).then(|| "BigBirdTokenizer".to_owned())
+        })
+        .unwrap_or_default();
+    if source.has("vocab.txt") && class == "EsmTokenizer" {
+        esm(source)
+    } else if source.has("vocab.txt") {
         wordpiece(source)
     } else if source.has("merges.txt") {
         byte_level_bpe(source)
     } else if source.has("sentencepiece.bpe.model") {
         xlm_roberta(source)
+    } else if source.has("spiece.model") && class == "BigBirdTokenizer" {
+        big_bird(source)
     } else {
         Err(Error::unsupported(
-            "a snapshot without tokenizer.json, vocab.txt, merges.txt, or sentencepiece.bpe.model",
+            "a snapshot without tokenizer.json, vocab.txt, merges.txt, sentencepiece.bpe.model, or BigBird's spiece.model",
         ))
     }
 }
@@ -99,6 +115,57 @@ fn wordpiece(source: &Source) -> Result<Tokenizer> {
         },
     });
     build(&tokenizer, "build a WordPiece tokenizer from vocab.txt")
+}
+
+/// Builds the tokenizer `EsmTokenizer` tokenizes as: every vocabulary token split out of the text first, the longest first, as its trie of unsplittable tokens does, and what remains split at whitespace and looked up whole, between `<cls>` and `<eos>`.
+fn esm(source: &Source) -> Result<Tokenizer> {
+    let config = tokenizer_config(source)?;
+    let names = [
+        "cls_token",
+        "eos_token",
+        "pad_token",
+        "unk_token",
+        "mask_token",
+    ];
+    let defaults = ["<cls>", "<eos>", "<pad>", "<unk>", "<mask>"];
+    let special = names
+        .iter()
+        .zip(defaults)
+        .map(|(name, default)| special_or(&config, name, default))
+        .collect::<Vec<_>>();
+    let (classifier, end, unknown) = (&special[0], &special[1], &special[3]);
+
+    let path = source.directory().join("vocab.txt");
+    let text = fs::read_to_string(&path).map_err(Error::io(&path))?;
+    let mut vocabulary = Map::new();
+    let mut added = Vec::new();
+    for (id, token) in text.lines().map(str::trim).enumerate() {
+        vocabulary.insert(token.to_owned(), json!(id));
+        let mut entry = added_token(id, token, false);
+        entry["special"] = json!(special.iter().any(|name| name == token));
+        added.push(entry);
+    }
+
+    let id = |token: &str| vocabulary_id(&vocabulary, "vocab.txt", token);
+    let tokenizer = json!({
+        "version": "1.0",
+        "added_tokens": added,
+        "pre_tokenizer": {"type": "WhitespaceSplit"},
+        "post_processor": {
+            "type": "TemplateProcessing",
+            "single": [special_piece(classifier, 0), sequence_piece("A", 0), special_piece(end, 0)],
+            "pair": [
+                special_piece(classifier, 0), sequence_piece("A", 0), special_piece(end, 0),
+                sequence_piece("B", 1), special_piece(end, 1),
+            ],
+            "special_tokens": {
+                classifier: template_token(classifier, id(classifier)?),
+                end: template_token(end, id(end)?),
+            },
+        },
+        "model": {"type": "WordLevel", "unk_token": unknown, "vocab": vocabulary},
+    });
+    build(&tokenizer, "build ESM's tokenizer from vocab.txt")
 }
 
 fn byte_level_bpe(source: &Source) -> Result<Tokenizer> {
@@ -223,7 +290,7 @@ fn xlm_roberta(source: &Source) -> Result<Tokenizer> {
             .pieces
             .iter()
             .skip(3)
-            .map(|(piece, score)| json!([piece, score])),
+            .map(|piece| json!([piece.text, piece.score])),
     );
     vocabulary.push(json!(["<mask>", 0.0]));
     let mask = vocabulary.len() - 1;
@@ -267,6 +334,79 @@ fn xlm_roberta(source: &Source) -> Result<Tokenizer> {
         &tokenizer,
         "build XLM-RoBERTa's tokenizer from sentencepiece.bpe.model",
     )
+}
+
+/// Builds `BigBird`'s Unigram tokenizer from `spiece.model` as `transformers`' `BigBirdTokenizer` builds it: runs of spaces become one `▁`, words split at `▁` with one before the first, every piece but the normal ones an added token, between `[CLS]` and `[SEP]`.
+fn big_bird(source: &Source) -> Result<Tokenizer> {
+    let config = tokenizer_config(source)?;
+    let names = [
+        "pad_token",
+        "eos_token",
+        "bos_token",
+        "cls_token",
+        "sep_token",
+        "mask_token",
+        "unk_token",
+    ];
+    let defaults = ["<pad>", "</s>", "<s>", "[CLS]", "[SEP]", "[MASK]", "<unk>"];
+    let special = names
+        .iter()
+        .zip(defaults)
+        .map(|(name, default)| special_or(&config, name, default))
+        .collect::<Vec<_>>();
+    let (classifier, separator, unknown) = (&special[3], &special[4], &special[6]);
+    let model = sentencepiece::read(&source.directory().join("spiece.model"))?;
+    let vocabulary = model
+        .pieces
+        .iter()
+        .map(|piece| json!([piece.text, piece.score]))
+        .collect::<Vec<_>>();
+    let id = |token: &str| {
+        model
+            .pieces
+            .iter()
+            .position(|piece| piece.text == token)
+            .ok_or_else(|| Error::unsupported(format!("a spiece.model without {token}")))
+    };
+    let added = model
+        .pieces
+        .iter()
+        .enumerate()
+        .filter(|(_, piece)| !piece.is_normal)
+        .map(|(index, piece)| {
+            let mut entry = added_token(index, &piece.text, false);
+            entry["special"] = json!(special.contains(&piece.text));
+            // The unknown piece alone matches normalized text, as the reference's added tokens have it.
+            entry["normalized"] = json!(&piece.text == unknown);
+            entry
+        })
+        .collect::<Vec<_>>();
+    let metaspace =
+        json!({"type": "Metaspace", "replacement": "▁", "prepend_scheme": "always", "split": true});
+    let tokenizer = json!({
+        "version": "1.0",
+        "added_tokens": added,
+        "normalizer": {"type": "Sequence", "normalizers": [
+            {"type": "Strip", "strip_left": false, "strip_right": false},
+            {"type": "Replace", "pattern": {"Regex": " {2,}"}, "content": "▁"},
+        ]},
+        "pre_tokenizer": metaspace,
+        "post_processor": {
+            "type": "TemplateProcessing",
+            "single": [special_piece(classifier, 0), sequence_piece("A", 0), special_piece(separator, 0)],
+            "pair": [
+                special_piece(classifier, 0), sequence_piece("A", 0), special_piece(separator, 0),
+                sequence_piece("B", 1), special_piece(separator, 1),
+            ],
+            "special_tokens": {
+                classifier: template_token(classifier, id(classifier)?),
+                separator: template_token(separator, id(separator)?),
+            },
+        },
+        "decoder": metaspace,
+        "model": {"type": "Unigram", "unk_id": id(unknown)?, "vocab": vocabulary, "byte_fallback": false},
+    });
+    build(&tokenizer, "build BigBird's tokenizer from spiece.model")
 }
 
 /// Returns the id `vocabulary`, read from `file`, gives `token`, or an error naming `file` if it has none.

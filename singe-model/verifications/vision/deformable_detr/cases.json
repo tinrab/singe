@@ -1,0 +1,57 @@
+{
+  "cases": [
+    {
+      "name": "detection",
+      "snapshot": "DEFORMABLE_DETR",
+      "task": "object-detection",
+      "data_type": "f32",
+      "inputs": ["media/coco-cats.png", "media/cat-448x320.png"],
+      "expected": [
+        [
+          {
+            "score": 0.799868,
+            "label": "cat",
+            "box": {
+              "xmin": 16,
+              "ymin": 52,
+              "xmax": 318,
+              "ymax": 470
+            }
+          },
+          {
+            "score": 0.789487,
+            "label": "cat",
+            "box": {
+              "xmin": 342,
+              "ymin": 24,
+              "xmax": 640,
+              "ymax": 372
+            }
+          },
+          {
+            "score": 0.633119,
+            "label": "remote",
+            "box": {
+              "xmin": 40,
+              "ymin": 72,
+              "xmax": 176,
+              "ymax": 117
+            }
+          }
+        ],
+        [
+          {
+            "score": 0.797682,
+            "label": "cat",
+            "box": {
+              "xmin": 82,
+              "ymin": 72,
+              "xmax": 411,
+              "ymax": 278
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

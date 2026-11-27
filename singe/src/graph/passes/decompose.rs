@@ -1,5 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
+#[cfg(feature = "onnx")]
+use crate::graph::passes::remap::remap_node_id;
 use crate::{
     backend::{
         decomposition,
@@ -24,6 +26,10 @@ use crate::{
 
 // The rewritten graph, its value remapping, and the operations split only because an excluded provider runs them whole.
 type Decomposition = (Graph, Vec<(ValueId, ValueId)>, Vec<Operation>);
+
+// An operation the export decomposed: its operation, the value its decomposition gives, and its inputs, as values of the decomposed graph.
+#[cfg(feature = "onnx")]
+type Decomposed = (Operation, ValueId, Vec<ValueId>);
 
 // Decompositions nest only a few levels, so a chain this deep is one that records itself.
 const MAX_DECOMPOSITION_DEPTH: usize = 16;
@@ -243,7 +249,7 @@ pub fn splice(
     Ok(splice_following(graph, node, id_map, nodes, false)?.0)
 }
 
-pub fn splice_following(
+fn splice_following(
     graph: &Graph,
     node: &NodeRef<'_>,
     id_map: &HashMap<ValueId, ValueId>,
@@ -388,6 +394,52 @@ fn meta_operand(data_type: DataType, layout: &Layout) -> Result<Tensor> {
 pub fn push(nodes: &mut Vec<Node>, node: Node) -> ValueId {
     nodes.push(node);
     ValueId::new(nodes.len() - 1)
+}
+
+#[cfg(feature = "onnx")]
+pub fn decompose_for_export(
+    graph: &Graph,
+    decomposes: impl Fn(Operation, &OperationAttributes) -> bool,
+) -> Result<(Graph, Vec<Decomposed>)> {
+    let mut id_map = HashMap::with_capacity(graph.node_count());
+    let mut nodes = Vec::with_capacity(graph.node_count());
+    let mut spliced = Vec::new();
+    let follows_axes = !graph.input_dimension_guards.is_empty();
+    let mut spliced_shapes = ShapeProgram::default();
+    for index in 0..graph.node_count() {
+        let id = ValueId::new(index);
+        let node = graph.required_node(id)?;
+        let new_id = if let Some(operation) = node.operation()
+            && decomposes(operation, &node.attributes())
+        {
+            let (new_id, shapes) =
+                splice_following(graph, &node, &id_map, &mut nodes, follows_axes)?;
+            spliced_shapes.extend(shapes);
+            let inputs = node
+                .inputs()
+                .iter()
+                .map(|&input| remap_node_id(input, &id_map))
+                .collect::<Result<Vec<_>>>()?;
+            spliced.push((operation, new_id, inputs));
+            new_id
+        } else {
+            push(&mut nodes, remapped_node(&node, &id_map)?)
+        };
+        id_map.insert(id, new_id);
+    }
+
+    if spliced.is_empty() {
+        return Ok((graph.clone(), spliced));
+    }
+
+    let mut decomposed = Graph::from_retained_nodes(graph, &id_map, nodes)?;
+    // Compiling resolves shapes before it rewrites a graph, and export reads them afterwards, so they must follow their values.
+    let mapped = |id: ValueId| remap_node_id(id, &id_map);
+    decomposed.shape_program = graph.shape_program.remap(mapped, &|index| {
+        mapped(ValueId::new(index)).map(ValueId::index)
+    })?;
+    decomposed.shape_program.extend(spliced_shapes);
+    Ok((decomposed, spliced))
 }
 
 #[cfg(feature = "onnx")]

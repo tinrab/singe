@@ -8,11 +8,14 @@ pub use self::{
     selection::{lower_clip, lower_where},
 };
 use crate::{
+    backend::registry::{Operation, OperationAttributes},
     data_type::DataType,
+    graph::{GraphOperationInputs, GraphOperationOutput, GraphOperationRequest},
     onnx::{
         error::{Error, Result},
-        importer::Importer,
+        importer::{ImportedValue, Importer},
         ops::{expect_input_count, expect_input_range, expect_outputs, register_node_outputs},
+        utility::{FUSED_INPUT, FUSED_OPERATION, node_name},
     },
 };
 
@@ -20,7 +23,53 @@ pub fn lower_identity(importer: &mut Importer, node: &Node) -> Result<()> {
     expect_input_count(importer, node, 1)?;
     expect_outputs(importer, node, 1)?;
     let input = importer.required_input(node, 0)?;
+    if node.metadata_props.get(FUSED_OPERATION).map(String::as_str)
+        == Some(Operation::DeformableAttention.name())
+    {
+        return lower_marked_deformable_attention(importer, node, &input);
+    }
+
     register_node_outputs(importer, node, vec![input])
+}
+
+// Singe's export marks deformable attention's decomposition with the operation and its inputs, which run as the operation, leaving the decomposition unread.
+fn lower_marked_deformable_attention(
+    importer: &mut Importer,
+    node: &Node,
+    decomposed: &ImportedValue,
+) -> Result<()> {
+    let inputs = (0..5)
+        .map(|index| {
+            let name = node
+                .metadata_props
+                .get(&format!("{FUSED_INPUT}.{index}"))
+                .ok_or_else(|| Error::InvalidModel {
+                    reason: "a marked deformable attention without its inputs".into(),
+                })?;
+            Ok(importer.value(name)?.node)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let device = importer.options().device;
+    let id = importer
+        .graph()
+        .add_operation_request(GraphOperationRequest::new(
+            node_name(node),
+            GraphOperationInputs::new(
+                Operation::DeformableAttention,
+                OperationAttributes::None,
+                inputs,
+            ),
+            GraphOperationOutput::new(decomposed.data_type, decomposed.shape.clone(), device),
+        ))?;
+    register_node_outputs(
+        importer,
+        node,
+        vec![ImportedValue::new(
+            id,
+            decomposed.data_type,
+            decomposed.shape.clone(),
+        )],
+    )
 }
 
 pub fn lower_dropout(importer: &mut Importer, node: &Node) -> Result<()> {

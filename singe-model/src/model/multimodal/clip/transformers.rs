@@ -64,7 +64,7 @@ pub(crate) struct VisionFields {
     num_channels: i64,
 }
 
-fn text_config(fields: &TextFields) -> ClipTextConfig {
+pub(crate) fn text_config(fields: &TextFields) -> ClipTextConfig {
     ClipTextConfig {
         encoder: fields.tower.encoder(Masking::Causal),
         layers: fields.tower.num_hidden_layers,

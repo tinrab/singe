@@ -173,14 +173,24 @@ impl<A> BartStack<A> {
         positions: &Tensor,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
+        let embedded = tokens
+            .apply(&self.tokens, state)?
+            .mul_scalar(self.config.embedding_scale)?;
+        self.position(&embedded, positions, state)
+    }
+
+    /// Returns embeddings with their positions' added, normed when the stack norms its embeddings.
+    fn position(
+        &self,
+        embedded: &Tensor,
+        positions: &Tensor,
+        state: &ModelState,
+    ) -> SingeResult<Tensor> {
         let table =
             state
                 .tensor(&self.positions)?
                 .narrow(0, POSITION_OFFSET, self.config.max_positions)?;
-        let hidden = tokens
-            .apply(&self.tokens, state)?
-            .mul_scalar(self.config.embedding_scale)?
-            .add(&table.index_select(0, positions)?)?;
+        let hidden = embedded.add(&table.index_select(0, positions)?)?;
         match &self.embedding_norm {
             Some(norm) => hidden.apply(norm, state),
             None => Ok(hidden),
@@ -246,16 +256,28 @@ impl BartEncoder {
 
     /// Runs the encoder over `tokens`, `[1, T]`, returning each token's final state, `[1, T, W]`.
     pub fn forward(&self, tokens: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let &[_, length] = tokens.shape().dimensions() else {
-            return Err(SingeError::invalid_argument("a stack's tokens"));
+        self.forward_embedded(&self.embed_tokens(tokens, state)?, state)
+    }
+
+    /// Returns `tokens`' embeddings, `[1, T, W]`, scaled, before positions, which a model may splice other embeddings into before [`BartEncoder::forward_embedded`].
+    pub fn embed_tokens(&self, tokens: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        tokens
+            .apply(&self.stack.tokens, state)?
+            .mul_scalar(self.stack.config.embedding_scale)
+    }
+
+    /// Runs the encoder over embeddings, `[1, T, W]`, as `BartEncoder` reads `inputs_embeds`: positions added, normed, and through the blocks.
+    pub fn forward_embedded(&self, embedded: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        let &[_, length, _] = embedded.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("a stack's embeddings"));
         };
         let positions = Tensor::from_vec(
-            tokens.device(),
+            embedded.device(),
             Shape::create([length])?,
             (0..length).collect::<Vec<_>>(),
         )?;
         let stack = &self.stack;
-        let mut hidden = stack.embed(tokens, &positions, state)?;
+        let mut hidden = stack.position(embedded, &positions, state)?;
         for block in &stack.blocks {
             hidden = stack.part(&hidden, &block.attention_norm, state, |normed| {
                 block.attention.forward(normed, normed, normed, state)

@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "accelerate>=1.10",
     "autogluon-tabular[mitra]>=1.6.3",
     "diffusers>=0.43.0",
     "jinja2>=3.1.6",

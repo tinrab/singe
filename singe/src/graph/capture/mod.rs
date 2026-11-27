@@ -13,8 +13,9 @@ use crate::{
     dispatch::{DispatchKey, Kernel, KernelCall, RegistryBuilder},
     error::Result,
     random::Generator,
+    shape::Shape,
     storage::{cpu::CpuStorage, meta::MetaStorage},
-    tensor::Tensor,
+    tensor::{Tensor, TensorDataType},
 };
 
 /// Registers recording as the fallback kernel of the capture key.
@@ -78,6 +79,12 @@ pub fn literal(device: Device, create: impl FnOnce(Device) -> Result<Tensor>) ->
     };
     with_active_session(|session| session.record_literal(&tensor))?;
     Ok(tensor)
+}
+
+pub fn scalar<T: TensorDataType>(device: Device, value: T) -> Result<Tensor> {
+    literal(device, |device| {
+        Tensor::from_vec(device, Shape::create([1])?, vec![value])
+    })
 }
 
 // A meta tensor of `host`'s type and shape that keeps its values, so a graph holding it can be placed on a device later.

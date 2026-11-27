@@ -359,16 +359,12 @@ impl LogMelSpectrogram {
             )
         })?;
         let own = frames.less(&length.div_scalar(options.hop as f64)?.floor()?)?;
-        let lowest = capture::literal(device, |device| {
-            Tensor::from_vec(device, Shape::create([1])?, vec![f32::NEG_INFINITY])
-        })?;
+        let lowest = capture::scalar(device, f32::NEG_INFINITY)?;
         let floor = Tensor::where_select(&own, &log, &lowest)?
             .max_reduce(&[1, 2], true)?
             .sub_scalar(f64::from(self.range()?))?;
         let features = log.maximum(&floor)?.add_scalar(4.0)?.div_scalar(4.0)?;
-        let zero = capture::literal(device, |device| {
-            Tensor::from_vec(device, Shape::create([1])?, vec![0.0_f32])
-        })?;
+        let zero = capture::scalar(device, 0.0_f32)?;
         Tensor::where_select(&own, &features, &zero)
     }
 }

@@ -1,0 +1,45 @@
+{
+  "cases": [
+    {
+      "name": "tiny",
+      "snapshot": "FALCON_H1_TINY",
+      "task": "text-generation",
+      "data_type": "f32",
+      "inputs": ["The most important resource in Factorio is"],
+      "parameters": {
+        "max_new_tokens": 32
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            784, 731, 830, 9701, 830, 535, 1275, 7037, 784, 10218, 6469, 4847, 813, 784, 4658, 537,
+            805, 830, 572, 541, 549, 3767, 860, 784, 6892, 8045, 813, 19397, 1433, 26103, 1968, 830
+          ],
+          "end_token_ids": [228, 11]
+        }
+      ]
+    },
+    {
+      "name": "long",
+      "snapshot": "FALCON_H1",
+      "task": "text-generation",
+      "data_type": "f32",
+      "inputs": [
+        "The factory began as a single furnace beside a patch of iron ore, fed by hand with coal from a nearby seam. Within an hour the engineer had built a row of burner drills, a belt that carried the ore to a line of stone furnaces, and an inserter that moved the plates into a wooden chest. The chest filled faster than expected, so the next step was to automate the production of gears, which every machine in the early game needs. A small assembler took plates from the belt and returned gears, and a second one turned gears and plates into transport belts. Copper came next: a second patch to the north supplied copper ore, and a parallel line of furnaces turned it into copper plates, which an assembler wound into copper cable. Green circuits followed from cable and iron, and with them the first research packs. The laboratory consumed red packs steadily, unlocking logistics, then automation, then the electric mining drill. Power was the next bottleneck. A single steam engine could not keep up with the drills and assemblers, so the engineer placed an offshore pump at the lake, a row of boilers, and twenty steam engines, with a dedicated belt of coal running along the boilers. When night fell the factory kept running, its lamps lighting the belts, and the first biters began to probe the perimeter from the forest to the east. Turrets went up along the wall, fed by a belt of magazines from a new ammunition line. By the next morning the base produced red and green science at a steady rate, and the engineer started planning the oil refinery, which would require pumpjacks, pipes, chemical plants, and a careful balance of heavy oil, light oil, and petroleum gas. The plan for the refinery was"
+      ],
+      "parameters": {
+        "max_new_tokens": 32
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            817, 9422, 2650, 4214, 6305, 817, 784, 3948, 813, 933, 1019, 1838, 1000, 535, 1199,
+            19828, 979, 809, 784, 6760, 9928, 535, 823, 6395, 7947, 784, 30153, 5620, 2537, 817,
+            784, 14476
+          ],
+          "end_token_ids": [11, 228]
+        }
+      ]
+    }
+  ]
+}

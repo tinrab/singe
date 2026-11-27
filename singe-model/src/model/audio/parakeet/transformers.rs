@@ -6,8 +6,9 @@ use singe::nn::{Activation, LocalAttention, RecurrentCell, RecurrentConfig};
 
 use crate::{
     assembly::{
-        ConformerConfig, ConformerEncoderConfig, PYTORCH_NORM_EPS, SubsamplingConfig,
-        SubsamplingKind, TransducerConfig, TransducerDecoding, conformer_rules, transducer_rules,
+        ConformerConfig, ConformerEncoderConfig, ConformerFeedForward, PYTORCH_NORM_EPS,
+        SubsamplingConfig, SubsamplingKind, TransducerConfig, TransducerDecoding, conformer_rules,
+        transducer_rules,
     },
     error::{Error, Result},
     format::{
@@ -206,6 +207,8 @@ pub(crate) fn config(source: &Source) -> Result<ParakeetConfig> {
         convolution_biases: encoder.convolution_bias,
         eps: PYTORCH_NORM_EPS,
         local,
+        pre_norm: true,
+        feed_forward: ConformerFeedForward::Linear,
     };
     let encoder_config = ConformerEncoderConfig {
         subsampling: SubsamplingConfig {

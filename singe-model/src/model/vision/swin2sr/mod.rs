@@ -232,7 +232,7 @@ impl Block {
             mask.as_ref(),
             state,
         )?;
-        let attended = merge_windows(&attended, window, (batch, height, width))?
+        let attended = merge_windows(&attended, window, batch, (height, width))?
             .roll(&[self.shift, self.shift], &[1, 2])?
             .reshape([batch, height * width, channels])?;
 

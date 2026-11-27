@@ -33,6 +33,12 @@ impl TensorGroup for () {
     }
 }
 
+impl<T: TensorGroup> TensorGroup for Option<T> {
+    fn named_tensors(&self) -> Vec<(String, Tensor)> {
+        self.as_ref().map_or_else(Vec::new, T::named_tensors)
+    }
+}
+
 impl<T: TensorGroup> TensorGroup for Vec<T> {
     fn named_tensors(&self) -> Vec<(String, Tensor)> {
         self.iter()

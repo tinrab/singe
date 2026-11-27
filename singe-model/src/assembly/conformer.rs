@@ -324,6 +324,80 @@ pub struct ConformerConfig {
     pub convolution_biases: bool,
     pub eps: f32,
     pub local: Option<LocalAttention>,
+    /// Whether each part norms its input, as `NeMo`'s blocks do, rather than its residual's sum, as `ESPnet`'s do with `normalize_before` off.
+    pub pre_norm: bool,
+    pub feed_forward: ConformerFeedForward,
+}
+
+/// A Conformer block's feed-forward layers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConformerFeedForward {
+    /// Two linears around the block's activation.
+    Linear,
+    /// Two convolutions of `kernel`, padded to keep the length, around `activation`, as `ESPnet`'s `MultiLayeredConv1d` is.
+    Convolution { kernel: i64, activation: Activation },
+}
+
+/// A feed-forward layer over `[B, T, W]`.
+#[derive(Debug, Clone)]
+enum FeedForward {
+    Linear(Mlp),
+    Convolution {
+        up: Conv1d,
+        down: Conv1d,
+        activation: Activation,
+    },
+}
+
+impl FeedForward {
+    fn create(schema: &mut Schema<'_>, name: &str, config: &ConformerConfig) -> SingeResult<Self> {
+        let [width, inner] = [config.width, config.inner];
+        let bias = config.projection_biases;
+        match config.feed_forward {
+            ConformerFeedForward::Linear => Ok(Self::Linear(schema.mlp(
+                name,
+                [width, inner, width],
+                config.activation,
+                bias,
+            )?)),
+            ConformerFeedForward::Convolution { kernel, activation } => {
+                let padded = Conv1dConfig {
+                    padding: Padding::symmetric((kernel - 1) / 2),
+                    ..Conv1dConfig::default()
+                };
+                Ok(Self::Convolution {
+                    up: schema.conv1d(&format!("{name}.up"), width, inner, kernel, padded, bias)?,
+                    down: schema.conv1d(
+                        &format!("{name}.down"),
+                        inner,
+                        width,
+                        kernel,
+                        padded,
+                        bias,
+                    )?,
+                    activation,
+                })
+            }
+        }
+    }
+}
+
+impl Layer for FeedForward {
+    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        match self {
+            Self::Linear(mlp) => input.apply(mlp, state),
+            Self::Convolution {
+                up,
+                down,
+                activation,
+            } => input
+                .transpose(1, 2)?
+                .apply(up, state)?
+                .apply(activation, state)?
+                .apply(down, state)?
+                .transpose(1, 2),
+        }
+    }
 }
 
 /// A Conformer's convolution module: a pointwise convolution to twice the width, GLU over channels, a depthwise convolution, batch norm, the activation, and a pointwise convolution back.
@@ -402,28 +476,21 @@ impl ConvolutionModule {
 #[derive(Debug, Clone)]
 pub struct ConformerBlock {
     feed_forward_in_norm: LayerNorm,
-    feed_forward_in: Mlp,
+    feed_forward_in: FeedForward,
     attention_norm: LayerNorm,
     attention: RelativeAttention,
     convolution_norm: LayerNorm,
     convolution: ConvolutionModule,
     feed_forward_out_norm: LayerNorm,
-    feed_forward_out: Mlp,
+    feed_forward_out: FeedForward,
     norm: LayerNorm,
+    pre_norm: bool,
 }
 
 impl ConformerBlock {
     pub fn create(schema: &mut Schema<'_>, config: &ConformerConfig) -> SingeResult<Self> {
         let width = config.width;
         let eps = config.eps;
-        let feed_forward = |schema: &mut Schema<'_>, name: &str| {
-            schema.mlp(
-                name,
-                [width, config.inner, width],
-                config.activation,
-                config.projection_biases,
-            )
-        };
         let mut attention = schema.scope("attention").relative_attention(
             width,
             config.heads,
@@ -435,15 +502,39 @@ impl ConformerBlock {
 
         Ok(Self {
             feed_forward_in_norm: schema.layer_norm("feed_forward_in_norm", width, eps)?,
-            feed_forward_in: feed_forward(schema, "feed_forward_in")?,
+            feed_forward_in: FeedForward::create(schema, "feed_forward_in", config)?,
             attention_norm: schema.layer_norm("attention_norm", width, eps)?,
             attention,
             convolution_norm: schema.layer_norm("convolution_norm", width, eps)?,
             convolution: ConvolutionModule::create(&mut schema.scope("convolution"), config)?,
             feed_forward_out_norm: schema.layer_norm("feed_forward_out_norm", width, eps)?,
-            feed_forward_out: feed_forward(schema, "feed_forward_out")?,
+            feed_forward_out: FeedForward::create(schema, "feed_forward_out", config)?,
             norm: schema.layer_norm("norm", width, eps)?,
+            pre_norm: config.pre_norm,
         })
+    }
+
+    /// Returns `hidden` with `branch` of it, scaled by `scale`, added: the branch reads `hidden` normed by `norm` in a pre-norm block, and the sum is normed in a post-norm one.
+    fn part(
+        &self,
+        hidden: &Tensor,
+        norm: &LayerNorm,
+        scale: f64,
+        state: &ModelState,
+        branch: impl FnOnce(&Tensor) -> SingeResult<Tensor>,
+    ) -> SingeResult<Tensor> {
+        let scaled = |branch: Tensor| {
+            if (scale - 1.0).abs() > f64::EPSILON {
+                branch.mul_scalar(scale)
+            } else {
+                Ok(branch)
+            }
+        };
+        if self.pre_norm {
+            hidden.add(&scaled(branch(&hidden.apply(norm, state)?)?)?)
+        } else {
+            hidden.add(&scaled(branch(hidden)?)?)?.apply(norm, state)
+        }
     }
 
     /// Returns the largest distance its attention reads over `steps` rows.
@@ -459,31 +550,25 @@ impl ConformerBlock {
         lengths: Option<&Tensor>,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        let half = |branch: Tensor| branch.mul_scalar(0.5);
-        let hidden = hidden.add(&half(
-            hidden
-                .apply(&self.feed_forward_in_norm, state)?
-                .apply(&self.feed_forward_in, state)?,
-        )?)?;
-        let normed = hidden.apply(&self.attention_norm, state)?;
-        let hidden = hidden.add(&self.attention.forward(
-            &RelativeAttentionInput {
-                hidden: &normed,
-                positions,
-                key_lengths: lengths,
-            },
-            state,
-        )?)?;
-        let hidden = hidden.add(&self.convolution.convolve(
-            &hidden.apply(&self.convolution_norm, state)?,
-            lengths,
-            state,
-        )?)?;
-        let hidden = hidden.add(&half(
-            hidden
-                .apply(&self.feed_forward_out_norm, state)?
-                .apply(&self.feed_forward_out, state)?,
-        )?)?;
+        let hidden = self.part(hidden, &self.feed_forward_in_norm, 0.5, state, |input| {
+            input.apply(&self.feed_forward_in, state)
+        })?;
+        let hidden = self.part(&hidden, &self.attention_norm, 1.0, state, |input| {
+            self.attention.forward(
+                &RelativeAttentionInput {
+                    hidden: input,
+                    positions,
+                    key_lengths: lengths,
+                },
+                state,
+            )
+        })?;
+        let hidden = self.part(&hidden, &self.convolution_norm, 1.0, state, |input| {
+            self.convolution.convolve(input, lengths, state)
+        })?;
+        let hidden = self.part(&hidden, &self.feed_forward_out_norm, 0.5, state, |input| {
+            input.apply(&self.feed_forward_out, state)
+        })?;
         hidden.apply(&self.norm, state)
     }
 }

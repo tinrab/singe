@@ -90,6 +90,14 @@ pub struct SpeechRequest {
     pub noise_scale: Option<f32>,
     /// How much noise varies the durations of the spoken sounds, or the model's own amount when unset.
     pub noise_scale_duration: Option<f32>,
+    /// A music generator's decoder steps or a speech generator's frames, or its generation config's when unset.
+    pub max_new_tokens: Option<usize>,
+    /// Whether a generator of codec codes samples them, or its generation config's choice when unset.
+    pub do_sample: Option<bool>,
+    /// The temperature a generator samples at, or its generation config's when unset.
+    pub temperature: Option<f32>,
+    /// The likeliest codes a generator samples among, or its generation config's count when unset.
+    pub top_k: Option<usize>,
     /// Fields the server does not read, which it logs and ignores.
     #[serde(flatten)]
     pub unknown: Map<String, Value>,

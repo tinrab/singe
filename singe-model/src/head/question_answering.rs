@@ -9,13 +9,12 @@ use singe::{
 };
 
 use crate::{
-    assembly::PostNormEncoder,
     error::Result,
     function::{
         TensorFunction,
         forward::{External, ExternalHead, Forward},
     },
-    head::{EncoderHead, HeadLayouts, TokenScoreLayers},
+    head::{EncoderBody, EncoderHead, HeadLayouts, TokenScoreLayers},
     schema::Schema,
     source::Source,
 };
@@ -65,7 +64,7 @@ impl EncoderHead for QuestionAnswerer {
 
     fn layers(
         schema: &mut Schema<'_>,
-        encoder: PostNormEncoder,
+        encoder: EncoderBody,
         (): &(),
         _layouts: &HeadLayouts,
     ) -> SingeResult<TokenScoreLayers> {

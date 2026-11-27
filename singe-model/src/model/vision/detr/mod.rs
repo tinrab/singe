@@ -1,23 +1,22 @@
 //! DETR: a `ResNet`'s last map, projected and flattened, through a post-norm transformer encoder with sine positions of each point, then a decoder of learned object queries, each read by a class head and a box head of three linear layers.
 
-mod resnet;
-mod transformers;
-
-use std::f32::consts::PI;
+pub(crate) mod transformers;
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    graph::{ComputePrecision, DimensionExpr, capture, with_convolution_precision},
+    Error as SingeError, Result as SingeResult, Tensor,
+    graph::{ComputePrecision, with_convolution_precision},
     nn::{Activation, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, Mlp, ModelState, StateKey},
 };
 
-pub use self::resnet::{ResNet, ResNetConfig};
 use crate::{
-    assembly::{Attention, AttentionSpec, LinearStack, PYTORCH_NORM_EPS, to_tokens},
+    assembly::{
+        Attention, AttentionSpec, LinearStack, PYTORCH_NORM_EPS, ResNet, ResNetConfig,
+        SinePositions, sine_positions, to_tokens,
+    },
     error::Result,
     format::Loader,
-    head::{Boxed, ClassifierConfig, HeadLoader, ObjectDetector},
+    head::{Boxed, ClassifierConfig, DetectionScoring, HeadLoader, ObjectDetector},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -106,43 +105,6 @@ impl DecoderBlock {
     }
 }
 
-/// Returns the sine positions of each point of `map`, `[B, C, H, W]`, as `[1, H · W, features]`, as `DetrSinePositionEmbedding` with normalization computes them.
-///
-/// Half the features encode the point's row and half its column, each from its coordinate counted from one and scaled to (0, 2π), over 10000 to the power of each feature pair's share.
-/// They are computed from the map's height and width, so a program with run-time axes follows each image's.
-fn sine_positions(map: &Tensor, features: i64) -> SingeResult<Tensor> {
-    const SIDE_OFFSET: f32 = 1e-6;
-    let device = map.device();
-    let half = features / 2;
-    // Each sine and the cosine after it share a period, `10000^(2k / half)` for pair `k`.
-    let periods = capture::literal(device, |device| {
-        let values = (0..half / 2)
-            .map(|pair| 10_000_f32.powf((2 * pair) as f32 / half as f32))
-            .collect();
-        Tensor::from_vec(device, Shape::create([1, half / 2])?, values)
-    })?;
-    // `[extent, half]`: each coordinate along an axis, its sine and cosine at each period in turn.
-    let encode = |extent: DimensionExpr| -> SingeResult<Tensor> {
-        let coordinates = Tensor::range(device, 1_i64, extent.clone() + 1)?.cast(DataType::F32)?;
-        let normalizer = Tensor::from_dimensions(device, &[extent])?
-            .cast(DataType::F32)?
-            .add_scalar(f64::from(SIDE_OFFSET))?;
-        let angles = coordinates
-            .div(&normalizer)?
-            .mul_scalar(f64::from(2.0 * PI))?
-            .unsqueeze(1)?
-            .div(&periods)?;
-        Tensor::stack(&[angles.sin()?, angles.cos()?], -1)?.flatten(1, 2)
-    };
-    let (height, width) = (map.dimension(2)?, map.dimension(3)?);
-    let grid = [height.clone(), width.clone(), half.into()];
-    let rows = encode(height)?.unsqueeze(1)?.expand_with(&grid)?;
-    let columns = encode(width)?.unsqueeze(0)?.expand_with(&grid)?;
-    Tensor::concat(&[rows, columns], 2)?
-        .flatten(0, 1)?
-        .unsqueeze(0)
-}
-
 /// DETR and its heads: from images to each query's label scores and box, `[B, Q, labels + 1 + 4]`.
 #[derive(Debug, Clone)]
 pub struct DetrLayers {
@@ -160,7 +122,7 @@ impl DetrLayers {
     pub fn create(schema: &mut Schema<'_>, config: &DetrConfig) -> SingeResult<Self> {
         let width = config.width;
         let backbone = ResNet::create(&mut schema.scope("backbone"), &config.backbone)?;
-        let channels = config.backbone.stem * 32;
+        let channels = config.backbone.channels(config.backbone.depths.len() - 1);
         let projection = schema.conv2d(
             "projection",
             channels,
@@ -210,7 +172,7 @@ impl Layer for DetrLayers {
         let &[_, width, _, _] = map.shape().dimensions() else {
             return Err(SingeError::invalid_argument("DETR feature map"));
         };
-        let positions = sine_positions(&map, width)?.cast(map.data_type())?;
+        let positions = sine_positions(&map, width, SinePositions::DETR)?.cast(map.data_type())?;
         let mut memory = to_tokens(&map)?;
         for block in &self.encoder {
             let keyed = memory.add(&positions)?;
@@ -275,5 +237,9 @@ pub fn load_detector(loader: &mut Loader<'_>) -> Result<ObjectDetector> {
         DetrLayers::create(schema, &config).map(|layers| Boxed::<dyn Layer>(Box::new(layers)))
     })?;
     let model = loader.load_whole(&model, &transformers::rules())?;
-    Ok(ObjectDetector::new(model, config.classifier))
+    Ok(ObjectDetector::new(
+        model,
+        config.classifier,
+        DetectionScoring::NoObject,
+    ))
 }

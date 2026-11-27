@@ -180,9 +180,7 @@ fn attend_local(input: &LocalInput<'_>, window: i64, scale: f64) -> Result<Tenso
     let value = rows(input.value, window, padded - steps + window)?;
     let lengths = match input.lengths {
         Some(lengths) => lengths.cast(DataType::I64)?,
-        None => capture::literal(device, |device| {
-            Tensor::from_vec(device, Shape::create([1])?, vec![steps])
-        })?,
+        None => capture::scalar(device, steps)?,
     }
     .reshape([-1, 1, 1, 1])?;
     // Finite, unlike `padding_mask`'s, so that a query with no key in reach, which only a row past its sequence's length can be, gets finite weights rather than NaN that its keys would carry into the next layer; half of `F16`'s lowest for `F16`.

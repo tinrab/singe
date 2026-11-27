@@ -9,14 +9,13 @@ use singe::{
 };
 
 use crate::{
-    assembly::PostNormEncoder,
     error::Result,
     format::transformers::classifier_config,
     function::{
         TensorFunction,
         forward::{External, ExternalHead, Forward},
     },
-    head::{ClassifierConfig, EncoderHead, HeadLayouts},
+    head::{ClassifierConfig, EncoderBody, EncoderHead, HeadLayouts},
     host,
     schema::Schema,
     source::Source,
@@ -25,7 +24,7 @@ use crate::{
 /// A text encoder and a linear layer that scores each token's last hidden state, as token classifiers and question answerers have.
 #[derive(Debug)]
 pub struct TokenScoreLayers {
-    encoder: PostNormEncoder,
+    encoder: Box<dyn Layer<TokenBatch>>,
     output: Linear,
 }
 
@@ -34,13 +33,16 @@ impl TokenScoreLayers {
     pub fn create(
         schema: &mut Schema<'_>,
         name: &str,
-        encoder: PostNormEncoder,
+        encoder: EncoderBody,
         scores: i64,
     ) -> SingeResult<Self> {
         let output = schema
             .scope(name)
-            .linear("output", encoder.config().width, scores, true)?;
-        Ok(Self { encoder, output })
+            .linear("output", encoder.sizes.width, scores, true)?;
+        Ok(Self {
+            encoder: encoder.layers,
+            output,
+        })
     }
 }
 
@@ -104,7 +106,7 @@ impl EncoderHead for TokenClassifier {
 
     fn layers(
         schema: &mut Schema<'_>,
-        encoder: PostNormEncoder,
+        encoder: EncoderBody,
         config: &ClassifierConfig,
         _layouts: &HeadLayouts,
     ) -> SingeResult<TokenScoreLayers> {

@@ -167,7 +167,9 @@ impl Exporter<'_> {
                 | Op::PowScalar,
                 Attr::Scalar(value),
             ) => self.scalar_arithmetic(op, value)?,
-            (Op::Contiguous, Attr::None) => self.node("Identity", op.inputs, op.output, vec![]),
+            (Op::Contiguous | Op::Copy, Attr::None) => {
+                self.node("Identity", op.inputs, op.output, vec![]);
+            }
             (Op::CopyTo, _) => {
                 return Err(unsupported(
                     "explicit device-copy semantics are not part of ONNX",

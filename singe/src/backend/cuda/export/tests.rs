@@ -144,9 +144,7 @@ fn test_programs_write_a_written_input_where_it_is() {
                     end: Some(1),
                     step: 1,
                 }],
-                &capture::literal(device, |device| {
-                    Tensor::from_vec(device, Shape::create([1])?, vec![7.0_f32])
-                })?,
+                &capture::scalar(device, 7.0_f32)?,
             )?;
             Ok(vec![inputs[0].add_scalar(1.0)?])
         },

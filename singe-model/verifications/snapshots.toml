@@ -6,17 +6,27 @@
 ANIMATEDIFF = { pipeline = "AnimateDiffPipeline", base = "SD15", components = { motion_adapter = "ANIMATEDIFF_MOTION_ADAPTER" } }
 ANIMATEDIFF_MOTION_ADAPTER = "guoyww/animatediff-motion-adapter-v1-5-2"
 AST = "MIT/ast-finetuned-audioset-10-10-0.4593"
+AUTOFORMER = { repository = "huggingface/autoformer-tourism-monthly", revision = "refs/pr/7" }
 BERT_BASE = "google-bert/bert-base-uncased"
 BERT_NER = "dslim/bert-base-NER"
 BERT_TINY_SPAM = "mrm8488/bert-tiny-finetuned-sms-spam-detection"
+BIGBIRD = { repository = "google/bigbird-roberta-base", revision = "refs/pr/2" }
+BITNET = "microsoft/bitnet-b1.58-2B-4T"
 CLAP = { repository = "laion/clap-htsat-unfused", revision = "refs/pr/3" }
 CLIP = "openai/clip-vit-large-patch14"
 COLMODERNVBERT = "ModernVBERT/colmodernvbert-merged"
+CONVNEXT = { repository = "facebook/convnext-tiny-224", revision = "refs/pr/4" }
+CONVNEXT_V2 = "facebook/convnextv2-tiny-1k-224"
+# `sesame/csm-1b` is gated; this mirror holds the same weights.
+CSM = "unsloth/csm-1b"
 DAC = "descript/dac_16khz"
 DDPM = "google/ddpm-cifar10-32"
+DEBERTA_NLI = "cross-encoder/nli-deberta-v3-base"
 DECISION_TRANSFORMER = { repository = "edbeeching/decision-transformer-gym-hopper-medium", revision = "refs/pr/1" }
+DEEPLABV3 = { repository = "google/deeplabv3_mobilenet_v2_1.0_513", revision = "refs/pr/1" }
 DEEPSEEK_V3_TINY = "yujiepan/deepseek-v3-tiny-random"
 DEPTH_ANYTHING = "depth-anything/Depth-Anything-V2-Small-hf"
+DEFORMABLE_DETR = "SenseTime/deformable-detr"
 DETR = "facebook/detr-resnet-50"
 DINOV2 = "facebook/dinov2-small"
 DISTILBERT_BASE = "distilbert/distilbert-base-uncased"
@@ -27,8 +37,19 @@ DISTILBERT_SQUAD = "distilbert/distilbert-base-cased-distilled-squad"
 DISTILBERT_SST2 = "distilbert/distilbert-base-uncased-finetuned-sst-2-english"
 DISTILROBERTA = "distilbert/distilroberta-base"
 DONUT = { repository = "naver-clova-ix/donut-base-finetuned-docvqa", revision = "refs/pr/23" }
+EFFICIENTLOFTR = "zju-community/efficientloftr"
+EFFICIENTNET = { repository = "google/efficientnet-b0", revision = "refs/pr/1" }
+ENCODEC = "facebook/encodec_24khz"
+ESM2 = "facebook/esm2_t6_8M_UR50D"
+FALCON_H1 = "tiiuae/Falcon-H1-0.5B-Instruct"
+FALCON_H1_TINY = "tiiuae/Falcon-H1-Tiny-90M-Instruct"
+FASTSPEECH2 = { repository = "espnet/fastspeech2_conformer_with_hifigan", revision = "refs/pr/1" }
+FLORENCE2 = "florence-community/Florence-2-base"
 GEMMA2_TINY = "hf-internal-testing/tiny-random-Gemma2ForCausalLM"
 GPT2 = "openai-community/gpt2"
+GRANITE4_H = "ibm-granite/granite-4.0-h-350m"
+GROUNDING_DINO = "IDEA-Research/grounding-dino-tiny"
+INFORMER = { repository = "huggingface/informer-tourism-monthly", revision = "refs/pr/1" }
 INSTRUCT_PIX2PIX = { repository = "timbrooks/instruct-pix2pix", files = [
     "model_index.json",
     "scheduler/*",
@@ -40,28 +61,46 @@ INSTRUCT_PIX2PIX = { repository = "timbrooks/instruct-pix2pix", files = [
     "vae/config.json",
     "vae/diffusion_pytorch_model.safetensors",
 ] }
+JANUS_PRO = "deepseek-community/Janus-Pro-1B"
 LIGHTGLUE = "ETH-CVG/lightglue_superpoint"
+LONGFORMER = { repository = "allenai/longformer-base-4096", revision = "refs/pr/7" }
+LONGT5 = "pszemraj/long-t5-tglobal-base-16384-book-summary"
+MAMBA = "state-spaces/mamba-130m-hf"
+MASK2FORMER = "facebook/mask2former-swin-tiny-coco-instance"
+MIMI = "kyutai/mimi"
 MINILM = "sentence-transformers/all-MiniLM-L6-v2"
 # MiniLM pooling by the mean over the square root of the length, which no published model with safetensors does, without normalizing, which would hide the pooling's scale.
 MINILM_SQRT_POOLING = { base = "MINILM", replace = { "1_Pooling/config.json" = "text/bert/mean-sqrt-pooling.json", "modules.json" = "text/bert/mean-sqrt-modules.json" } }
 MITRA_CLASSIFIER = "autogluon/mitra-classifier"
 MITRA_REGRESSOR = "autogluon/mitra-regressor"
 MMS_TTS = "facebook/mms-tts-eng"
+MOBILENET_V2 = "google/mobilenet_v2_1.0_224"
 MSMARCO_MINILM = "cross-encoder/ms-marco-MiniLM-L6-v2"
+MUSICGEN = "facebook/musicgen-small"
 OWLVIT = "google/owlvit-base-patch32"
 PARAKEET_CTC = "nvidia/parakeet-ctc-0.6b"
 PARAKEET_RNNT = "nvidia/parakeet-rnnt-0.6b"
 PARAKEET_TDT = "nvidia/parakeet-tdt-0.6b-v3"
 # Parakeet TDT with NeMo's `att_context_size` of 1,000 rows each side, which Singe reads and `transformers` does not, so Singe attends locally with a window wider than a 38.5 s clip's 482 rows and `transformers` attends to every row.
 PARAKEET_TDT_LOCAL = { base = "PARAKEET_TDT", replace = { "config.json" = "audio/parakeet/local-config.json" } }
+PATCHTST = "ibm-granite/granite-timeseries-patchtst"
+PATCHTST_FLATTEN = "lvizcaya/patchtst-exchange-rate"
+PATCHTST_LAYER_NORM = "SamuelM0422/PatchTST-Hourly-Electricity-Demand-Brazil"
+PATCHTST_MEAN = "stevevaius/patchtst-monthly-seasonal"
 PIA = { pipeline = "PIAPipeline", base = "SD15", components = { motion_adapter = "PIA_ADAPTER" } }
 PIA_ADAPTER = "openmmlab/PIA-condition-adapter"
 QWEN3 = "Qwen/Qwen3-0.6B"
 QWEN35 = "Qwen/Qwen3.5-0.8B"
 QWEN3_ASR = "Qwen/Qwen3-ASR-0.6B-hf"
 QWEN3_EMBEDDING = "Qwen/Qwen3-Embedding-0.6B"
+RECURRENTGEMMA = "google/recurrentgemma-2b"
 ROBERTA_NLI = "cross-encoder/nli-MiniLM2-L6-H768"
+RT_DETR = "PekingU/rtdetr_r50vd"
+RT_DETR_V2 = "PekingU/rtdetr_v2_r50vd"
 SAM = "facebook/sam-vit-base"
+SAM2 = "facebook/sam2.1-hiera-tiny"
+# Random weights in `facebook/sam3`'s layout; the real checkpoint is gated.
+SAM3_TINY = "tiny-random/sam3"
 SD15 = { repository = "stable-diffusion-v1-5/stable-diffusion-v1-5", files = [
     "model_index.json",
     "scheduler/*",
@@ -95,18 +134,28 @@ SHAP_E_IMG2IMG = { repository = "openai/shap-e-img2img", revision = "refs/pr/8",
     "*.txt",
     "*.fp16.safetensors",
 ] }
+SIGLIP = "google/siglip2-base-patch16-224"
+SIGLIP2 = "google/siglip2-base-patch16-naflex"
 SMOLLM2 = "HuggingFaceTB/SmolLM2-135M"
 SMOLVLM2 = "HuggingFaceTB/SmolVLM2-256M-Video-Instruct"
+SUPERGLUE = "magic-leap-community/superglue_outdoor"
 SUPERPOINT = "magic-leap-community/superpoint"
 SWIN2SR = "caidas/swin2SR-classical-sr-x2-64"
+SWITCH = { repository = "google/switch-base-8", revision = "refs/pr/5" }
 T5 = "google-t5/t5-small"
 TAESD = "madebyollin/taesd"
 TAPEX = "microsoft/tapex-base-finetuned-wtq"
 TIMESFM = "google/timesfm-2.5-200m-transformers"
+TIMESFORMER = { repository = "facebook/timesformer-base-finetuned-k400", revision = "refs/pr/5" }
+TIME_SERIES_TRANSFORMER = "huggingface/time-series-transformer-tourism-monthly"
 TOXIC_BERT = "unitary/toxic-bert"
 TROCR = "microsoft/trocr-small-printed"
+UNIVNET = { repository = "dg845/univnet-dev", revision = "refs/pr/1" }
+UPERNET = { repository = "openmmlab/upernet-convnext-small", revision = "refs/pr/1" }
 VIDEOMAE = "MCG-NJU/videomae-base-finetuned-kinetics"
 VIT = "google/vit-base-patch16-224"
+VJEPA2 = "facebook/vjepa2-vitl-fpc16-256-ssv2"
+VJEPA2_BASE = "facebook/vjepa2-vitl-fpc64-256"
 WAV2VEC2 = "facebook/wav2vec2-base-960h"
 WHISPER = "openai/whisper-tiny"
 XLM_ROBERTA = "FacebookAI/xlm-roberta-base"

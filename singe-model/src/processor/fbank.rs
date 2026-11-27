@@ -253,3 +253,69 @@ pub fn clap_features(samples: &[f32], options: &SpectrogramOptions) -> Vec<f32> 
     }
     features
 }
+
+/// The spectrogram a GAN vocoder reads, as `UnivNet`'s feature extractor computes it: frames of `fft` every `hop` after reflecting `(fft − hop) / 2` samples at each end, amplitudes with `floor` added under the root, `mels` Slaney filters between `low` and `high` Hz, and the log of the filtered amplitudes clamped to `clip`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct AmplitudeMelOptions {
+    pub sample_rate: i64,
+    pub fft: usize,
+    pub hop: usize,
+    pub mels: usize,
+    pub low: f64,
+    pub high: f64,
+    pub floor: f64,
+    pub clip: f64,
+}
+
+/// Returns the features `UnivNet` reads from one clip, `frames × mels` row by row, and their frames.
+#[must_use]
+pub fn amplitude_log_mels(samples: &[f32], options: &AmplitudeMelOptions) -> (Vec<f32>, usize) {
+    let AmplitudeMelOptions {
+        sample_rate,
+        fft,
+        hop,
+        mels,
+        low,
+        high,
+        floor,
+        clip,
+    } = *options;
+    let side = (fft - hop) / 2;
+    let length = samples.len();
+    if length <= side {
+        return (Vec::new(), 0);
+    }
+
+    let mut padded = Vec::with_capacity(length + 2 * side);
+    padded.extend((1..=side).rev().map(|index| f64::from(samples[index])));
+    padded.extend(samples.iter().map(|&sample| f64::from(sample)));
+    padded.extend((1..=side).map(|index| f64::from(samples[length - 1 - index])));
+    if padded.len() < fft {
+        return (Vec::new(), 0);
+    }
+
+    let window = hann(fft, fft);
+    let filters = slaney_mel_filters(sample_rate, fft / 2 + 1, mels, low, high);
+    let frames = 1 + (padded.len() - fft) / hop;
+    let mut features = Vec::with_capacity(frames * mels);
+    for frame in 0..frames {
+        let buffer = (0..fft)
+            .map(|index| padded[frame * hop + index] * window[index])
+            .collect::<Vec<_>>();
+        // The spectrum stored in `complex64`, and the amplitudes computed from its `float32` parts.
+        let amplitudes = rfft(&buffer)
+            .into_iter()
+            .map(|(re, im)| {
+                let (re, im) = (re as f32, im as f32);
+                f64::from((re * re + im * im + floor as f32).sqrt())
+            })
+            .collect::<Vec<_>>();
+        for filter in 0..mels {
+            let energy = (0..amplitudes.len())
+                .map(|bin| filters[bin * mels + filter] * amplitudes[bin])
+                .sum::<f64>();
+            features.push(energy.max(clip).ln() as f32);
+        }
+    }
+    (features, frames)
+}

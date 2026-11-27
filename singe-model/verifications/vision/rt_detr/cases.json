@@ -1,0 +1,150 @@
+{
+  "cases": [
+    {
+      "name": "detection",
+      "snapshot": "RT_DETR",
+      "task": "object-detection",
+      "data_type": "f32",
+      "inputs": ["media/coco-cats.png", "media/cat-448x320.png"],
+      "expected": [
+        [
+          {
+            "score": 0.970302,
+            "label": "sofa",
+            "box": {
+              "xmin": 0,
+              "ymin": 0,
+              "xmax": 640,
+              "ymax": 476
+            }
+          },
+          {
+            "score": 0.95995,
+            "label": "cat",
+            "box": {
+              "xmin": 343,
+              "ymin": 24,
+              "xmax": 640,
+              "ymax": 371
+            }
+          },
+          {
+            "score": 0.957568,
+            "label": "cat",
+            "box": {
+              "xmin": 13,
+              "ymin": 54,
+              "xmax": 318,
+              "ymax": 472
+            }
+          },
+          {
+            "score": 0.950678,
+            "label": "remote",
+            "box": {
+              "xmin": 40,
+              "ymin": 73,
+              "xmax": 175,
+              "ymax": 118
+            }
+          },
+          {
+            "score": 0.923771,
+            "label": "remote",
+            "box": {
+              "xmin": 333,
+              "ymin": 76,
+              "xmax": 369,
+              "ymax": 186
+            }
+          }
+        ],
+        [
+          {
+            "score": 0.955019,
+            "label": "cat",
+            "box": {
+              "xmin": 82,
+              "ymin": 72,
+              "xmax": 410,
+              "ymax": 279
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "name": "detection_v2",
+      "snapshot": "RT_DETR_V2",
+      "task": "object-detection",
+      "data_type": "f32",
+      "inputs": ["media/coco-cats.png", "media/cat-448x320.png"],
+      "expected": [
+        [
+          {
+            "score": 0.955981,
+            "label": "cat",
+            "box": {
+              "xmin": 13,
+              "ymin": 54,
+              "xmax": 317,
+              "ymax": 472
+            }
+          },
+          {
+            "score": 0.949755,
+            "label": "cat",
+            "box": {
+              "xmin": 343,
+              "ymin": 23,
+              "xmax": 640,
+              "ymax": 373
+            }
+          },
+          {
+            "score": 0.941835,
+            "label": "sofa",
+            "box": {
+              "xmin": 0,
+              "ymin": 1,
+              "xmax": 640,
+              "ymax": 474
+            }
+          },
+          {
+            "score": 0.93075,
+            "label": "remote",
+            "box": {
+              "xmin": 40,
+              "ymin": 73,
+              "xmax": 175,
+              "ymax": 118
+            }
+          },
+          {
+            "score": 0.891896,
+            "label": "remote",
+            "box": {
+              "xmin": 333,
+              "ymin": 76,
+              "xmax": 370,
+              "ymax": 188
+            }
+          }
+        ],
+        [
+          {
+            "score": 0.948732,
+            "label": "cat",
+            "box": {
+              "xmin": 82,
+              "ymin": 71,
+              "xmax": 410,
+              "ymax": 278
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

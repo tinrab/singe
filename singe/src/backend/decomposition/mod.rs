@@ -1,6 +1,8 @@
 mod convolution;
 mod fourier;
 
+use std::slice;
+
 use crate::{
     backend::{
         registry::{
@@ -31,6 +33,7 @@ pub fn has_decomposition(operation: Operation) -> bool {
             | Operation::Pad
             | Operation::RotaryEmbedding
             | Operation::RotaryHalves
+            | Operation::DeformableAttention
             | Operation::ResampleLinear
             | Operation::Resize
             | Operation::ScaledDotProductAttention
@@ -130,6 +133,14 @@ pub fn decompose(
                 return Err(Error::missing_input("decompose"));
             };
             Ok(vec![rotary_halves(input, cos, sin)?])
+        }
+        Operation::DeformableAttention => {
+            let [_, shapes, starts, locations, weights] = inputs else {
+                return Err(Error::missing_input("decompose"));
+            };
+            Ok(vec![deformable_attention(
+                input, shapes, starts, locations, weights,
+            )?])
         }
         Operation::ResampleLinear => {
             let [_, low, high, weight] = inputs else {
@@ -361,6 +372,111 @@ fn resample_linear(
         input.index_select(dim, high)?,
     );
     low.add(&high.sub(&low)?.mul(&weight)?)
+}
+
+fn deformable_attention(
+    value: &Tensor,
+    shapes: &Tensor,
+    starts: &Tensor,
+    locations: &Tensor,
+    weights: &Tensor,
+) -> Result<Tensor> {
+    let data_type = value.data_type();
+    let &[_, _, _, levels, points, _] = locations.shape().dimensions() else {
+        return Err(Error::invalid_argument("deformable attention locations"));
+    };
+    let [batch, queries, heads, channels] = [
+        value.dimension(0)?,
+        locations.dimension(1)?,
+        value.dimension(2)?,
+        value.dimension(3)?,
+    ];
+    let per_level = |tensor: Tensor| tensor.cast(DataType::F32)?.reshape([1, 1, 1, levels, 1]);
+    let (height, width) = (
+        per_level(shapes.select(1, 0)?)?,
+        per_level(shapes.select(1, 1)?)?,
+    );
+    let first = per_level(starts.clone())?;
+    // `F32` coordinates hold every row index exactly.
+    let locations = locations.cast(DataType::F32)?;
+    let x = locations.select(-1, 0)?.mul(&width)?.add_scalar(-0.5)?;
+    let y = locations.select(-1, 1)?.mul(&height)?.add_scalar(-0.5)?;
+    let (left, top) = (x.floor()?, y.floor()?);
+    let (dx, dy) = (x.sub(&left)?, y.sub(&top)?);
+    let weights = weights.cast(DataType::F32)?;
+    let device = value.device();
+    let zero = capture::literal(device, |device| {
+        Scalar::Float(0.0).full(device, DataType::F32, &Shape::create([1])?)
+    })?;
+    // Each sample's row of the value flattened to `[B · S · heads, C]` is `(b · S + place) · heads + h`.
+    let sequence = Tensor::from_dimensions(device, &[value.dimension(1)?])?;
+    let head_count = Tensor::from_dimensions(device, slice::from_ref(&heads))?;
+    let images = Tensor::range(device, 0_i64, batch.clone())?.reshape_with(&[
+        batch.clone(),
+        1.into(),
+        1.into(),
+        1.into(),
+        1.into(),
+    ])?;
+    let head_rows = Tensor::range(device, 0_i64, heads.clone())?.reshape_with(&[
+        1.into(),
+        1.into(),
+        heads.clone(),
+        1.into(),
+        1.into(),
+    ])?;
+    let rows = value.flatten(0, 2)?;
+    let samples = [
+        batch.clone(),
+        queries.clone(),
+        heads.clone(),
+        (levels * points).into(),
+    ];
+    let mut sum: Option<Tensor> = None;
+    for (down, right) in [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)] {
+        let (row, column) = (top.add_scalar(down)?, left.add_scalar(right)?);
+        let inside = row
+            .greater_equal(&zero)?
+            .logical_and(&column.greater_equal(&zero)?)?
+            .logical_and(&row.less(&height)?)?
+            .logical_and(&column.less(&width)?)?;
+        let vertical = if down == 0.0 {
+            dy.rsub_scalar(1.0)?
+        } else {
+            dy.clone()
+        };
+        let horizontal = if right == 0.0 {
+            dx.rsub_scalar(1.0)?
+        } else {
+            dx.clone()
+        };
+        let share = vertical
+            .mul(&horizontal)?
+            .mul(&weights)?
+            .mul(&inside.cast(DataType::F32)?)?
+            .reshape_with(&[samples.as_slice(), &[1.into()]].concat())?;
+        let place = first.add(&row.mul(&width)?)?.add(&column)?;
+        let place = Tensor::where_select(&inside, &place, &zero)?.cast(DataType::I64)?;
+        let index = images
+            .mul(&sequence)?
+            .add(&place)?
+            .mul(&head_count)?
+            .add(&head_rows)?;
+        let sampled = rows
+            .index_select(0, &index.flatten(0, 4)?)?
+            .reshape_with(&[samples.as_slice(), slice::from_ref(&channels)].concat())?
+            .cast(DataType::F32)?
+            .mul(&share)?
+            // Summing each corner's samples at once keeps one corner's gather alive at a time.
+            .sum(&[3], false)?;
+        sum = Some(match sum {
+            Some(sum) => sum.add(&sampled)?,
+            None => sampled,
+        });
+    }
+    sum.ok_or_else(|| Error::missing_output("deformable attention"))?
+        .reshape_with(&[batch, queries, heads * channels])?
+        .cast(data_type)
 }
 
 // Compiled graphs recognize this form, with the head's RMS norm before it and the cache write after it, as one kernel.

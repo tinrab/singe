@@ -1,7 +1,7 @@
 // CPU kernels of the operations that carry a state per sequence, computed in `F64` as the definitions read.
 
 use crate::{
-    backend::registry::Operation,
+    backend::{cpu::utility::f64_values, registry::Operation},
     data_type::DataType,
     device::Device,
     error::{Error, Result},
@@ -44,15 +44,11 @@ impl Spans {
     }
 }
 
-fn values(tensor: &Tensor) -> Result<Vec<f64>> {
-    tensor.cast(DataType::F64)?.contiguous()?.to_vec::<f64>()
-}
-
 fn tensor_like(values: Vec<f64>, like: &Tensor, data_type: DataType) -> Result<Tensor> {
     Tensor::from_vec(Device::Cpu, like.shape().clone(), values)?.cast(data_type)
 }
 
-// Runs `operation`, one of the causal convolution and its state and the gated delta rule and its results, on `inputs`, returning its results.
+// Runs `operation`, the causal convolution, the gated delta rule, the selective scan, or one of their results, on `inputs`, returning its results.
 pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Vec<Tensor>> {
     match (operation, inputs) {
         (Operation::CausalConv1d, [input, weight, state, offsets, real, positions]) => {
@@ -88,6 +84,42 @@ pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Vec<T
                 _ => vec![output, state],
             })
         }
+        (
+            Operation::SelectiveScan
+            | Operation::SelectiveScanOutput
+            | Operation::SelectiveScanState,
+            [
+                input,
+                decay,
+                strength,
+                a,
+                input_projection,
+                output_projection,
+                state,
+                offsets,
+                real,
+                positions,
+            ],
+        ) => {
+            let spans = Spans::read(offsets, real, positions)?;
+            let (output, state) = selective_scan(
+                [
+                    input,
+                    decay,
+                    strength,
+                    a,
+                    input_projection,
+                    output_projection,
+                    state,
+                ],
+                &spans,
+            )?;
+            Ok(match operation {
+                Operation::SelectiveScanOutput => vec![output],
+                Operation::SelectiveScanState => vec![state],
+                _ => vec![output, state],
+            })
+        }
         _ => Err(Error::missing_input("cpu state recurrence operands")),
     }
 }
@@ -105,8 +137,8 @@ fn causal_conv1d(
     let to_usize =
         |value: i64| usize::try_from(value).map_err(|_| Error::out_of_range("causal convolution"));
     let (channels, history) = (to_usize(channels)?, to_usize(history)?);
-    let (rows, mut kept) = (values(input)?, values(state)?);
-    let taps = weight.map(values).transpose()?;
+    let (rows, mut kept) = (f64_values(input)?, f64_values(state)?);
+    let taps = weight.map(f64_values).transpose()?;
     let mut output = vec![0.0; rows.len()];
     for sequence in 0..spans.sequences() {
         let (start, count, fresh) = spans.of(sequence)?;
@@ -151,8 +183,12 @@ fn gated_delta_rule(operands: [&Tensor; 6], spans: &Spans) -> Result<(Tensor, Te
     let to_usize =
         |value: i64| usize::try_from(value).map_err(|_| Error::out_of_range("gated delta rule"));
     let (heads, key_dim, value_dim) = (to_usize(heads)?, to_usize(key_dim)?, to_usize(value_dim)?);
-    let (queries, keys, values_in) = (values(query)?, values(key)?, values(value)?);
-    let (decays, strengths, mut states) = (values(decay)?, values(strength)?, values(state)?);
+    let (queries, keys, values_in) = (f64_values(query)?, f64_values(key)?, f64_values(value)?);
+    let (decays, strengths, mut states) = (
+        f64_values(decay)?,
+        f64_values(strength)?,
+        f64_values(state)?,
+    );
     let mut output = vec![0.0; values_in.len()];
     for sequence in 0..spans.sequences() {
         let (start, count, fresh) = spans.of(sequence)?;
@@ -197,6 +233,87 @@ fn gated_delta_rule(operands: [&Tensor; 6], spans: &Spans) -> Result<(Tensor, Te
 
     Ok((
         tensor_like(output, value, value.data_type())?,
+        tensor_like(states, state, DataType::F32)?,
+    ))
+}
+
+fn selective_scan(operands: [&Tensor; 7], spans: &Spans) -> Result<(Tensor, Tensor)> {
+    let [
+        input,
+        decay,
+        strength,
+        a,
+        input_projection,
+        output_projection,
+        state,
+    ] = operands;
+    let (&[_, heads, channels, size], &[_, groups, _]) = (
+        state.shape().dimensions(),
+        input_projection.shape().dimensions(),
+    ) else {
+        return Err(Error::invalid_argument("selective scan operand rank"));
+    };
+    let to_usize =
+        |value: i64| usize::try_from(value).map_err(|_| Error::out_of_range("selective scan"));
+    let (heads, channels, size, groups) = (
+        to_usize(heads)?,
+        to_usize(channels)?,
+        to_usize(size)?,
+        to_usize(groups)?,
+    );
+    let per_group = heads / groups;
+    let rate_width = match a.shape().dimensions() {
+        &[_, 1] => 1,
+        _ => size,
+    };
+    let (inputs, decays, strengths) = (
+        f64_values(input)?,
+        f64_values(decay)?,
+        f64_values(strength)?,
+    );
+    let (rates, written, read) = (
+        f64_values(a)?,
+        f64_values(input_projection)?,
+        f64_values(output_projection)?,
+    );
+    let mut states = f64_values(state)?;
+    let mut output = vec![0.0; inputs.len()];
+    for sequence in 0..spans.sequences() {
+        let (start, count, fresh) = spans.of(sequence)?;
+        if count == 0 {
+            continue;
+        }
+
+        for head in 0..heads {
+            let group = head / per_group;
+            let held =
+                &mut states[(sequence * heads + head) * channels * size..][..channels * size];
+            if fresh {
+                held.fill(0.0);
+            }
+
+            for row in start..start + count {
+                let (delta, gain) = (decays[row * heads + head], strengths[row * heads + head]);
+                let projections = (row * groups + group) * size;
+                for channel in 0..channels {
+                    let x = inputs[(row * heads + head) * channels + channel];
+                    let mut sum = 0.0;
+                    for entry in 0..size {
+                        let kept = &mut held[channel * size + entry];
+                        *kept = (delta * rates[head * rate_width + entry % rate_width]).exp()
+                            * *kept
+                            + gain * x * written[projections + entry];
+                        sum += *kept * read[projections + entry];
+                    }
+
+                    output[(row * heads + head) * channels + channel] = sum;
+                }
+            }
+        }
+    }
+
+    Ok((
+        tensor_like(output, input, input.data_type())?,
         tensor_like(states, state, DataType::F32)?,
     ))
 }

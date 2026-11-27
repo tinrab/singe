@@ -1,14 +1,18 @@
 //! Reads a `transformers` `DistilBERT` config and imports its checkpoint, whose task heads store the encoder under `distilbert`.
 
 use serde::Deserialize;
-use singe::nn::{Activation, PoolingMode};
+use singe::{
+    Result as SingeResult,
+    nn::{Activation, PoolingMode},
+};
 
 use crate::{
     assembly::PostNormEncoderConfig,
     error::Result,
     format::{Rules, join, transformers::activation_field},
-    head::{ClassifierLayout, EncoderModel, Head, HeadLayouts},
+    head::{ClassifierLayout, EncoderBody, EncoderModel, Head, HeadLayouts, post_norm_body},
     model::text::distilbert::DistilBert,
+    schema::Schema,
     source::Source,
 };
 
@@ -56,6 +60,8 @@ fn prefixed_rules(prefix: &str) -> Rules {
 }
 
 impl EncoderModel for DistilBert {
+    type Config = PostNormEncoderConfig;
+
     /// A classifier reads the first token's state through `pre_classifier` and `ReLU`.
     const LAYOUTS: HeadLayouts = HeadLayouts {
         classifier: ClassifierLayout {
@@ -81,7 +87,12 @@ impl EncoderModel for DistilBert {
             first_position: 0,
             token_types: 0,
             eps: LAYER_NORM_EPS,
+            keys: None,
         })
+    }
+
+    fn create(schema: &mut Schema<'_>, config: &PostNormEncoderConfig) -> SingeResult<EncoderBody> {
+        post_norm_body(schema, config)
     }
 
     fn encoder_rules() -> Rules {

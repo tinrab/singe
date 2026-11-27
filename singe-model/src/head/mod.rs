@@ -3,18 +3,22 @@
 //! A head that adds layers on another's outputs, such as a classifier on a text encoder, is written once here and shared by every model whose layout fits.
 
 mod audio;
+mod audio_generation;
 mod autoencoder;
 mod causal_lm;
 mod denoiser;
 mod encoder;
 mod generation_loop;
 mod image_encoder;
+mod image_generation;
 mod image_text_to_text;
 mod keypoint;
 mod mask;
 mod masked_lm;
+mod music;
 mod question_answering;
 mod retrieval;
+mod sampling;
 mod sentence_embedder;
 mod seq2seq;
 mod sequence_classification;
@@ -35,24 +39,34 @@ use singe::{
 
 pub use self::{
     audio::{
-        AudioClassifier, AudioCodec, CtcInput, CtcRecognizer, Speech, SpeechLayers, TextToSpeech,
-        ZeroShotAudioClassifier,
+        AudioClassifier, AudioCodec, CodecLayers, CtcInput, CtcRecognizer, Speech, SpeechLayers,
+        TextToSpeech, Vocoder, VocoderLayers, ZeroShotAudioClassifier,
     },
+    audio_generation::{AudioGenerator, SpeechPrompt, SpokenTurn, TurnContent},
     autoencoder::Autoencoder,
     causal_lm::CausalLm,
     denoiser::{ConditionalDenoiser, Denoiser},
-    encoder::{EncoderHead, EncoderModel, HeadLayouts, encoder_heads, load_encoder_head},
+    encoder::{
+        EncoderBody, EncoderHead, EncoderModel, EncoderSizes, HeadLayouts, encoder_heads,
+        load_encoder_head, post_norm_body,
+    },
     generation_loop::{LoopLimits, LoopSteps},
     image_encoder::{ImageEncoder, PooledLayer},
+    image_generation::ImageGenerator,
     image_text_to_text::ImageTextToText,
     keypoint::{
         KeypointConfig, KeypointDetector, KeypointLayers, KeypointMatcher, Keypoints,
         MatchingLayers, PairMatches, extract_keypoints,
     },
-    mask::{MaskGenerator, PromptableLayers},
+    mask::{
+        ConceptLayers, ConceptQueries, ConceptSegmenter, MaskGenerator, MaskTracker,
+        PromptableLayers, TrackedFrame, TrackingLayers, TrackingPrompt,
+    },
     masked_lm::{MaskedLm, MaskedLmConfig, MaskedLmLayers},
+    music::{MusicGeneration, MusicLayers, TextToMusic},
     question_answering::QuestionAnswerer,
     retrieval::{DocumentRetriever, late_interaction},
+    sampling::{Sampler, Sampling, SamplingFields, SamplingRequest, Uniforms},
     sentence_embedder::{SentenceEmbedder, SentenceLayers},
     seq2seq::{Seq2SeqDecoding, Seq2SeqGeneration, Seq2SeqInput, Seq2SeqLayers, Seq2SeqLm},
     sequence_classification::{
@@ -62,12 +76,14 @@ pub use self::{
     speech_to_text::{SpeechToText, Transcription},
     tabular::{TabularClassifier, TabularRegressor},
     text_encoder::TextEncoder,
-    time_series::{Forecast, Forecaster},
+    time_series::{Draws, Forecast, Forecaster, PastValues, Series, refuse_draws},
     token_classification::{TokenClassifier, TokenScoreLayers},
     trajectory::{Trajectory, TrajectoryModel, TrajectoryPredictions},
     vision::{
-        Classifier, ContrastiveEncoder, DepthEstimator, Detection, ImageClassifier, ImageUpscaler,
-        ObjectDetector, OpenVocabularyDetector, QueryDetection, SemanticSegmenter, VideoClassifier,
+        Classifier, ContrastiveEncoder, DepthEstimator, Detection, DetectionScoring,
+        GroundingInput, ImageClassifier, ImageSegmenter, ImageUpscaler, LabelDetection,
+        ObjectDetector, OpenVocabularyDetector, SegmentQueries, SegmenterLayout, VideoClassifier,
+        VideoEncoder,
     },
 };
 use crate::{
@@ -205,21 +221,27 @@ heads! {
     MaskedLm("masked_lm"): MaskedLm = ["ForMaskedLM"],
     ImageClassification("image_classification"): ImageClassifier = ["ForImageClassification"],
     VideoClassification("video_classification"): VideoClassifier = ["ForVideoClassification"],
+    VideoFeatureExtraction("video_feature_extraction"): VideoEncoder = ["Model"],
     ObjectDetection("object_detection"): ObjectDetector = ["ForObjectDetection"],
     ZeroShotImageClassification("zero_shot_image_classification"): ContrastiveEncoder = ["Model"],
     ZeroShotObjectDetection("zero_shot_object_detection"): OpenVocabularyDetector = ["ForObjectDetection"],
     DepthEstimation("depth_estimation"): DepthEstimator = ["ForDepthEstimation"],
-    ImageSegmentation("image_segmentation"): SemanticSegmenter = ["ForSemanticSegmentation"],
+    ImageSegmentation("image_segmentation"): ImageSegmenter = ["ForSemanticSegmentation", "ForUniversalSegmentation"],
     KeypointDetection("keypoint_detection"): KeypointDetector = ["ForKeypointDetection", "Model"],
     KeypointMatching("keypoint_matching"): KeypointMatcher = ["ForKeypointMatching"],
     SuperResolution("super_resolution"): ImageUpscaler = ["ForImageSuperResolution"],
     MaskGeneration("mask_generation"): MaskGenerator = ["Model"],
+    MaskTracking("mask_tracking"): MaskTracker = ["Model"],
+    ConceptSegmentation("concept_segmentation"): ConceptSegmenter = ["Model"],
     Seq2SeqLm("seq2seq_lm"): Seq2SeqLm = ["ForConditionalGeneration", "VisionEncoderDecoderModel"],
     Ctc("ctc"): CtcRecognizer = ["ForCTC"],
     AudioClassification("audio_classification"): AudioClassifier = ["ForAudioClassification"],
     AudioCodec("audio_codec"): AudioCodec = ["Model"],
+    Vocoder("vocoder"): Vocoder = ["Model"],
     ZeroShotAudioClassification("zero_shot_audio_classification"): ZeroShotAudioClassifier = ["Model"],
     TextToSpeech("text_to_speech"): TextToSpeech = ["Model"],
+    TextToMusic("text_to_music"): TextToMusic = ["ForConditionalGeneration"],
+    AudioGeneration("audio_generation"): Box<dyn AudioGenerator> = ["ForConditionalGeneration"],
     DocumentRetrieval("document_retrieval"): Box<dyn DocumentRetriever> = ["ForRetrieval"],
     TimeSeriesForecasting("time_series_forecasting"): Box<dyn Forecaster> = ["ForPrediction"],
     Trajectory("trajectory"): Box<dyn TrajectoryModel> = ["Model"],
@@ -227,4 +249,5 @@ heads! {
     TabularRegression("tabular_regression"): Box<dyn TabularRegressor> = [],
     Denoiser("denoiser"): Box<dyn Denoiser> = [],
     ConditionalDenoiser("conditional_denoiser"): Box<dyn ConditionalDenoiser> = [],
+    ImageGeneration("image_generation"): Box<dyn ImageGenerator> = ["ForConditionalGeneration"],
 }

@@ -8,15 +8,15 @@ use std::iter;
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    graph::{ComputePrecision, with_convolution_precision},
     nn::{
-        Activation, Conv1d, Conv1dConfig, ConvTranspose1d, ConvTranspose1dConfig, Embedding,
-        LayerNorm, Linear, ModelState, StateKey,
+        Activation, Conv1d, Conv1dConfig, Embedding, Layer, LayerNorm, Linear, ModelState, StateKey,
     },
     shape::spatial::Padding,
 };
 
 use crate::{
-    assembly::{PYTORCH_NORM_EPS, same_1d},
+    assembly::{HifiGan, HifiGanConfig, PYTORCH_NORM_EPS, channel_norm, same_1d},
     error::Result,
     format::Loader,
     head::{Boxed, HeadLoader, Speech, SpeechLayers, TextToSpeech},
@@ -44,21 +44,11 @@ pub struct VitsConfig {
     pub prior_flows: i64,
     pub wavenet_layers: i64,
     pub wavenet_kernel: i64,
-    pub upsample_initial: i64,
-    pub upsample_rates: Vec<i64>,
-    pub upsample_kernels: Vec<i64>,
-    pub resblock_kernels: Vec<i64>,
-    pub resblock_dilations: Vec<Vec<i64>>,
-    pub leaky_slope: f64,
+    pub vocoder: HifiGanConfig,
     pub sample_rate: i64,
     pub noise_scale: f32,
     pub noise_scale_duration: f32,
     pub speaking_rate: f32,
-}
-
-/// Returns the layer norm of `input`, `[B, C, T]`, over its channels.
-fn channel_norm(input: &Tensor, norm: &LayerNorm, state: &ModelState) -> SingeResult<Tensor> {
-    input.transpose(1, 2)?.apply(norm, state)?.transpose(1, 2)
 }
 
 /// Reverses the order of the channels of `input`, `[B, C, T]`.
@@ -546,165 +536,6 @@ impl Coupling {
 }
 
 #[derive(Debug, Clone)]
-struct ResidualBlock {
-    first: Vec<Conv1d>,
-    second: Vec<Conv1d>,
-}
-
-impl ResidualBlock {
-    fn create(
-        schema: &mut Schema<'_>,
-        channels: i64,
-        kernel: i64,
-        dilations: &[i64],
-    ) -> SingeResult<Self> {
-        Ok(Self {
-            first: dilations
-                .iter()
-                .enumerate()
-                .map(|(layer, &dilation)| {
-                    schema.conv1d(
-                        &format!("first.{layer}"),
-                        channels,
-                        channels,
-                        kernel,
-                        same_1d(kernel, dilation),
-                        true,
-                    )
-                })
-                .collect::<SingeResult<Vec<_>>>()?,
-            second: (0..dilations.len())
-                .map(|layer| {
-                    schema.conv1d(
-                        &format!("second.{layer}"),
-                        channels,
-                        channels,
-                        kernel,
-                        same_1d(kernel, 1),
-                        true,
-                    )
-                })
-                .collect::<SingeResult<Vec<_>>>()?,
-        })
-    }
-
-    fn forward(&self, input: &Tensor, slope: f64, state: &ModelState) -> SingeResult<Tensor> {
-        let mut hidden = input.clone();
-        for (first, second) in self.first.iter().zip(&self.second) {
-            let inner = hidden
-                .leaky_relu(slope)?
-                .apply(first, state)?
-                .leaky_relu(slope)?
-                .apply(second, state)?;
-            hidden = hidden.add(&inner)?;
-        }
-        Ok(hidden)
-    }
-}
-
-#[derive(Debug, Clone)]
-struct HifiGan {
-    pre: Conv1d,
-    upsamplers: Vec<ConvTranspose1d>,
-    resblocks: Vec<ResidualBlock>,
-    post: Conv1d,
-    kernels: usize,
-    slope: f64,
-}
-
-impl HifiGan {
-    fn create(schema: &mut Schema<'_>, config: &VitsConfig) -> SingeResult<Self> {
-        let kernels = config.resblock_kernels.len();
-        if kernels == 0 {
-            return Err(SingeError::invalid_argument(
-                "a HiFi-GAN without residual blocks",
-            ));
-        }
-
-        let pre = schema.conv1d(
-            "pre",
-            config.flow_size,
-            config.upsample_initial,
-            7,
-            same_1d(7, 1),
-            true,
-        )?;
-        let mut channels = config.upsample_initial;
-        let mut upsamplers = Vec::with_capacity(config.upsample_rates.len());
-        let mut resblocks = Vec::with_capacity(config.upsample_rates.len() * kernels);
-        for (index, (&rate, &kernel)) in config
-            .upsample_rates
-            .iter()
-            .zip(&config.upsample_kernels)
-            .enumerate()
-        {
-            upsamplers.push(schema.conv_transpose1d(
-                &format!("upsamplers.{index}"),
-                channels,
-                channels / 2,
-                kernel,
-                ConvTranspose1dConfig {
-                    stride: rate,
-                    padding: (kernel - rate) / 2,
-                    ..ConvTranspose1dConfig::default()
-                },
-                true,
-            )?);
-            channels /= 2;
-            for (&kernel, dilations) in config
-                .resblock_kernels
-                .iter()
-                .zip(&config.resblock_dilations)
-            {
-                let block = resblocks.len();
-                resblocks.push(ResidualBlock::create(
-                    &mut schema.scope(format!("resblocks.{block}")),
-                    channels,
-                    kernel,
-                    dilations,
-                )?);
-            }
-        }
-
-        Ok(Self {
-            pre,
-            upsamplers,
-            resblocks,
-            post: schema.conv1d("post", channels, 1, 7, same_1d(7, 1), false)?,
-            kernels,
-            slope: config.leaky_slope,
-        })
-    }
-
-    fn forward(&self, latents: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let slope = self.slope;
-        let mut hidden = latents.apply(&self.pre, state)?;
-        for (upsampler, blocks) in self
-            .upsamplers
-            .iter()
-            .zip(self.resblocks.chunks(self.kernels))
-        {
-            hidden = hidden.leaky_relu(slope)?.apply(upsampler, state)?;
-            let mut outputs = blocks
-                .iter()
-                .map(|block| block.forward(&hidden, slope, state));
-            let first = outputs
-                .next()
-                .ok_or_else(|| SingeError::invalid_argument("no residual blocks"))??;
-            let sum = outputs.try_fold(first, |sum, output| sum.add(&output?))?;
-            let count = blocks.len() as f64;
-            hidden = sum.mul_scalar(1.0 / count)?;
-        }
-
-        // The last activation keeps `leaky_relu`'s default slope.
-        hidden
-            .leaky_relu(0.01)?
-            .apply(&self.post, state)?
-            .apply(&Activation::Tanh, state)
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct VitsLayers {
     tokens: Embedding,
     blocks: Vec<EncoderLayer>,
@@ -739,7 +570,7 @@ impl VitsLayers {
                     Coupling::create(&mut schema.scope(format!("couplings.{index}")), config)
                 })
                 .collect::<SingeResult<Vec<_>>>()?,
-            vocoder: HifiGan::create(&mut schema.scope("decoder"), config)?,
+            vocoder: HifiGan::create(&mut schema.scope("decoder"), &config.vocoder)?,
             config: config.clone(),
         })
     }
@@ -778,10 +609,8 @@ impl VitsLayers {
         index.resize(frames, 0);
         Ok(index)
     }
-}
 
-impl SpeechLayers for VitsLayers {
-    fn speak(
+    fn spoken(
         &self,
         tokens: &[i64],
         noise: &mut dyn FnMut(usize) -> Vec<f32>,
@@ -836,6 +665,21 @@ impl SpeechLayers for VitsLayers {
             .forward(&latents, state)?
             .cast(DataType::F32)?
             .to_vec::<f32>()
+    }
+}
+
+impl SpeechLayers for VitsLayers {
+    fn speak(
+        &self,
+        tokens: &[i64],
+        noise: &mut dyn FnMut(usize) -> Vec<f32>,
+        scales: (f32, f32),
+        state: &ModelState,
+    ) -> SingeResult<Vec<f32>> {
+        // TF32 convolutions take the clip from 86 dB of SNR against `transformers`' to 34 dB: full precision.
+        with_convolution_precision(ComputePrecision::Full, || {
+            self.spoken(tokens, noise, scales, state)
+        })
     }
 }
 

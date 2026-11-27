@@ -1,14 +1,18 @@
 //! Reads a `transformers` `RoBERTa` config and imports its checkpoint, whose task heads store the encoder under `roberta`.
 
 use serde::Deserialize;
-use singe::nn::{Activation, PoolingMode};
+use singe::{
+    Result as SingeResult,
+    nn::{Activation, PoolingMode},
+};
 
 use crate::{
     assembly::{PostNormEncoderConfig, post_norm_encoder_rules},
     error::Result,
     format::{Rules, transformers::EncoderFields},
-    head::{ClassifierLayout, EncoderModel, Head, HeadLayouts},
+    head::{ClassifierLayout, EncoderBody, EncoderModel, Head, HeadLayouts, post_norm_body},
     model::text::roberta::Roberta,
+    schema::Schema,
     source::Source,
 };
 
@@ -20,6 +24,8 @@ struct Fields {
 }
 
 impl EncoderModel for Roberta {
+    type Config = PostNormEncoderConfig;
+
     /// A classifier reads the first token's state through a tanh projection, with no pooler, and the masked language model's projection is exact GELU whatever the encoder's activation.
     const LAYOUTS: HeadLayouts = HeadLayouts {
         classifier: ClassifierLayout {
@@ -34,6 +40,10 @@ impl EncoderModel for Roberta {
     fn config(source: &Source) -> Result<PostNormEncoderConfig> {
         let fields: Fields = source.json("config.json")?;
         fields.encoder.config(fields.pad_token_id + 1)
+    }
+
+    fn create(schema: &mut Schema<'_>, config: &PostNormEncoderConfig) -> SingeResult<EncoderBody> {
+        post_norm_body(schema, config)
     }
 
     fn encoder_rules() -> Rules {

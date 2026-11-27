@@ -128,7 +128,7 @@ pub(crate) fn decoder(
     let net = config.delta_net;
     let layer: DraftLayer<'_, Qwen35Block, OffsetRmsNorm> = &|schema| draft_layer(schema, config);
     let spec: CausalLmSpec<'_, _, Qwen35Block, OffsetRmsNorm> =
-        CausalLmSpec::new(decoder.rotary(), |index| {
+        CausalLmSpec::new(Some(decoder.rotary()), |index| {
             if config.is_full_attention(index) {
                 HybridCacheSpec::Attention(decoder.kv_cache())
             } else {

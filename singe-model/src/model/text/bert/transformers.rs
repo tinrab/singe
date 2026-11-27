@@ -1,17 +1,23 @@
 //! Reads a `transformers` BERT config and imports its checkpoint, whose task heads store the encoder under `bert`.
 
-use singe::nn::{Activation, PoolingMode};
+use singe::{
+    Result as SingeResult,
+    nn::{Activation, PoolingMode},
+};
 
 use crate::{
     assembly::{PostNormEncoderConfig, post_norm_encoder_rules},
     error::Result,
     format::{Rules, transformers::EncoderFields},
-    head::{ClassifierLayout, EncoderModel, Head, HeadLayouts},
+    head::{ClassifierLayout, EncoderBody, EncoderModel, Head, HeadLayouts, post_norm_body},
     model::text::bert::Bert,
+    schema::Schema,
     source::Source,
 };
 
 impl EncoderModel for Bert {
+    type Config = PostNormEncoderConfig;
+
     /// A classifier reads the pooler, a tanh projection of the first token's state.
     const LAYOUTS: HeadLayouts = HeadLayouts {
         classifier: ClassifierLayout {
@@ -24,6 +30,10 @@ impl EncoderModel for Bert {
 
     fn config(source: &Source) -> Result<PostNormEncoderConfig> {
         source.json::<EncoderFields>("config.json")?.config(0)
+    }
+
+    fn create(schema: &mut Schema<'_>, config: &PostNormEncoderConfig) -> SingeResult<EncoderBody> {
+        post_norm_body(schema, config)
     }
 
     fn encoder_rules() -> Rules {

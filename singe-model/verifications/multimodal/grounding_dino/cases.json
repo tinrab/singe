@@ -1,0 +1,170 @@
+{
+  "cases": [
+    {
+      "name": "detection",
+      "snapshot": "GROUNDING_DINO",
+      "task": "zero-shot-object-detection",
+      "data_type": "f32",
+      "inputs": [
+        {
+          "image": "media/coco-cats.png",
+          "candidate_labels": ["cat", "remote control", "couch"]
+        }
+      ],
+      "expected": [
+        [
+          {
+            "score": 0.2667,
+            "label": "remote control",
+            "box": {
+              "xmin": 1,
+              "ymin": 0,
+              "xmax": 638,
+              "ymax": 478
+            }
+          },
+          {
+            "score": 0.260579,
+            "label": "cat",
+            "box": {
+              "xmin": 40,
+              "ymin": 72,
+              "xmax": 175,
+              "ymax": 117
+            }
+          },
+          {
+            "score": 0.198826,
+            "label": "remote control",
+            "box": {
+              "xmin": 40,
+              "ymin": 72,
+              "xmax": 175,
+              "ymax": 117
+            }
+          },
+          {
+            "score": 0.195795,
+            "label": "couch",
+            "box": {
+              "xmin": 0,
+              "ymin": 0,
+              "xmax": 639,
+              "ymax": 479
+            }
+          },
+          {
+            "score": 0.192546,
+            "label": "remote control",
+            "box": {
+              "xmin": 1,
+              "ymin": 66,
+              "xmax": 638,
+              "ymax": 477
+            }
+          },
+          {
+            "score": 0.187326,
+            "label": "remote control",
+            "box": {
+              "xmin": 2,
+              "ymin": 72,
+              "xmax": 638,
+              "ymax": 477
+            }
+          },
+          {
+            "score": 0.180697,
+            "label": "cat",
+            "box": {
+              "xmin": 1,
+              "ymin": 0,
+              "xmax": 638,
+              "ymax": 479
+            }
+          },
+          {
+            "score": 0.180277,
+            "label": "cat",
+            "box": {
+              "xmin": 333,
+              "ymin": 76,
+              "xmax": 370,
+              "ymax": 185
+            }
+          },
+          {
+            "score": 0.164081,
+            "label": "remote control",
+            "box": {
+              "xmin": 333,
+              "ymin": 76,
+              "xmax": 370,
+              "ymax": 186
+            }
+          },
+          {
+            "score": 0.126275,
+            "label": "couch",
+            "box": {
+              "xmin": 0,
+              "ymin": 0,
+              "xmax": 639,
+              "ymax": 479
+            }
+          },
+          {
+            "score": 0.117424,
+            "label": "remote control",
+            "box": {
+              "xmin": 2,
+              "ymin": 111,
+              "xmax": 637,
+              "ymax": 476
+            }
+          },
+          {
+            "score": 0.114149,
+            "label": "couch",
+            "box": {
+              "xmin": 0,
+              "ymin": 68,
+              "xmax": 639,
+              "ymax": 479
+            }
+          },
+          {
+            "score": 0.111485,
+            "label": "cat",
+            "box": {
+              "xmin": 5,
+              "ymin": 10,
+              "xmax": 638,
+              "ymax": 374
+            }
+          },
+          {
+            "score": 0.104167,
+            "label": "cat",
+            "box": {
+              "xmin": 1,
+              "ymin": 64,
+              "xmax": 638,
+              "ymax": 473
+            }
+          },
+          {
+            "score": 0.100036,
+            "label": "couch",
+            "box": {
+              "xmin": 40,
+              "ymin": 72,
+              "xmax": 175,
+              "ymax": 117
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

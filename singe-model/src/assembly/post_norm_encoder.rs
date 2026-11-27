@@ -3,7 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Result as SingeResult, Tensor,
+    DataType, Result as SingeResult, Shape, Tensor,
+    graph::capture,
     nn::{
         Activation, DenseAttentionInput, Embedding, EncoderBlock, Layer, ModelState, SelfAttention,
         StateKey, TokenBatch, TokenEmbeddings,
@@ -29,6 +30,22 @@ pub struct PostNormEncoderConfig {
     /// The token types the model embeds; 0 for a model without token type embeddings.
     pub token_types: i64,
     pub eps: f32,
+    /// Which keys each query reads; `None` reads every key.
+    #[serde(default)]
+    pub keys: Option<KeyPattern>,
+}
+
+/// The keys each query reads, short of every key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum KeyPattern {
+    /// Keys at most this many positions from their query on either side, as Longformer's local attention without global tokens reads them.
+    Band(i64),
+    /// `BigBird`'s block-sparse attention as `transformers` runs it in evaluation on a sequence of more than `(5 + 2 · random) · size` tokens; a shorter sequence reads every key.
+    ///
+    /// The sequence splits into blocks of `size`, the last one short.
+    /// The first and last blocks' queries read every key; the others read the first and last blocks and their own block's neighbours.
+    /// Evaluation draws every random block as the first block, so it counts `1 + random` times in their softmax, a bias of `ln(1 + random)`.
+    Blocks { size: i64, random: i64 },
 }
 
 impl PostNormEncoderConfig {
@@ -144,18 +161,122 @@ impl Layer<TokenBatch> for PostNormEncoder {
     fn forward(&self, input: &TokenBatch, state: &ModelState) -> SingeResult<Tensor> {
         let mut hidden = self.embeddings.forward(input, state)?;
         let key_lengths = input.key_lengths()?;
+        let mask = match self.config.keys {
+            None => None,
+            Some(KeyPattern::Band(band)) => Some(band_mask(input, band, hidden.data_type())?),
+            Some(KeyPattern::Blocks { size, random }) => {
+                block_mask(input, size, random, hidden.data_type())?
+            }
+        };
         for block in &self.blocks {
             hidden = block.forward(
                 &DenseAttentionInput {
                     hidden: &hidden,
                     angles: None,
-                    key_lengths: Some(&key_lengths),
+                    key_lengths: mask.is_none().then_some(&key_lengths),
+                    mask: mask.as_ref(),
                 },
                 state,
             )?;
         }
         Ok(hidden)
     }
+}
+
+/// Returns the additive mask of keys at most `band` positions from their query and within their sequence, `[B, 1, T, T]`: zero where a query reads a key, `F32`'s lowest value elsewhere, as Longformer adds `finfo.min` outside its window.
+fn band_mask(input: &TokenBatch, band: i64, data_type: DataType) -> SingeResult<Tensor> {
+    let tokens = input.tokens();
+    let device = tokens.device();
+    let positions = Tensor::range(device, 0_i64, tokens.dimension(1)?)?;
+    let distance = positions
+        .unsqueeze(1)?
+        .sub(&positions.unsqueeze(0)?)?
+        .cast(DataType::F32)?
+        .abs()?;
+    let reads = distance
+        .less_equal(&capture::scalar(device, band as f32)?)?
+        .unsqueeze(0)?
+        .logical_and(&input.mask()?.unsqueeze(1)?)?
+        .unsqueeze(1)?;
+    Tensor::where_select(
+        &reads,
+        &capture::scalar(device, 0.0_f32)?,
+        &capture::scalar(device, f32::MIN)?,
+    )?
+    .cast(data_type)
+}
+
+/// Returns `BigBird`'s additive block-sparse mask, `[B, 1, T, T]`, as [`KeyPattern::Blocks`] describes it, each sequence's blocks counted over its own tokens as `transformers` counts a sequence run alone, or `None` for a batch short enough that every sequence reads every key.
+fn block_mask(
+    input: &TokenBatch,
+    size: i64,
+    random: i64,
+    data_type: DataType,
+) -> SingeResult<Option<Tensor>> {
+    let tokens = input.tokens();
+    let length = tokens
+        .shape()
+        .dimensions()
+        .get(1)
+        .copied()
+        .unwrap_or_default();
+    let limit = (5 + 2 * random) * size;
+    if length <= limit {
+        return Ok(None);
+    }
+
+    let device = tokens.device();
+    let count = (length + size - 1) / size;
+    let blocks = Tensor::range(device, 0_i64, count)?
+        .unsqueeze(1)?
+        .expand(Shape::create([count, size])?)?
+        .reshape([count * size])?
+        .narrow(0, 0, length)?
+        .cast(DataType::F32)?;
+    let lengths = input.lengths();
+    // Each sequence's last block, the block of its last token, `[B, 1, 1]`.
+    let last = blocks
+        .index_select(0, &lengths.sub_scalar(1)?)?
+        .unsqueeze(1)?
+        .unsqueeze(2)?;
+    let short = lengths
+        .cast(DataType::F32)?
+        .less_equal(&capture::scalar(device, limit as f32)?)?
+        .unsqueeze(1)?
+        .unsqueeze(2)?;
+    let first = capture::scalar(device, 0.0_f32)?;
+    let is_end = |blocks: &Tensor| blocks.equal(&first)?.logical_or(&blocks.equal(&last)?);
+    let (queries, keys) = (
+        blocks.unsqueeze(1)?.unsqueeze(0)?,
+        blocks.unsqueeze(0)?.unsqueeze(0)?,
+    );
+    let global_queries = is_end(&queries)?;
+    let near = queries
+        .sub(&keys)?
+        .abs()?
+        .less_equal(&capture::scalar(device, 1.0_f32)?)?;
+    let reads = short
+        .logical_or(&global_queries)?
+        .logical_or(&is_end(&keys)?)?
+        .logical_or(&near)?
+        .logical_and(&input.mask()?.unsqueeze(1)?)?
+        .unsqueeze(1)?;
+    let repeated = keys
+        .equal(&first)?
+        .logical_and(&global_queries.logical_or(&short)?.logical_not()?)?;
+    let bias = Tensor::where_select(
+        &repeated,
+        &capture::scalar(device, ((1 + random) as f32).ln())?,
+        &first,
+    )?;
+    Ok(Some(
+        Tensor::where_select(
+            &reads,
+            &bias.unsqueeze(1)?,
+            &capture::scalar(device, f32::MIN)?,
+        )?
+        .cast(data_type)?,
+    ))
 }
 
 /// Imports the encoder `transformers`' BERT layout stores under `from` (such as `bert`, `roberta`, or nothing): `embeddings` and `encoder.layer.N`, to the schema's names under `to`.

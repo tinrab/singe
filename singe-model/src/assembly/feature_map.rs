@@ -2,6 +2,7 @@
 
 use singe::{
     Error as SingeError, Result as SingeResult, Tensor,
+    graph::DimensionExpr,
     shape::spatial::{Spatial2d, Spatial2dExpr, Spatial2dI64},
 };
 
@@ -41,23 +42,24 @@ pub fn spatial_dimensions(map: &Tensor) -> SingeResult<Spatial2dExpr> {
 
 /// Returns a map `[B, H, W, C]` as windows of `window × window` points, `[B · windows, window², C]`, row by row.
 pub fn partition_windows(input: &Tensor, window: i64) -> SingeResult<Tensor> {
-    let &[batch, height, width, channels] = input.shape().dimensions() else {
+    let &[_, height, width, channels] = input.shape().dimensions() else {
         return Err(SingeError::invalid_argument("window partition input"));
     };
+    let batch = input.dimension(0)?;
     input
-        .reshape([
-            batch,
-            height / window,
-            window,
-            width / window,
-            window,
-            channels,
+        .reshape_with(&[
+            batch.clone(),
+            (height / window).into(),
+            window.into(),
+            (width / window).into(),
+            window.into(),
+            channels.into(),
         ])?
         .permute(&[0, 1, 3, 2, 4, 5])?
-        .reshape([
-            batch * (height / window) * (width / window),
-            window * window,
-            channels,
+        .reshape_with(&[
+            batch * ((height / window) * (width / window)),
+            (window * window).into(),
+            channels.into(),
         ])
 }
 
@@ -65,20 +67,22 @@ pub fn partition_windows(input: &Tensor, window: i64) -> SingeResult<Tensor> {
 pub fn merge_windows(
     windows: &Tensor,
     window: i64,
-    (batch, height, width): (i64, i64, i64),
+    batch: impl Into<DimensionExpr>,
+    (height, width): (i64, i64),
 ) -> SingeResult<Tensor> {
     let &[_, _, channels] = windows.shape().dimensions() else {
         return Err(SingeError::invalid_argument("windows"));
     };
+    let batch = batch.into();
     windows
-        .reshape([
-            batch,
-            height / window,
-            width / window,
-            window,
-            window,
-            channels,
+        .reshape_with(&[
+            batch.clone(),
+            (height / window).into(),
+            (width / window).into(),
+            window.into(),
+            window.into(),
+            channels.into(),
         ])?
         .permute(&[0, 1, 3, 2, 4, 5])?
-        .reshape([batch, height, width, channels])
+        .reshape_with(&[batch, height.into(), width.into(), channels.into()])
 }

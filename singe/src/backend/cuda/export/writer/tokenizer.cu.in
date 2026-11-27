@@ -14,6 +14,7 @@ struct Tokenizer {
     std::unordered_map<uint64_t, std::pair<int64_t, int64_t>> merges;
     Ranges letters, marks, numbers, whitespace;
     bool marks_are_letters = false;
+    size_t max_digits = 1;
     bool composes = false;
     std::unordered_map<uint32_t, std::vector<uint32_t>> decompositions;
     std::vector<std::array<uint32_t, 3>> combining_classes;
@@ -108,6 +109,8 @@ static Tokenizer load_tokenizer() {
         tokenizer.whitespace = read_ranges(file, "whitespace");
         read_section(file, "marks_are_letters");
         tokenizer.marks_are_letters = read_number(file) != 0;
+        read_section(file, "max_digits");
+        tokenizer.max_digits = static_cast<size_t>(read_number(file));
         tokenizer.composes = read_section(file, "composition") != 0;
         if (tokenizer.composes) {
             const long long decompositions = read_section(file, "decompositions");
@@ -241,7 +244,7 @@ static std::vector<uint32_t> composed(const Tokenizer& tokenizer, const std::vec
     return result;
 }
 
-// Where each word ends, as the pre-tokenizer of Qwen's tokenizers splits text: `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`, with `[\p{L}\p{M}]` for its letters when marks are letters.
+// Where each word ends, as the pre-tokenizer of Qwen's tokenizers splits text: `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`, with `[\p{L}\p{M}]` for its letters when marks are letters, and `\p{N}{1,3}` for its numbers when words hold three digits.
 static size_t word_end(const Tokenizer& tokenizer, const std::vector<uint32_t>& text, size_t start) {
     const size_t size = text.size();
     const auto letter = [&](uint32_t point) { return in_ranges(tokenizer.letters, point) || (tokenizer.marks_are_letters && in_ranges(tokenizer.marks, point)); };
@@ -268,7 +271,11 @@ static size_t word_end(const Tokenizer& tokenizer, const std::vector<uint32_t>& 
             return end;
         }
     }
-    if (number(text[start])) return start + 1;
+    if (number(text[start])) {
+        size_t end = start + 1;
+        while (end < size && end - start < tokenizer.max_digits && number(text[end])) ++end;
+        return end;
+    }
     {
         size_t end = start;
         if (text[start] == ' ' && start + 1 < size && other(text[start + 1])) ++end;

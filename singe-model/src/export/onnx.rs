@@ -17,7 +17,7 @@ use crate::{
     export::image_size,
     head::{
         AudioClassifier, CtcInput, CtcRecognizer, DepthEstimator, Head, ImageClassifier,
-        ImageEncoder, MaskedLm, ObjectDetector, QuestionAnswerer, SemanticSegmenter,
+        ImageEncoder, ImageSegmenter, MaskedLm, ObjectDetector, QuestionAnswerer, SegmenterLayout,
         SentenceEmbedder, SequenceClassifier, TextEncoder, TokenClassifier,
     },
     model,
@@ -196,8 +196,35 @@ pub fn program(
             )
         }
         Task::ImageSegmentation => {
-            let model: SemanticSegmenter = model::load(source, load)?;
-            image(source, model.get_model()?, options, &["logits"], forward)
+            let model: ImageSegmenter = model::load(source, load)?;
+            match model.layout() {
+                SegmenterLayout::Semantic => {
+                    image(source, model.get_model()?, options, &["logits"], forward)
+                }
+                SegmenterLayout::Universal { stride } => {
+                    let scores = model.config().label_count()? + 1;
+                    image(
+                        source,
+                        model.get_model()?,
+                        options,
+                        &["class_queries_logits", "masks_queries_logits"],
+                        |layer, pixels, state| {
+                            let output = layer.forward(pixels, state)?;
+                            let (height, width) =
+                                (pixels.dimension(2)? / stride, pixels.dimension(3)? / stride);
+                            let masks = output
+                                .narrow_with(2, scores, height.clone() * width.clone())?
+                                .reshape_with(&[
+                                    output.dimension(0)?,
+                                    output.dimension(1)?,
+                                    height,
+                                    width,
+                                ])?;
+                            Ok(vec![output.narrow(2, 0, scores)?, masks])
+                        },
+                    )
+                }
+            }
         }
         Task::DepthEstimation => {
             let model: DepthEstimator = model::load(source, load)?;
@@ -211,8 +238,9 @@ pub fn program(
         }
         Task::ObjectDetection => {
             let model: ObjectDetector = model::load(source, load)?;
-            // Each query's scores are its labels' and no object's, then its box.
-            let scores = model.config().label_count()? + 1;
+            // Each query's scores, then its box.
+            let scores = i64::try_from(model.scoring().columns(model.config().labels().len()))
+                .map_err(|_| SingeError::out_of_range("detection scores"))?;
             image(
                 source,
                 model.get_model()?,
@@ -443,7 +471,11 @@ fn image<L: Layer>(
 fn nominal_size(resize: Option<Resize>) -> Result<Spatial2dI64> {
     let round = |side: i64, multiple: i64| side / multiple * multiple;
     match resize {
-        Some(Resize::ShortestEdge(side) | Resize::Longest(side)) => Ok(Spatial2d::square(side)),
+        Some(
+            Resize::ShortestEdge(side)
+            | Resize::Longest(side)
+            | Resize::LongestEven { edge: side, .. },
+        ) => Ok(Spatial2d::square(side)),
         Some(Resize::Bounded {
             shortest, multiple, ..
         }) => Ok(Spatial2d::square(round(shortest, multiple.max(1)))),
@@ -452,6 +484,9 @@ fn nominal_size(resize: Option<Resize>) -> Result<Spatial2dI64> {
             | Resize::Thumbnail { height, width }
             | Resize::Exact { height, width },
         ) => Ok(Spatial2d::new(height, width)),
+        Some(Resize::Patches { patch, max_patches }) => Ok(Spatial2d::square(
+            (max_patches as f64).sqrt() as i64 * patch,
+        )),
         None => Err(Error::unsupported(
             "exporting an image model whose processor does not resize",
         )),

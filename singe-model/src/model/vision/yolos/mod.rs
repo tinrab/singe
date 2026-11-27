@@ -14,7 +14,7 @@ use crate::{
     assembly::{FinalNorm, LinearStack, PreNormEncoder, PreNormEncoderConfig, patch_embedding},
     error::Result,
     format::Loader,
-    head::{Boxed, ClassifierConfig, HeadLoader, ObjectDetector},
+    head::{Boxed, ClassifierConfig, DetectionScoring, HeadLoader, ObjectDetector},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -193,5 +193,9 @@ pub fn load_detector(loader: &mut Loader<'_>) -> Result<ObjectDetector> {
             .map(|layers| Boxed::<dyn Layer>(Box::new(layers)))
     })?;
     let model = loader.load_whole(&model, &transformers::rules())?;
-    Ok(ObjectDetector::new(model, config.classifier))
+    Ok(ObjectDetector::new(
+        model,
+        config.classifier,
+        DetectionScoring::NoObject,
+    ))
 }

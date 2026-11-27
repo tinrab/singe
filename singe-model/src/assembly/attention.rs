@@ -1,7 +1,7 @@
 //! Multi-head attention whose queries, keys, and values each project their own input, as DETR's, SAM's, BART's, T5's, and Mitra's are, with `query`, `key`, `value`, and `output` projections.
 
 use singe::{
-    Error as SingeError, Result as SingeResult, Tensor,
+    Error as SingeError, Result as SingeResult, Shape, Tensor,
     graph::DimensionExpr,
     nn::{
         CrossAttention, GroupedQueryAttention, GroupedQueryLayers, HeadProjection, Linear,
@@ -70,6 +70,26 @@ impl Attention {
         };
         schema.join_rows(&[&attention.query, &attention.key, &attention.value])?;
         Ok(attention)
+    }
+
+    #[must_use]
+    pub const fn query(&self) -> &Linear {
+        &self.query
+    }
+
+    #[must_use]
+    pub const fn key(&self) -> &Linear {
+        &self.key
+    }
+
+    #[must_use]
+    pub const fn value(&self) -> &Linear {
+        &self.value
+    }
+
+    #[must_use]
+    pub const fn output(&self) -> &Linear {
+        &self.output
     }
 
     /// Attends with queries from `query`, `[B, L, W]`, to keys from `key` and values from `value`, `[B, S, C]`, and returns `[B, L, W]`.
@@ -178,6 +198,12 @@ pub fn merge_heads(tensor: &Tensor) -> SingeResult<Tensor> {
 
 #[must_use]
 pub fn attention_rules(from: &str, to: &str) -> Rules {
+    attention_rules_with_output(from, to, "out_proj")
+}
+
+/// Imports the attention `transformers` stores under `from` as [`attention_rules`] does, its output projection named `output`, such as `o_proj`.
+#[must_use]
+pub fn attention_rules_with_output(from: &str, to: &str, output: &str) -> Rules {
     Rules::new().rename_each(
         from,
         to,
@@ -185,7 +211,74 @@ pub fn attention_rules(from: &str, to: &str) -> Rules {
             ("q_proj", "query"),
             ("k_proj", "key"),
             ("v_proj", "value"),
-            ("out_proj", "output"),
+            (output, "output"),
         ],
     )
+}
+
+/// Returns `x`, `[..., D]`, with each pair of adjacent features swapped and the first negated, `(-x₁, x₀)`: the second term of a rotary embedding that turns adjacent pairs.
+pub fn swapped_pairs(x: &Tensor) -> SingeResult<Tensor> {
+    let dimensions = x.shape().dimensions();
+    let (&width, outer) = dimensions
+        .split_last()
+        .ok_or_else(|| SingeError::invalid_argument("rotated features"))?;
+    let paired = x.reshape([outer, &[width / 2, 2]].concat())?;
+    Tensor::stack(&[paired.select(-1, 1)?.neg()?, paired.select(-1, 0)?], -1)?.reshape(dimensions)
+}
+
+/// Axial rotary tables over a square grid of points, row by row, as SAM 2's memory attention and SAM 3's vision transformer turn their heads: the first half of a head's feature pairs turn by a point's column and the second half by its row, each pair at its own frequency.
+#[derive(Debug, Clone)]
+pub struct AxialRotary {
+    cos: Tensor,
+    sin: Tensor,
+}
+
+impl AxialRotary {
+    /// Builds the tables for a `side × side` grid and heads of `head` features, each position multiplied by `scale` in `F32` first, in `like`'s type on its device.
+    pub fn create(
+        side: i64,
+        head: i64,
+        theta: f32,
+        scale: f32,
+        like: &Tensor,
+    ) -> SingeResult<Self> {
+        let quarter = head / 4;
+        let frequencies = (0..quarter)
+            .map(|pair| 1.0 / theta.powf((2 * pair) as f32 / (head / 2) as f32))
+            .collect::<Vec<_>>();
+        let mut angles = Vec::with_capacity((side * side * head) as usize);
+        for row in 0..side {
+            for column in 0..side {
+                for feature in 0..head {
+                    let pair = feature / 2;
+                    let (position, frequency) = if pair < quarter {
+                        (column, frequencies[pair as usize])
+                    } else {
+                        (row, frequencies[(pair - quarter) as usize])
+                    };
+                    angles.push(position as f32 * scale * frequency);
+                }
+            }
+        }
+
+        let shape = Shape::create([side * side, head])?;
+        let table = |values: Vec<f32>| {
+            Tensor::from_vec(like.device(), shape.clone(), values)?.cast(like.data_type())
+        };
+        Ok(Self {
+            cos: table(angles.iter().map(|angle| angle.cos()).collect())?,
+            sin: table(angles.iter().map(|angle| angle.sin()).collect())?,
+        })
+    }
+
+    /// Returns the grid's points, the tables' first axis.
+    #[must_use]
+    pub fn points(&self) -> i64 {
+        self.cos.shape().dimensions()[0]
+    }
+
+    /// Returns `x`, `[..., N, d]`, turned by the tables.
+    pub fn rotated(&self, x: &Tensor) -> SingeResult<Tensor> {
+        x.mul(&self.cos)?.add(&swapped_pairs(x)?.mul(&self.sin)?)
+    }
 }

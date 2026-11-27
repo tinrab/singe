@@ -65,10 +65,12 @@ pub fn result_of(operation: Operation) -> Option<usize> {
         Operation::TopK
         | Operation::PagedAttentionOutput
         | Operation::PagedMlaAttentionOutput
-        | Operation::GatedDeltaRuleOutput => Some(0),
+        | Operation::GatedDeltaRuleOutput
+        | Operation::SelectiveScanOutput => Some(0),
         Operation::PagedAttentionLse
         | Operation::PagedMlaAttentionLse
-        | Operation::GatedDeltaRuleState => Some(1),
+        | Operation::GatedDeltaRuleState
+        | Operation::SelectiveScanState => Some(1),
         _ => None,
     }
 }
@@ -81,6 +83,8 @@ pub fn sibling(operation: Operation) -> Operation {
         Operation::PagedMlaAttentionOutput => Operation::PagedMlaAttentionLse,
         Operation::GatedDeltaRuleOutput => Operation::GatedDeltaRuleState,
         Operation::GatedDeltaRuleState => Operation::GatedDeltaRuleOutput,
+        Operation::SelectiveScanOutput => Operation::SelectiveScanState,
+        Operation::SelectiveScanState => Operation::SelectiveScanOutput,
         _ => Operation::PagedMlaAttentionOutput,
     }
 }
@@ -146,6 +150,17 @@ pub fn plan_kernel_result(
     ) {
         return KernelPlan::state_recurrence(
             Operation::GatedDeltaRule,
+            inputs,
+            planner.has_tensor_cores(),
+        );
+    }
+
+    if matches!(
+        operation.opcode(),
+        Some(Operation::SelectiveScanOutput | Operation::SelectiveScanState)
+    ) {
+        return KernelPlan::state_recurrence(
+            Operation::SelectiveScan,
             inputs,
             planner.has_tensor_cores(),
         );

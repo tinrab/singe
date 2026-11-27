@@ -5,6 +5,10 @@ use crate::{
     shape::spatial::{Padding, Padding2d, Spatial2dI64},
 };
 
+// The node metadata naming the operation an `Identity` of an exported decomposition stands for, and each of its inputs, `singe.input.<index>`.
+pub const FUSED_OPERATION: &str = "singe.operation";
+pub const FUSED_INPUT: &str = "singe.input";
+
 pub fn pair(values: &[i64], attribute: &str, node: &Node) -> Result<Spatial2dI64> {
     match *values {
         [height, width] => Ok(Spatial2dI64::new(height, width)),

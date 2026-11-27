@@ -49,6 +49,11 @@ IMAGE = {
     "object-detection": ("AutoModelForObjectDetection", ["logits", "pred_boxes"]),
     "depth-estimation": ("AutoModelForDepthEstimation", ["predicted_depth"]),
 }
+# A segmenter whose architecture is a universal one gives each query's scores and mask, as Mask2Former does.
+UNIVERSAL_SEGMENTATION = (
+    "AutoModelForUniversalSegmentation",
+    ["class_queries_logits", "masks_queries_logits"],
+)
 
 
 def session(path):
@@ -310,6 +315,11 @@ def main():
             return {name: getattr(out, name).double().numpy() for name in outputs}
     elif task in IMAGE:
         class_name, outputs = IMAGE[task]
+        architectures = transformers.AutoConfig.from_pretrained(snapshot).architectures
+        if task == "image-segmentation" and any(
+            name.endswith("ForUniversalSegmentation") for name in architectures or []
+        ):
+            class_name, outputs = UNIVERSAL_SEGMENTATION
         processor = transformers.AutoImageProcessor.from_pretrained(snapshot)
         model = (
             getattr(transformers, class_name)

@@ -17,7 +17,7 @@ use crate::{
     assembly::{same_1d, unit_vectors},
     error::Result,
     format::Loader,
-    head::{AudioCodec, Boxed, HeadLoader},
+    head::{AudioCodec, Boxed, CodecLayers, HeadLoader},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -365,6 +365,24 @@ impl DacLayers {
     }
 }
 
+/// A bandwidth is `EnCodec`'s alone; this codec reconstructs through all its codebooks.
+impl CodecLayers for DacLayers {
+    fn reconstruct(
+        &self,
+        samples: &Tensor,
+        bandwidth: Option<f64>,
+        state: &ModelState,
+    ) -> SingeResult<Tensor> {
+        if bandwidth.is_some() {
+            return Err(SingeError::invalid_argument(
+                "a bandwidth for a codec that reconstructs through all its codebooks",
+            ));
+        }
+
+        self.forward(samples, state)
+    }
+}
+
 impl Layer for DacLayers {
     /// Returns the reconstructions, `[B, N]`, of a batch of clips' samples, `[B, N]`.
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
@@ -393,7 +411,7 @@ pub(crate) const MODEL: ModelEntry = ModelEntry {
 pub fn load_codec(loader: &mut Loader<'_>) -> Result<AudioCodec> {
     let config: DacConfig = loader.config(transformers::config)?;
     let model = Schema::model(loader.options().data_type, |schema| {
-        DacLayers::create(schema, &config).map(|layers| Boxed::<dyn Layer>(Box::new(layers)))
+        DacLayers::create(schema, &config).map(|layers| Boxed::<dyn CodecLayers>(Box::new(layers)))
     })?;
     Ok(AudioCodec::new(
         loader.load_whole(&model, &transformers::rules())?,

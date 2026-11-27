@@ -1,4 +1,4 @@
-//! SentencePiece models, read from their protobuf files for the tokenizers `transformers` converts from them when a snapshot has no `tokenizer.json`: `XLM-RoBERTa`'s, which `TrOCR`'s snapshots name.
+//! SentencePiece models, read from their protobuf files for the tokenizers `transformers` converts from them when a snapshot has no `tokenizer.json`: `XLM-RoBERTa`'s, which `TrOCR`'s snapshots name, and `BigBird`'s.
 
 use std::{fs, path::Path};
 
@@ -6,7 +6,7 @@ use crate::error::{Error, Result};
 
 /// A protobuf field's value, by its wire type.
 enum Field<'a> {
-    Varint,
+    Varint(u64),
     Fixed64,
     Fixed32([u8; 4]),
     Bytes(&'a [u8]),
@@ -37,10 +37,7 @@ fn fields(bytes: &[u8]) -> Result<Vec<(u64, Field<'_>)>> {
     while at < bytes.len() {
         let key = varint(bytes, &mut at)?;
         let value = match key & 7 {
-            0 => {
-                varint(bytes, &mut at)?;
-                Field::Varint
-            }
+            0 => Field::Varint(varint(bytes, &mut at)?),
             1 => {
                 at += 8;
                 Field::Fixed64
@@ -67,11 +64,21 @@ fn fields(bytes: &[u8]) -> Result<Vec<(u64, Field<'_>)>> {
     Ok(found)
 }
 
-/// A model's pieces with their scores, and its normalizer's precompiled character map.
+/// A model's piece: its text, its score, and whether it is a normal piece rather than a control, unknown, or user-defined one.
+pub(crate) struct Piece {
+    pub(crate) text: String,
+    pub(crate) score: f32,
+    pub(crate) is_normal: bool,
+}
+
+/// A model's pieces, and its normalizer's precompiled character map.
 pub(crate) struct Model {
-    pub(crate) pieces: Vec<(String, f32)>,
+    pub(crate) pieces: Vec<Piece>,
     pub(crate) charsmap: Vec<u8>,
 }
+
+/// The type of a normal piece, which a piece without a type has.
+const NORMAL_PIECE: u64 = 1;
 
 pub(crate) fn read(path: &Path) -> Result<Model> {
     let bytes = fs::read(path).map_err(Error::io(path))?;
@@ -82,18 +89,23 @@ pub(crate) fn read(path: &Path) -> Result<Model> {
     for (number, value) in fields(&bytes)? {
         match (number, value) {
             (1, Field::Bytes(piece)) => {
-                let (mut text, mut score) = (String::new(), 0.0);
+                let (mut text, mut score, mut kind) = (String::new(), 0.0, NORMAL_PIECE);
                 for (number, value) in fields(piece)? {
                     match (number, value) {
                         (1, Field::Bytes(bytes)) => {
                             text = String::from_utf8_lossy(bytes).into_owned();
                         }
                         (2, Field::Fixed32(bytes)) => score = f32::from_le_bytes(bytes),
+                        (3, Field::Varint(value)) => kind = value,
                         _ => {}
                     }
                 }
 
-                model.pieces.push((text, score));
+                model.pieces.push(Piece {
+                    text,
+                    score,
+                    is_normal: kind == NORMAL_PIECE,
+                });
             }
             (3, Field::Bytes(normalizer)) => {
                 for (number, value) in fields(normalizer)? {

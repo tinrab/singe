@@ -147,7 +147,7 @@ fn count_where(masks: &Tensor, level: &Tensor) -> Result<Vec<f32>> {
 impl MaskGenerationPipeline {
     fn decode(
         &self,
-        embedding: &Tensor,
+        embedding: &[Tensor],
         points: &[[f32; 2]],
         size: Spatial2dI64,
         resized: Spatial2dI64,
@@ -157,14 +157,17 @@ impl MaskGenerationPipeline {
         let &[count, candidates, ..] = low.shape().dimensions() else {
             return Err(SingeError::invalid_argument("candidate masks, [P, M, h, w]").into());
         };
-        // Resized to the padded input, cropped to the resized image, and resized to the image, as `post_process_masks` does.
-        let masks = low
-            .cast(DataType::F32)?
-            .interpolate(Spatial2d::square(target), InterpolateMode::Bilinear)?
-            .narrow(2, 0, resized.height)?
-            .narrow(3, 0, resized.width)?
-            .interpolate(size, InterpolateMode::Bilinear)?
-            .reshape([count * candidates, size.height, size.width])?;
+        let low = low.cast(DataType::F32)?;
+        // A model whose processor warps the image to its input resizes the masks straight to the image, as SAM 2's `post_process_masks` does; SAM's are resized to the padded input, cropped to the resized image, and resized to the image.
+        let masks = if matches!(self.processor.resize, Some(Resize::Exact { .. })) {
+            low
+        } else {
+            low.interpolate(Spatial2d::square(target), InterpolateMode::Bilinear)?
+                .narrow(2, 0, resized.height)?
+                .narrow(3, 0, resized.width)?
+        }
+        .interpolate(size, InterpolateMode::Bilinear)?
+        .reshape([count * candidates, size.height, size.width])?;
         Ok((masks, quality.cast(DataType::F32)?.to_vec::<f32>()?))
     }
 }
@@ -190,7 +193,7 @@ impl Pipeline for MaskGenerationPipeline {
             self.processor
                 .preprocess(image, self.options.device, self.options.data_type)?;
         let embedding = self.model.embed(&pixels)?;
-        // The resized image's size, which points scale to and masks are cropped to, as `_normalize_coordinates` rounds it.
+        // The resized image's size, which points scale to and SAM's masks are cropped to, as `_normalize_coordinates` rounds it; SAM 2's processor scales its points the same way though it warps the image.
         let resized = Resize::Longest(self.model.image_size()).size(size);
         let level = |value: f32| -> Result<Tensor> {
             Ok(Tensor::from_vec(

@@ -206,9 +206,14 @@ static bool singe_cudnn_runs_engine(cudnnBackendDescriptor_t config, int64_t onl
     return status == CUDNN_STATUS_SUCCESS && index == only_engine;
 }
 
-// Takes the first engine that plans and keeps the program's numerical policy, trying the heuristics from fastest to choose to most general.
+// The most workspace a plan takes while another engine plans in less, as Singe's graphs cap it.
+static const int64_t singe_cudnn_workspace_cap = 256LL << 20;
+
+// Takes the first engine that plans within the workspace cap and keeps the program's numerical policy, trying the heuristics from fastest to choose to most general, or else the engine that plans in the least workspace past the cap.
 static cudnnStatus_t singe_cudnn_heuristic_plan(cudnnHandle_t handle, cudnnBackendDescriptor_t graph, int64_t only_engine, bool tensor_core, bool deterministic, bool no_default_engine, std::vector<cudnnBackendDescriptor_t>* retained, cudnnBackendDescriptor_t* plan, int64_t* workspace) {
     cudnnStatus_t status = CUDNN_STATUS_SUCCESS;
+    cudnnBackendDescriptor_t oversized_plan = nullptr, oversized_config = nullptr;
+    int64_t oversized_bytes = 0;
     const cudnnBackendHeurMode_t modes[] = {CUDNN_HEUR_MODE_INSTANT, CUDNN_HEUR_MODE_B, CUDNN_HEUR_MODE_FALLBACK};
     cudnnStatus_t last = CUDNN_STATUS_NOT_SUPPORTED;
     for (const cudnnBackendHeurMode_t mode : modes) {
@@ -244,10 +249,27 @@ static cudnnStatus_t singe_cudnn_heuristic_plan(cudnnHandle_t handle, cudnnBacke
             if (created_plan == CUDNN_STATUS_SUCCESS) created_plan = cudnnBackendSetAttribute(*plan, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG, CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, &configs[candidate]);
             if (created_plan == CUDNN_STATUS_SUCCESS) created_plan = cudnnBackendFinalize(*plan);
             if (created_plan == CUDNN_STATUS_SUCCESS) {
-                int64_t written = 0;
-                created_plan = cudnnBackendGetAttribute(*plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1, &written, workspace);
+                int64_t written = 0, bytes = 0;
+                created_plan = cudnnBackendGetAttribute(*plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1, &written, &bytes);
+                if (created_plan == CUDNN_STATUS_SUCCESS && bytes > singe_cudnn_workspace_cap) {
+                    if (oversized_plan == nullptr || bytes < oversized_bytes) {
+                        if (oversized_plan != nullptr) {
+                            cudnnBackendDestroyDescriptor(oversized_plan);
+                            cudnnBackendDestroyDescriptor(oversized_config);
+                        }
+                        oversized_plan = *plan;
+                        oversized_config = configs[candidate];
+                        oversized_bytes = bytes;
+                        configs[candidate] = nullptr;
+                    } else {
+                        cudnnBackendDestroyDescriptor(*plan);
+                    }
+                    *plan = nullptr;
+                    continue;
+                }
                 planned = created_plan == CUDNN_STATUS_SUCCESS;
                 if (planned) {
+                    *workspace = bytes;
                     retained->push_back(configs[candidate]);
                     configs[candidate] = nullptr;
                 }
@@ -261,7 +283,19 @@ static cudnnStatus_t singe_cudnn_heuristic_plan(cudnnHandle_t handle, cudnnBacke
             if (configs[index] != nullptr) cudnnBackendDestroyDescriptor(configs[index]);
         }
         cudnnBackendDestroyDescriptor(heuristics);
-        if (planned) return CUDNN_STATUS_SUCCESS;
+        if (planned) {
+            if (oversized_plan != nullptr) {
+                cudnnBackendDestroyDescriptor(oversized_plan);
+                cudnnBackendDestroyDescriptor(oversized_config);
+            }
+            return CUDNN_STATUS_SUCCESS;
+        }
+    }
+    if (oversized_plan != nullptr) {
+        *plan = oversized_plan;
+        *workspace = oversized_bytes;
+        retained->push_back(oversized_config);
+        return CUDNN_STATUS_SUCCESS;
     }
     return last;
 }

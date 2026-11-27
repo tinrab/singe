@@ -160,6 +160,7 @@ impl Layer for Wav2Vec2Layers {
                     hidden: &hidden,
                     angles: None,
                     key_lengths: None,
+                    mask: None,
                 },
                 state,
             )?;

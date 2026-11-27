@@ -451,7 +451,27 @@ pub fn paged_mla_attention(
     kernel_plan::run_outputs(&plans[0], inputs)
 }
 
-// The causal convolution, the gated delta rule, and the states they leave, each one generated kernel over contiguous inputs.
+pub fn deformable_attention(inputs: &[Tensor]) -> Result<Tensor> {
+    let [first, rest @ ..] = inputs else {
+        return Err(Error::missing_input("cuda deformable attention"));
+    };
+    ensure_cuda_eager_same_device_inputs(first, &rest.iter().collect::<Vec<_>>())?;
+    let contiguous = inputs
+        .iter()
+        .map(Tensor::contiguous)
+        .collect::<Result<Vec<_>>>()?;
+    let inputs = contiguous.iter().collect::<Vec<_>>();
+    let mut outputs = kernel_plan::execute_outputs(
+        Operation::DeformableAttention,
+        &OperationAttributes::None,
+        &inputs,
+    )?;
+    outputs
+        .pop()
+        .ok_or_else(|| Error::missing_output("cuda deformable attention"))
+}
+
+// The causal convolution, the gated delta rule, the selective scan, and the states they leave, each one generated kernel over contiguous inputs.
 pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Vec<Tensor>> {
     let [first, rest @ ..] = inputs else {
         return Err(Error::missing_input("cuda state recurrence"));
@@ -462,10 +482,12 @@ pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Vec<T
         .map(Tensor::contiguous)
         .collect::<Result<Vec<_>>>()?;
     let inputs = contiguous.iter().collect::<Vec<_>>();
-    // The delta rule's projections run its one kernel and keep their result.
+    // The delta rule's and the scan's projections run their one kernel and keep their result.
     let (planned, kept) = match operation {
         Operation::GatedDeltaRuleOutput => (Operation::GatedDeltaRule, Some(0)),
         Operation::GatedDeltaRuleState => (Operation::GatedDeltaRule, Some(1)),
+        Operation::SelectiveScanOutput => (Operation::SelectiveScan, Some(0)),
+        Operation::SelectiveScanState => (Operation::SelectiveScan, Some(1)),
         operation => (operation, None),
     };
     let mut outputs = kernel_plan::execute_outputs(planned, &OperationAttributes::None, &inputs)?;

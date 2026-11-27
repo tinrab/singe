@@ -11,7 +11,7 @@ mod simplify;
 mod validation;
 
 #[cfg(feature = "onnx")]
-pub use self::attention::decompose_attention;
+pub use self::decompose::decompose_for_export;
 #[cfg(feature = "cuda")]
 pub use self::merge::merged_projection_bytes;
 use self::{

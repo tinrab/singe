@@ -73,7 +73,7 @@ fn guide_edit(predicted: &Tensor, parameters: &ImageTextToImageParameters) -> Re
         .add(
             &text
                 .sub(&image)?
-                .mul_scalar(f64::from(parameters.denoising.guidance_scale))?,
+                .mul_scalar(f64::from(parameters.denoising.scale()))?,
         )?
         .add(
             &image

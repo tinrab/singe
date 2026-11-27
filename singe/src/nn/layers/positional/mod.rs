@@ -3,5 +3,6 @@
 mod rotary;
 
 pub use self::rotary::{
-    RotaryAngles, RotaryFrequencies, RotaryLayout, RotarySpec, RotaryTable, YarnFrequencies,
+    Llama3Frequencies, RotaryAngles, RotaryFrequencies, RotaryLayout, RotarySpec, RotaryTable,
+    YarnFrequencies,
 };

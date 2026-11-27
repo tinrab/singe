@@ -59,7 +59,8 @@ impl DenoisingDefaults for ShapEDefaults {
 #[serde(default, bound = "D: DenoisingDefaults")]
 pub struct Denoising<D> {
     pub num_inference_steps: usize,
-    pub guidance_scale: f32,
+    /// The scale of classifier-free guidance, or the pipeline's own when `None`.
+    pub guidance_scale: Option<f32>,
     #[serde(skip)]
     defaults: PhantomData<D>,
 }
@@ -68,16 +69,24 @@ impl<D: DenoisingDefaults> Default for Denoising<D> {
     fn default() -> Self {
         Self {
             num_inference_steps: D::STEPS,
-            guidance_scale: D::GUIDANCE,
+            guidance_scale: None,
             defaults: PhantomData,
         }
     }
 }
 
-impl<D> Denoising<D> {
+impl<D: DenoisingDefaults> Denoising<D> {
+    /// Returns the guidance scale, the pipeline's default where none was given.
+    #[must_use]
+    pub fn scale(&self) -> f32 {
+        self.guidance_scale.unwrap_or(D::GUIDANCE)
+    }
+
+    /// Returns the guidance scale when it guides, above 1.
     #[must_use]
     pub fn guidance(&self) -> Option<f32> {
-        (self.guidance_scale > 1.0).then_some(self.guidance_scale)
+        let scale = self.scale();
+        (scale > 1.0).then_some(scale)
     }
 }
 

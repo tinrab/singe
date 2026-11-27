@@ -14,7 +14,7 @@ use crate::{
     assembly::{Attention, AttentionSpec, PYTORCH_NORM_EPS, same_2d, spatial, to_map, to_tokens},
     error::Result,
     format::Loader,
-    head::{Boxed, ClassifierConfig, HeadLoader, SemanticSegmenter},
+    head::{Boxed, ClassifierConfig, HeadLoader, ImageSegmenter, SegmenterLayout},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -334,11 +334,15 @@ pub(crate) const MODEL: ModelEntry = ModelEntry {
     loaders: &[HeadLoader::ImageSegmentation(load_segmenter)],
 };
 
-pub fn load_segmenter(loader: &mut Loader<'_>) -> Result<SemanticSegmenter> {
+pub fn load_segmenter(loader: &mut Loader<'_>) -> Result<ImageSegmenter> {
     let config: SegformerConfig = loader.config(transformers::config)?;
     let model = Schema::model(loader.options().data_type, |schema| {
         SegformerLayers::create(schema, &config).map(|layers| Boxed::<dyn Layer>(Box::new(layers)))
     })?;
     let model = loader.load_whole(&model, &transformers::rules())?;
-    Ok(SemanticSegmenter::new(model, config.classifier))
+    Ok(ImageSegmenter::new(
+        model,
+        config.classifier,
+        SegmenterLayout::Semantic,
+    ))
 }

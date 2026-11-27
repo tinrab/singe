@@ -10,14 +10,14 @@ use serde_json::Value;
 use singe::{
     Error as SingeError,
     generation::GenerationOptions,
-    nn::{Activation, RotaryFrequencies, RotaryLayout, YarnFrequencies},
+    nn::{Activation, Llama3Frequencies, RotaryFrequencies, RotaryLayout, YarnFrequencies},
     shape::spatial::{Spatial2d, Spatial2dI64},
 };
 
 use crate::{
     assembly::{DecoderConfig, PostNormEncoderConfig},
     error::{Error, Result},
-    head::{ClassifierConfig, ScoreFunction, Seq2SeqGeneration},
+    head::{ClassifierConfig, DetectionScoring, ScoreFunction, Seq2SeqGeneration},
     source::{Source, token_ids},
 };
 
@@ -50,6 +50,8 @@ pub const fn default_channels() -> i64 {
 pub fn activation(name: &str) -> Result<Activation> {
     Ok(match name {
         "relu" => Activation::Relu,
+        "relu6" => Activation::Relu6,
+        "relu2" => Activation::Relu2,
         "gelu" => Activation::GeluExact,
         "gelu_new" | "gelu_pytorch_tanh" => Activation::Gelu,
         "silu" | "swish" => Activation::Silu,
@@ -118,6 +120,10 @@ struct RopeFields {
     beta_fast: Option<f64>,
     #[serde(default)]
     beta_slow: Option<f64>,
+    #[serde(default)]
+    low_freq_factor: Option<f64>,
+    #[serde(default)]
+    high_freq_factor: Option<f64>,
     #[serde(default)]
     attention_factor: Option<f64>,
     #[serde(default)]
@@ -188,6 +194,22 @@ impl RotaryFields {
                 mscale_all_dim: fields.mscale_all_dim,
                 truncate: fields.truncate.unwrap_or(true),
             })),
+            Some("llama3") => {
+                let field = |value: Option<f64>, name: &str| {
+                    value.ok_or_else(|| Error::unsupported(format!("llama3 rotary without {name}")))
+                };
+                Ok(frequencies.with_llama3(Llama3Frequencies {
+                    factor: field(fields.factor, "a factor")?,
+                    low_frequency_factor: field(fields.low_freq_factor, "a low frequency factor")?,
+                    high_frequency_factor: field(
+                        fields.high_freq_factor,
+                        "a high frequency factor",
+                    )?,
+                    original_max_positions: fields.original_max_position_embeddings.ok_or_else(
+                        || Error::unsupported("llama3 rotary without its original length"),
+                    )?,
+                }))
+            }
             Some(other) => Err(Error::unsupported(format!("rotary type {other}"))),
         }
     }
@@ -241,8 +263,12 @@ pub struct DecoderFields {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LayerType {
+    /// Granite-4.0-H names it `attention`.
+    #[serde(alias = "attention")]
     FullAttention,
     SlidingAttention,
+    /// A layer that carries a state, which Granite-4.0-H names `mamba`.
+    #[serde(alias = "mamba")]
     LinearAttention,
 }
 
@@ -363,6 +389,7 @@ impl EncoderFields {
             first_position,
             token_types: self.type_vocab_size,
             eps: self.layer_norm_eps,
+            keys: None,
         })
     }
 }
@@ -407,6 +434,8 @@ struct Seq2SeqFields {
     max_length: Option<usize>,
     min_length: Option<usize>,
     no_repeat_ngram_size: Option<usize>,
+    encoder_no_repeat_ngram_size: Option<usize>,
+    repetition_penalty: Option<f32>,
     num_beams: Option<usize>,
     length_penalty: Option<f32>,
     early_stopping: Option<Value>,
@@ -470,6 +499,8 @@ pub fn seq2seq_generation(source: &Source) -> Result<Seq2SeqGeneration> {
         max_length: fields.max_length.unwrap_or(20),
         min_length: fields.min_length.unwrap_or(0),
         no_repeat_ngram: fields.no_repeat_ngram_size.unwrap_or(0),
+        encoder_no_repeat_ngram: fields.encoder_no_repeat_ngram_size.unwrap_or(0),
+        repetition_penalty: fields.repetition_penalty.unwrap_or(1.0),
         banned,
         beams: fields.num_beams.unwrap_or(1),
         length_penalty: fields.length_penalty.unwrap_or(1.0),
@@ -502,6 +533,30 @@ fn activation_function(path: &str) -> Result<ScoreFunction> {
             "cross-encoder activation {path}"
         ))),
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct DetectionFields {
+    model_type: Option<String>,
+    num_queries: Option<usize>,
+}
+
+/// Returns how a detector's scores become detections, as each image processor's `post_process_object_detection` picks them: Deformable DETR keeps the best 100 sigmoid scores over all queries and labels, RT-DETR as many as it has queries, and the others take a softmax with a no-object score, as DETR does.
+///
+/// # Errors
+///
+/// Returns an error if `config.json` cannot be read or parsed, or if an RT-DETR config has no `num_queries`.
+pub fn detection_scoring(source: &Source) -> Result<DetectionScoring> {
+    let fields: DetectionFields = source.json("config.json")?;
+    Ok(match fields.model_type.as_deref() {
+        Some("deformable_detr") => DetectionScoring::SigmoidTopK(100),
+        Some("rt_detr" | "rt_detr_v2") => DetectionScoring::SigmoidTopK(
+            fields
+                .num_queries
+                .ok_or_else(|| Error::unsupported("an RT-DETR config without `num_queries`"))?,
+        ),
+        _ => DetectionScoring::NoObject,
+    })
 }
 
 /// Reads a classifier's labels from `id2label` in index order, or `LABEL_{i}` for each of `num_labels` (2 when absent) as `transformers` names them.

@@ -427,10 +427,11 @@ impl ModelState {
     }
 
     // The layers keep their keys, and memory holds each weight once; a layer whose parts are adjacent views of one tensor multiplies by them together (see `joined_rows`).
-    // Groups are replaced one at a time, so memory peaks at one group's copy.
-    pub fn join_projection_rows(&self) -> Result<Self> {
-        let mut state = self.clone();
-        for members in &*self.row_groups {
+    // Groups are replaced one at a time and the state is consumed, so each group's separate tensors drop once its joined copy replaces them, and memory peaks at one group's copy.
+    pub fn join_projection_rows(self) -> Result<Self> {
+        let groups = Arc::clone(&self.row_groups);
+        let mut state = self;
+        for members in &*groups {
             let Some(parts) = members
                 .iter()
                 .map(|member| state.named_tensor(member).cloned())

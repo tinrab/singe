@@ -15,6 +15,7 @@ mod random;
 mod recurrence;
 mod reduce;
 mod rotary_cache;
+mod sampling;
 mod scan;
 mod tcgen05;
 mod tcgen05_attention;
@@ -332,6 +333,10 @@ impl KernelPlanner {
             return indexing::plan(self, operation, attributes, inputs);
         }
 
+        if operation == Operation::DeformableAttention {
+            return KernelPlan::deformable_attention(inputs);
+        }
+
         if matches!(
             operation,
             Operation::CausalConv1d
@@ -339,6 +344,9 @@ impl KernelPlanner {
                 | Operation::GatedDeltaRule
                 | Operation::GatedDeltaRuleOutput
                 | Operation::GatedDeltaRuleState
+                | Operation::SelectiveScan
+                | Operation::SelectiveScanOutput
+                | Operation::SelectiveScanState
         ) {
             return KernelPlan::state_recurrence(operation, inputs, self.has_tensor_cores());
         }

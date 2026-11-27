@@ -1,0 +1,142 @@
+{
+  "cases": [
+    {
+      "name": "zero-shot",
+      "snapshot": "SIGLIP",
+      "task": "zero-shot-image-classification",
+      "data_type": "f32",
+      "inputs": [
+        {
+          "image": "media/coco-cats.png",
+          "candidate_labels": [
+            "two cats on a couch",
+            "a conveyor belt",
+            "a cargo train",
+            "a rocket silo"
+          ]
+        }
+      ],
+      "expected": [
+        [
+          {
+            "score": 0.658269,
+            "label": "two cats on a couch"
+          },
+          {
+            "score": 1.53422e-6,
+            "label": "a conveyor belt"
+          },
+          {
+            "score": 6.94706e-8,
+            "label": "a rocket silo"
+          },
+          {
+            "score": 2.15928e-8,
+            "label": "a cargo train"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "portrait",
+      "snapshot": "SIGLIP",
+      "task": "zero-shot-image-classification",
+      "data_type": "f32",
+      "inputs": [
+        {
+          "image": "media/cat-320x512.png",
+          "candidate_labels": ["a cat", "a dog", "a factory", "A photo of a Cat"]
+        }
+      ],
+      "expected": [
+        [
+          {
+            "score": 0.00632973,
+            "label": "a cat"
+          },
+          {
+            "score": 0.000511662,
+            "label": "A photo of a Cat"
+          },
+          {
+            "score": 2.7016e-5,
+            "label": "a dog"
+          },
+          {
+            "score": 9.28196e-8,
+            "label": "a factory"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "naflex",
+      "snapshot": "SIGLIP2",
+      "task": "zero-shot-image-classification",
+      "data_type": "f32",
+      "inputs": [
+        {
+          "image": "media/coco-cats.png",
+          "candidate_labels": [
+            "two cats on a couch",
+            "a conveyor belt",
+            "a cargo train",
+            "a rocket silo"
+          ]
+        }
+      ],
+      "expected": [
+        [
+          {
+            "score": 0.920044,
+            "label": "two cats on a couch"
+          },
+          {
+            "score": 5.76939e-7,
+            "label": "a conveyor belt"
+          },
+          {
+            "score": 3.22067e-8,
+            "label": "a rocket silo"
+          },
+          {
+            "score": 4.17494e-9,
+            "label": "a cargo train"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "naflex-portrait",
+      "snapshot": "SIGLIP2",
+      "task": "zero-shot-image-classification",
+      "data_type": "f32",
+      "inputs": [
+        {
+          "image": "media/cat-320x512.png",
+          "candidate_labels": ["a cat", "a dog", "a factory", "A photo of a Cat"]
+        }
+      ],
+      "expected": [
+        [
+          {
+            "score": 0.000889359,
+            "label": "A photo of a Cat"
+          },
+          {
+            "score": 0.000772172,
+            "label": "a cat"
+          },
+          {
+            "score": 2.06688e-5,
+            "label": "a dog"
+          },
+          {
+            "score": 1.57545e-8,
+            "label": "a factory"
+          }
+        ]
+      ]
+    }
+  ]
+}

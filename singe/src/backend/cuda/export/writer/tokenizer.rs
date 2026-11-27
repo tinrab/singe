@@ -52,6 +52,7 @@ fn encoder(text: &mut String, encoder: &LoopEncoder) {
         "marks_are_letters 1\n{}",
         u8::from(encoder.marks_are_letters)
     );
+    emit!(text, "max_digits 1\n{}", encoder.max_digits);
     let Some(composition) = &encoder.composition else {
         emit!(text, "composition 0");
         return;

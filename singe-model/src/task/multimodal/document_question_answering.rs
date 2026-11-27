@@ -91,8 +91,10 @@ impl Pipeline for DocumentQuestionAnsweringPipeline {
             input.question
         );
         let mut tokens = self.tokenizer.encode(&prompt, false)?;
+        // Donut's encoder reads pixels, so no encoder tokens constrain the answer.
         tokens.extend(self.model.generate(
             &encoded,
+            &[],
             &tokens,
             parameters.max_new_tokens,
             parameters.compile,

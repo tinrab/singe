@@ -206,3 +206,7 @@ fn map_binary<T: TensorDataType + Copy + Send + Sync + 'static>(
 pub fn cpu_device_mismatch(name: impl Into<String>, actual: Device) -> Error {
     Error::device_mismatch(name.into(), Device::Cpu, actual)
 }
+
+pub fn f64_values(tensor: &Tensor) -> Result<Vec<f64>> {
+    tensor.cast(DataType::F64)?.contiguous()?.to_vec::<f64>()
+}

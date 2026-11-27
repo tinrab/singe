@@ -1,4 +1,4 @@
-// The causal convolution and the gated delta rule over a step's sequences, and the states they leave.
+// The causal convolution, the gated delta rule, and the selective scan over a step's sequences, and the states they leave.
 // A sequence's rows are `offsets[s]` onwards, its first `real[s]` real, and it starts from a zero state when its first real row is at position zero.
 
 use std::fmt::Write as _;
@@ -29,6 +29,8 @@ const WARP: usize = 32;
 
 // How many lanes share one value feature's column of the delta rule's state.
 const DELTA_RULE_PARTS: usize = 4;
+
+const SCAN_THREADS: usize = 128;
 
 // The warps of one block of the delta rule's prompt form, which share each chunk's work on its keys.
 const CHUNK_WARPS: usize = 8;
@@ -111,7 +113,7 @@ fn extents<const N: usize>(input: &KernelInput, label: &'static str) -> Result<[
 }
 
 impl KernelPlan {
-    // Plans one of the causal convolution, its state, the gated delta rule, and its state, on contiguous inputs, with `mma.sync` where `tensor_cores` says the target has it.
+    // Plans one of the causal convolution, its state, the gated delta rule, the selective scan, and their states, on contiguous inputs, with `mma.sync` where `tensor_cores` says the target has it.
     pub(crate) fn state_recurrence(
         operation: Operation,
         inputs: &[KernelInput],
@@ -142,6 +144,12 @@ impl KernelPlan {
                 | Operation::GatedDeltaRuleState,
                 [_, _, _, _, _, _, _, _, _],
             ) => Self::gated_delta_rule(inputs, tensor_cores),
+            (
+                Operation::SelectiveScan
+                | Operation::SelectiveScanOutput
+                | Operation::SelectiveScanState,
+                [_, _, _, _, _, _, _, _, _, _],
+            ) => Self::selective_scan(inputs, tensor_cores),
             _ => Err(Error::missing_input("cuda state recurrence operands")),
         }
     }
@@ -603,6 +611,251 @@ for (long long row = start; row < start + count; ++row) {{
             ],
             inputs,
             &[Operation::GatedDeltaRule],
+        ))
+    }
+
+    fn selective_scan(inputs: &[KernelInput], tensor_cores: bool) -> Result<Self> {
+        let [
+            input,
+            decay,
+            strength,
+            a,
+            input_projection,
+            output_projection,
+            state,
+            ..,
+        ] = inputs
+        else {
+            return Err(Error::missing_input("cuda selective scan operands"));
+        };
+        let [tokens, heads, channels] = extents::<3>(input, "cuda selective scan inputs")?;
+        let [_, groups, size] = extents::<3>(input_projection, "cuda selective scan projections")?;
+        let [sequences, ..] = extents::<4>(state, "cuda selective scan state")?;
+        if sequences == 0 || heads == 0 || groups == 0 || size == 0 {
+            return Err(Error::unsupported_operation(
+                "cuda selective scan of no sequences, heads, or state",
+            ));
+        }
+
+        let data_type = input.data_type;
+        let element = element_type(data_type)?;
+        let ty = accumulator(data_type);
+        let mut writer = KernelWriter::new();
+        let names = [
+            "rows",
+            "decay",
+            "strength",
+            "rates",
+            "written",
+            "read",
+            "held",
+            "offsets",
+            "real",
+            "positions",
+        ];
+        let mut declared = Vec::with_capacity(names.len());
+        for (input, name) in inputs.iter().zip(names) {
+            declared.push(writer.input(input.data_type, name)?);
+        }
+
+        let [
+            rows,
+            decays,
+            strengths,
+            rates,
+            written,
+            read,
+            held,
+            offsets,
+            real,
+            positions,
+        ] = <[String; 10]>::try_from(declared)
+            .map_err(|_| Error::missing_input("cuda selective scan operands"))?;
+        let output = writer.output(data_type, "output")?;
+        let left = writer.output(DataType::F32, "left")?;
+        let load = |name: &str, input: &KernelInput, index: &str| -> Result<String> {
+            Ok(format!(
+                "static_cast<{ty}>({})",
+                load_expression(element_type(input.data_type)?, &format!("{name}[{index}]"))
+            ))
+        };
+        // One rate per head, `[H, 1]`, decays every entry alike, so each row takes one exponential.
+        let shared_rate = a.layout.shape().dimensions().get(1) == Some(&1);
+        let per_group = heads / groups;
+        // A prompt of half-precision rows with one rate per head runs in chunks on tensor cores, as the delta rule's prompt form does without its correction, where the target has them and the state is a whole number of 16-wide fragments that fit shared memory.
+        if tokens > sequences
+            && tensor_cores
+            && shared_rate
+            && matches!(data_type, DataType::F16 | DataType::Bf16)
+            && input_projection.data_type == data_type
+            && output_projection.data_type == data_type
+            && size.is_multiple_of(16)
+            && size <= MMA_KEY_DIM
+        {
+            let launch = writer.grid(
+                [sequences, heads, channels.div_ceil(MMA_COLUMNS)],
+                u32::try_from(CHUNK_WARPS * WARP)
+                    .map_err(|_| Error::out_of_range("cuda selective scan threads"))?,
+            )?;
+            writer.require(CompileRequirements::TENSOR_CORES);
+            writer.declare(&tensor_core_helpers(operand_kind(data_type)));
+            writer.declare(&rule_fragment_helpers(data_type));
+            let fill = [
+                ("columns", MMA_COLUMNS.to_string()),
+                ("chunk", DELTA_RULE_CHUNK.to_string()),
+                ("size", size.to_string()),
+                ("channels", channels.to_string()),
+                ("heads", heads.to_string()),
+                ("groups", groups.to_string()),
+                ("per_group", per_group.to_string()),
+                ("sequences", sequences.to_string()),
+                ("tokens", tokens.to_string()),
+                ("load_decay", load(&decays, decay, "r")?),
+                ("load_strength", load(&strengths, strength, "r")?),
+                ("load_rate", load(&rates, a, "head")?),
+                ("offsets", offsets),
+                ("real", real),
+                ("positions", positions),
+                ("held", held),
+                ("written", written),
+                ("read", read),
+                ("rows", rows),
+                ("output", output),
+                ("left", left),
+                ("stored", store_expression(element, "out")),
+                ("zero", store_expression(element, "0.0F")),
+            ];
+            let mut body = include_str!("selective_scan_mma.cu.in").to_owned();
+            for (name, value) in fill {
+                body = body.replace(&format!("@{name}@"), &value);
+            }
+
+            writer.lines(&body);
+            return Ok(writer.finish(
+                "selective_scan",
+                launch,
+                vec![
+                    ValueSpec::new(data_type, input.layout.shape().clone()),
+                    ValueSpec::new(DataType::F32, state.layout.shape().clone()),
+                ],
+                inputs,
+                &[Operation::SelectiveScan],
+            ));
+        }
+
+        let parts = [8, 4, 2]
+            .into_iter()
+            .find(|&parts| size.is_multiple_of(parts) && size / parts >= 2)
+            .unwrap_or(1);
+        let owned = size / parts;
+        let lanes = heads * channels * parts;
+        let launch = writer.grid(
+            [sequences, lanes.div_ceil(SCAN_THREADS), 1],
+            u32::try_from(SCAN_THREADS)
+                .map_err(|_| Error::out_of_range("cuda selective scan threads"))?,
+        )?;
+        let load_row = load(
+            &rows,
+            input,
+            &format!("(r * {heads}ULL + head) * {channels}ULL + channel"),
+        )?;
+        let load_decay = load(&decays, decay, &format!("r * {heads}ULL + head"))?;
+        let load_strength = load(&strengths, strength, &format!("r * {heads}ULL + head"))?;
+        let load_rate = load(
+            &rates,
+            a,
+            &if shared_rate {
+                "head".to_owned()
+            } else {
+                format!("head * {size}ULL + n")
+            },
+        )?;
+        let (row_decay, entry_decay) = if shared_rate {
+            (
+                format!("\n        const {ty} decayed = exp(delta * {load_rate});"),
+                "decayed".to_owned(),
+            )
+        } else {
+            (String::new(), format!("exp(delta * {load_rate})"))
+        };
+        let load_written = load(
+            &written,
+            input_projection,
+            &format!("(r * {groups}ULL + group) * {size}ULL + n"),
+        )?;
+        let load_read = load(
+            &read,
+            output_projection,
+            &format!("(r * {groups}ULL + group) * {size}ULL + n"),
+        )?;
+        let stored = store_expression(element, "out");
+        let zero = store_expression(element, &format!("static_cast<{ty}>(0)"));
+        let mut gather = String::new();
+        let mut width = 1;
+        while width < parts {
+            let _ = write!(
+                gather,
+                "\n    out += __shfl_xor_sync(0xffffffffU, out, {width});"
+            );
+            width *= 2;
+        }
+
+        writer.lines(&format!(
+            "
+const unsigned long long sequence = blockIdx.x;
+const unsigned long long slot = static_cast<unsigned long long>(blockIdx.y) * {SCAN_THREADS}ULL + lane;
+const unsigned int part = lane % {parts}U;
+const unsigned long long place = slot / {parts}ULL;
+const bool active = place < {heads}ULL * {channels}ULL;
+const unsigned long long head = active ? place / {channels}ULL : 0ULL;
+const unsigned long long channel = active ? place % {channels}ULL : 0ULL;
+const unsigned long long group = head / {per_group}ULL;
+const long long start = static_cast<long long>({offsets}[sequence]);
+const long long count = static_cast<long long>({real}[sequence]);
+const bool fresh = count > 0 && static_cast<long long>({positions}[start]) == 0;
+const unsigned long long base = ((sequence * {heads}ULL + head) * {channels}ULL + channel) * {size}ULL;
+{ty} entries[{owned}];
+#pragma unroll
+for (unsigned int t = 0; t < {owned}U; ++t) {{
+    const unsigned long long n = part + t * {parts}ULL;
+    entries[t] = active && !fresh ? static_cast<{ty}>({held}[base + n]) : static_cast<{ty}>(0);
+}}
+for (long long row = start; row < start + count; ++row) {{
+    const unsigned long long r = static_cast<unsigned long long>(row);
+    {ty} out = 0;
+    if (active) {{
+        const {ty} delta = {load_decay};
+        const {ty} input = {load_strength} * {load_row};{row_decay}
+        #pragma unroll
+        for (unsigned int t = 0; t < {owned}U; ++t) {{
+            const unsigned long long n = part + t * {parts}ULL;
+            entries[t] = {entry_decay} * entries[t] + input * {load_written};
+            out += entries[t] * {load_read};
+        }}
+    }}{gather}
+    if (active && part == 0) {output}[(r * {heads}ULL + head) * {channels}ULL + channel] = {stored};
+}}
+if (active) {{
+    #pragma unroll
+    for (unsigned int t = 0; t < {owned}U; ++t) {left}[base + part + t * {parts}ULL] = static_cast<float>(entries[t]);
+}}
+if (active && part == 0) {{
+    const long long end = sequence + 1 == {sequences}ULL ? {tokens}LL : static_cast<long long>({offsets}[sequence + 1]);
+    for (long long row = start + count; row < end; ++row) {output}[(static_cast<unsigned long long>(row) * {heads}ULL + head) * {channels}ULL + channel] = {zero};
+    if (sequence == 0) {{
+        for (long long row = 0; row < start; ++row) {output}[(static_cast<unsigned long long>(row) * {heads}ULL + head) * {channels}ULL + channel] = {zero};
+    }}
+}}"
+        ));
+        Ok(writer.finish(
+            "selective_scan",
+            launch,
+            vec![
+                ValueSpec::new(data_type, input.layout.shape().clone()),
+                ValueSpec::new(DataType::F32, state.layout.shape().clone()),
+            ],
+            inputs,
+            &[Operation::SelectiveScan],
         ))
     }
 }

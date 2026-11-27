@@ -10,7 +10,9 @@ use crate::{
     source::Source,
 };
 
+/// A `SuperPoint` config's fields, with `SuperPointConfig`'s defaults, which `SuperGlue`'s nested config leaves to them.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(default)]
 pub(crate) struct Fields {
     encoder_hidden_sizes: Vec<i64>,
     decoder_hidden_size: i64,
@@ -20,6 +22,21 @@ pub(crate) struct Fields {
     max_keypoints: i64,
     nms_radius: usize,
     border_removal_distance: usize,
+}
+
+impl Default for Fields {
+    fn default() -> Self {
+        Self {
+            encoder_hidden_sizes: vec![64, 64, 128, 128],
+            decoder_hidden_size: 256,
+            keypoint_decoder_dim: 65,
+            descriptor_decoder_dim: 256,
+            keypoint_threshold: 0.005,
+            max_keypoints: -1,
+            nms_radius: 4,
+            border_removal_distance: 4,
+        }
+    }
 }
 
 pub(crate) fn config(source: &Source) -> Result<SuperPointConfig> {

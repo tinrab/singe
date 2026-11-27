@@ -280,6 +280,20 @@ def write_media():
             48_000,
             subtype="PCM_16",
         )
+    codec = directory / "clip-24k.wav"
+    if not codec.exists():
+        import scipy.signal
+        import soundfile
+
+        # The clip's first second at 24 kHz, the rate EnCodec, Mimi, and UnivNet hear, so neither side resamples.
+        samples, rate = soundfile.read(clip, dtype="int16")
+        resampled = scipy.signal.resample_poly(samples[:rate].astype("float64"), 3, 2)
+        soundfile.write(
+            codec,
+            numpy.clip(numpy.round(resampled), -32768, 32767).astype("int16"),
+            24_000,
+            subtype="PCM_16",
+        )
     coco = directory / "coco-cats.png"
     if not coco.exists():
         from huggingface_hub.utils import get_session
@@ -586,7 +600,7 @@ def compare(task, want, got):
         return compare_matches(want, got)
     if task in ("audio-to-audio", "text-to-audio"):
         return compare_waveforms(want, got)
-    if task == "mask-generation":
+    if task in ("mask-generation", "mask-tracking"):
         regions = lambda output: [
             {"score": score, "mask": mask}
             for score, mask in zip(output["scores"], output["masks"])
@@ -594,7 +608,11 @@ def compare(task, want, got):
         return compare_masks(regions(want), regions(got))
     if task in ("text-generation", "image-text-to-text", "video-text-to-text"):
         return compare_tokens(want, got)
-    if task in ("feature-extraction", "image-feature-extraction"):
+    if task in (
+        "feature-extraction",
+        "image-feature-extraction",
+        "video-feature-extraction",
+    ):
         return compare_features(want, got)
     if task == "automatic-speech-recognition":
         return compare_text(want, got)
@@ -750,6 +768,13 @@ def data_url(pixels):
     buffer = io.BytesIO()
     Image.fromarray(pixels).save(buffer, format="PNG")
     return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
+
+
+def mask_url(mask):
+    """A boolean mask, `[H, W]`, as the data URL of the white-on-black RGB image Singe's pipelines write."""
+    return data_url(
+        numpy.repeat(numpy.asarray(mask, dtype=numpy.uint8)[..., None] * 255, 3, axis=2)
+    )
 
 
 # The least peak signal-to-noise ratio of an image against the reference's, in decibels.

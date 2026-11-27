@@ -205,6 +205,7 @@ fn check_dense(fixture: &Fixture<'_>, label: &str, causal: bool, tolerance: Tole
                 hidden: &fixture.tensor("gqa.dense.hidden"),
                 angles: Some(&angles),
                 key_lengths: None,
+                mask: None,
             },
             &state,
         )

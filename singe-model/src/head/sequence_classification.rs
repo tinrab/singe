@@ -14,14 +14,13 @@ use singe::{
 };
 
 use crate::{
-    assembly::PostNormEncoder,
     error::{Error, Result},
     format::transformers::classifier_config,
     function::{
         TensorFunction,
         forward::{External, ExternalHead, Forward},
     },
-    head::{EncoderHead, HeadLayouts},
+    head::{EncoderBody, EncoderHead, HeadLayouts},
     host,
     schema::Schema,
     source::Source,
@@ -234,14 +233,14 @@ impl EncoderHead for SequenceClassifier {
 
     fn layers(
         schema: &mut Schema<'_>,
-        encoder: PostNormEncoder,
+        encoder: EncoderBody,
         config: &ClassifierConfig,
         layouts: &HeadLayouts,
     ) -> SingeResult<SequenceClassifierLayers> {
-        let width = encoder.config().width;
+        let width = encoder.sizes.width;
         SequenceClassifierLayers::create(
             schema,
-            Box::new(encoder),
+            encoder.layers,
             width,
             config.labels().len(),
             layouts.classifier,

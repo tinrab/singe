@@ -143,6 +143,7 @@ impl Qwen35VisionEncoder {
                     hidden: &hidden,
                     angles: Some(&angles),
                     key_lengths: Some(&real),
+                    mask: None,
                 },
                 state,
             )?;

@@ -64,6 +64,7 @@ impl Layer for SelfAttention {
                 hidden: input,
                 angles: None,
                 key_lengths: None,
+                mask: None,
             },
             state,
         )

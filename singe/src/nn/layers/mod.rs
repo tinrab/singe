@@ -18,12 +18,16 @@ pub use self::{
     activation::Activation,
     attention::{
         AttentionInput, CrossAttention, CrossAttentionInput, DenseAttentionInput, GatedDeltaNet,
-        GatedDeltaNetLayers, GatedDeltaNetSpec, GroupedQueryAttention, GroupedQueryLayers,
-        HeadNorm, HeadProjection, LatentQuery, LocalAttention, MultiHeadLatentAttention,
+        GatedDeltaNetLayers, GatedDeltaNetSpec, GatedNorm, GroupedQueryAttention,
+        GroupedQueryLayers, HeadNorm, HeadProjection, LatentQuery, LocalAttention, Mamba2Layers,
+        Mamba2Mixer, Mamba2Spec, MambaLayers, MambaMixer, MambaSpec, MultiHeadLatentAttention,
         MultiHeadLatentLayers, RelativeAttention, RelativeAttentionInput, RelativeAttentionLayers,
-        SelfAttention, SourcePages, pages_for,
+        RgLru, RgLruLayers, RgLruSpec, SelfAttention, SourcePages, pages_for,
     },
-    blocks::{EncoderBlock, EncoderDecoderBlock, EncoderDecoderParts, HybridLayer, PreNormBlock},
+    blocks::{
+        EncoderBlock, EncoderDecoderBlock, EncoderDecoderParts, HybridLayer, PreNormBlock,
+        PreNormResidual,
+    },
     convolution::{
         Conv1d, Conv1dConfig, Conv2d, Conv2dConfig, Conv3d, Conv3dConfig, ConvTranspose1d,
         ConvTranspose1dConfig, ConvTranspose2d, ConvTranspose2dConfig, ConvTransposeConfig,
@@ -32,11 +36,12 @@ pub use self::{
     embedding::{Embedding, PatchTokens, TokenEmbeddings},
     feed_forward::{DecoderFeedForward, GatedMlp, MixtureOfExperts, Mlp, MoeLayers, MoeRouting},
     heads::{Pooling, PoolingInput, PoolingMode},
-    linear::{Flatten, Linear},
+    linear::{BitLinear, Flatten, Linear},
     networks::{CausalLm, CausalLmParts, Decoder, MultiTokenPrediction, SourcedCausalLm},
     normalization::{BatchNorm, GroupNorm, LayerNorm, LayerScale, OffsetRmsNorm, RmsNorm},
     positional::{
-        RotaryAngles, RotaryFrequencies, RotaryLayout, RotarySpec, RotaryTable, YarnFrequencies,
+        Llama3Frequencies, RotaryAngles, RotaryFrequencies, RotaryLayout, RotarySpec, RotaryTable,
+        YarnFrequencies,
     },
     recurrent::{
         Recurrent, RecurrentCell, RecurrentConfig, RecurrentDirection, RecurrentLayer,

@@ -8,11 +8,9 @@
 
 use std::collections::HashMap;
 
-#[cfg(feature = "onnx")]
-use crate::graph::{passes::decompose::splice_following, shape_program::ShapeProgram};
 use crate::{
     backend::{
-        registry::{Operation, OperationAttributes, ScaledDotProductAttentionAttributes},
+        registry::{Operation, OperationAttributes},
         spec,
     },
     error::{Error, Result},
@@ -24,54 +22,6 @@ use crate::{
     },
     shape::Shape,
 };
-
-#[cfg(feature = "onnx")]
-pub fn decompose_attention(
-    graph: &Graph,
-    decomposes: impl Fn(&ScaledDotProductAttentionAttributes) -> bool,
-) -> Result<Graph> {
-    let mut id_map = HashMap::with_capacity(graph.node_count());
-    let mut nodes = Vec::with_capacity(graph.node_count());
-    let mut decomposed = false;
-    let follows_axes = !graph.input_dimension_guards.is_empty();
-    let mut spliced_shapes = ShapeProgram::default();
-    for index in 0..graph.node_count() {
-        let id = ValueId::new(index);
-        let node = graph.required_node(id)?;
-        let new_id = if let OperationAttributes::ScaledDotProductAttention(attention) =
-            node.attributes()
-            && node.operation() == Some(Operation::ScaledDotProductAttention)
-            && decomposes(&attention)
-        {
-            decomposed = true;
-            let (new_id, shapes) =
-                splice_following(graph, &node, &id_map, &mut nodes, follows_axes)?;
-            spliced_shapes.extend(shapes);
-            new_id
-        } else {
-            push(&mut nodes, remapped_node(&node, &id_map)?)
-        };
-        id_map.insert(id, new_id);
-    }
-
-    if !decomposed {
-        return Ok(graph.clone());
-    }
-
-    let mut decomposed = Graph::from_retained_nodes(graph, &id_map, nodes)?;
-    // Compiling resolves shapes before it rewrites a graph, and export reads them afterwards, so they must follow their values.
-    let mapped = |id: ValueId| {
-        id_map
-            .get(&id)
-            .copied()
-            .ok_or_else(|| Error::missing_node("decompose all attention"))
-    };
-    decomposed.shape_program = graph.shape_program.remap(mapped, &|index| {
-        mapped(ValueId::new(index)).map(ValueId::index)
-    })?;
-    decomposed.shape_program.extend(spliced_shapes);
-    Ok(decomposed)
-}
 
 /// Returns `graph` with every matmul of queries by repeated keys or values folded into a matmul by the unrepeated ones, and the map from old values to new ones, which is empty when nothing folds.
 ///

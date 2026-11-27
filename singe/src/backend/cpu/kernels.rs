@@ -18,6 +18,7 @@ pub use crate::backend::cpu::{
     reduction::{
         argmax, argmin, argsort, cumprod, cumsum, logsumexp, max, mean, min, product, sum,
     },
+    sampling::deformable_attention,
     shape::{
         add_scalar, concat, index, index_put, index_select, index_write, rdiv_scalar, repeat_kv,
         rsub_scalar, scale, sub_scalar,

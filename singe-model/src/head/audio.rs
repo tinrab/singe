@@ -18,7 +18,10 @@ use crate::{
     },
     head::{Boxed, Classifier, ContrastiveEncoder, upload},
     model::audio::parakeet,
-    processor::fbank::{FilterBankOptions, SpectrogramOptions, ast_features, clap_features},
+    processor::fbank::{
+        AmplitudeMelOptions, FilterBankOptions, SpectrogramOptions, amplitude_log_mels,
+        ast_features, clap_features,
+    },
     source::Source,
 };
 
@@ -231,16 +234,27 @@ impl ExternalHead for AudioClassifier {
     }
 }
 
-/// An audio codec, as DAC is: its layers encode a batch of clips, `[B, N]`, to codes and decode them back to samples, `[B, M]`, with `M` at most `N`.
+/// An audio codec's layers, which encode a batch of clips, `[B, N]`, to codes and decode them back to samples, `[B, M]`, with `M` at most `N`.
+pub trait CodecLayers: Debug + Send + Sync {
+    /// Reconstructs `samples` through the codebooks `bandwidth` kilobits a second take, or the codec's default codebooks when `None`.
+    fn reconstruct(
+        &self,
+        samples: &Tensor,
+        bandwidth: Option<f64>,
+        state: &ModelState,
+    ) -> SingeResult<Tensor>;
+}
+
+/// An audio codec, as DAC, `EnCodec`, and Mimi are.
 #[derive(Debug)]
 pub struct AudioCodec {
-    model: Model<Boxed<dyn Layer>>,
+    model: Model<Boxed<dyn CodecLayers>>,
     sample_rate: i64,
 }
 
 impl AudioCodec {
     #[must_use]
-    pub const fn new(model: Model<Boxed<dyn Layer>>, sample_rate: i64) -> Self {
+    pub const fn new(model: Model<Boxed<dyn CodecLayers>>, sample_rate: i64) -> Self {
         Self { model, sample_rate }
     }
 
@@ -249,14 +263,76 @@ impl AudioCodec {
         self.sample_rate
     }
 
-    /// Returns one clip's samples encoded to the codec's codes and decoded back.
-    pub fn reconstruct(&self, samples: &[f32]) -> Result<Vec<f32>> {
+    /// Returns one clip's samples encoded to the codec's codes, through the codebooks `bandwidth` takes, and decoded back.
+    pub fn reconstruct(&self, samples: &[f32], bandwidth: Option<f64>) -> Result<Vec<f32>> {
         let count =
             i64::try_from(samples.len()).map_err(|_| SingeError::out_of_range("clip samples"))?;
         let samples = upload(self.model.state(), [1, count], samples.to_vec())?;
         Ok(self
             .model
-            .forward(&samples)?
+            .layer()
+            .reconstruct(&samples, bandwidth, self.model.state())?
+            .cast(DataType::F32)?
+            .to_vec::<f32>()?)
+    }
+}
+
+/// A GAN vocoder's layers: from a spectrogram, `[1, F, mels]`, and noise, `[1, F, C]`, to samples, `[1, N]`.
+pub trait VocoderLayers: Debug + Send + Sync {
+    /// Returns the samples synthesized from `features` and `noise`.
+    fn synthesize(
+        &self,
+        features: &Tensor,
+        noise: &Tensor,
+        state: &ModelState,
+    ) -> SingeResult<Tensor>;
+}
+
+/// A GAN vocoder, which resynthesizes a clip from its spectrogram and noise, as `UnivNet` does.
+#[derive(Debug)]
+pub struct Vocoder {
+    model: Model<Boxed<dyn VocoderLayers>>,
+    features: AmplitudeMelOptions,
+    noise_channels: usize,
+}
+
+impl Vocoder {
+    #[must_use]
+    pub const fn new(
+        model: Model<Boxed<dyn VocoderLayers>>,
+        features: AmplitudeMelOptions,
+        noise_channels: usize,
+    ) -> Self {
+        Self {
+            model,
+            features,
+            noise_channels,
+        }
+    }
+
+    #[must_use]
+    pub const fn sample_rate(&self) -> i64 {
+        self.features.sample_rate
+    }
+
+    /// Returns one clip's samples resynthesized from its spectrogram, with standard normal noise seeded by `seed`, one frame's channels after another.
+    pub fn resynthesize(&self, samples: &[f32], seed: u64) -> Result<Vec<f32>> {
+        let (features, count) = amplitude_log_mels(samples, &self.features);
+        let extent = |value: usize| {
+            i64::try_from(value).map_err(|_| SingeError::out_of_range("vocoder features"))
+        };
+        let frames = extent(count)?;
+        let state = self.model.state();
+        let features = upload(state, [1, frames, extent(self.features.mels)?], features)?;
+        let noise = upload(
+            state,
+            [1, frames, extent(self.noise_channels)?],
+            normal_noise(seed)(count * self.noise_channels),
+        )?;
+        Ok(self
+            .model
+            .layer()
+            .synthesize(&features, &noise, state)?
             .cast(DataType::F32)?
             .to_vec::<f32>()?)
     }

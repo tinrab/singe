@@ -224,7 +224,12 @@ impl Session {
         name: &str,
         check: impl FnOnce(&Case, &Path, &str) -> Result<Outcome>,
     ) {
-        if !label.contains(&self.filter) {
+        // A filter ending in `$` must end the label, so `model/case$` runs the case's own check without its exports.
+        let selected = match self.filter.strip_suffix('$') {
+            Some(end) => label.ends_with(end),
+            None => label.contains(&self.filter),
+        };
+        if !selected {
             return;
         }
 

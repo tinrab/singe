@@ -115,7 +115,7 @@ fn decoder(schema: &mut Schema<'_>, config: &DeepseekV3Config) -> SingeResult<De
     causal_lm(
         schema,
         decoder,
-        CausalLmSpec::new(decoder.rotary(), |_| cache),
+        CausalLmSpec::new(Some(decoder.rotary()), |_| cache),
         |schema, index| {
             let moe = i64::try_from(index).is_ok_and(|index| index >= config.dense_blocks);
             pre_norm_block_with(

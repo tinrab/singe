@@ -7,12 +7,12 @@ pub mod onnx;
 #[cfg(feature = "onnx")]
 pub mod rewrite;
 
+#[cfg(any(feature = "onnx", feature = "cuda_13_4"))]
+use singe::shape::spatial::{Spatial2d, Spatial2dI64};
 #[cfg(feature = "onnx")]
-use singe::{
-    DataType, Tensor,
-    shape::spatial::{Spatial2d, Spatial2dI64},
-};
+use singe::{DataType, Tensor};
 
+#[cfg(any(feature = "onnx", feature = "cuda_13_4"))]
 use crate::{
     error::{Error, Result},
     processor::image::{ImageTransforms, Resize},
@@ -74,6 +74,7 @@ fn matched_lines(comparisons: Vec<Compared>) -> Result<Vec<String>> {
 }
 
 /// Returns the size an image processor gives every image, which an image encoder's program reads.
+#[cfg(any(feature = "onnx", feature = "cuda_13_4"))]
 fn image_size(processor: &ImageTransforms) -> Result<Spatial2dI64> {
     match (processor.crop, processor.resize) {
         (Some(crop), _) => Ok(crop),

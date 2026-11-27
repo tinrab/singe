@@ -24,6 +24,7 @@ singe-onnx = { workspace = true, optional = true }
 image.workspace = true
 minijinja.workspace = true
 minijinja-contrib.workspace = true
+regex.workspace = true
 regex-syntax.workspace = true
 safetensors.workspace = true
 serde.workspace = true

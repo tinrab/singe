@@ -1,0 +1,21 @@
+{
+  "cases": [
+    {
+      "name": "summary",
+      "snapshot": "SWITCH",
+      "task": "summarization",
+      "data_type": "f32",
+      "inputs": [
+        "Factorio is a game about building and maintaining factories. The player is an engineer who crash-lands on an alien planet and must gather resources, research technology, and build ever larger factories that automate the production of items. Factorio is a game about building and maintaining factories. The player is an engineer who crash-lands on an alien planet and must gather resources, research technology, and build ever larger factories that automate the production of items. Factorio is a game about building and maintaining factories. The player is an engineer who crash-lands on an alien planet and must gather resources, research technology, and build ever larger factories that automate the production of items. Factorio is a game about building and maintaining factories. The player is an engineer who crash-lands on an alien planet and must gather resources, research technology, and build ever larger factories that automate the production of items. Factorio is a game about building and maintaining factories. The player is an engineer who crash-lands on an alien planet and must gather resources, research technology, and build ever larger factories that automate the production of items. Factorio is a game about building and maintaining factories. The player is an engineer who crash-lands on an alien planet and must gather resources, research technology, and build ever larger factories that automate the production of items. Factorio is a game about building and maintaining factories. The player is an engineer who crash-lands on an alien planet and must gather resources, research technology, and build ever larger factories that automate the production of items. Factorio is a game about building and maintaining factories. The player is an engineer who crash-lands on an alien planet and must gather resources, research technology, and build ever larger factories that automate the production of items. "
+      ],
+      "parameters": {
+        "max_new_tokens": 30
+      },
+      "expected": [
+        {
+          "summary_text": ". Factorio is a game about building and maintaining factories. The player is an engineer who crashes on an alien planet and must gather resources"
+        }
+      ]
+    }
+  ]
+}

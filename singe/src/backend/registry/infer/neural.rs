@@ -542,6 +542,157 @@ pub fn gated_delta_rule_state(context: &InferenceContext<'_>) -> Result<Operatio
     Ok(inference)
 }
 
+fn selective_scan_shapes(context: &InferenceContext<'_>) -> Result<()> {
+    let (input, state) = (context.input(0)?, context.input(6)?);
+    let (&[tokens, heads, channels], &[sequences, _, _, size]) =
+        (input.shape().dimensions(), state.shape().dimensions())
+    else {
+        return Err(Error::invalid_argument(
+            "the selective scan's inputs are [tokens, heads, channels] and its state [sequences, heads, channels, size]",
+        ));
+    };
+    let projection = context.input(4)?;
+    let &[_, groups, _] = projection.shape().dimensions() else {
+        return Err(Error::invalid_argument(
+            "the selective scan's projections are [tokens, groups, size]",
+        ));
+    };
+    if groups == 0 || heads % groups != 0 {
+        return Err(Error::invalid_argument(
+            "the selective scan's heads are a whole number of groups",
+        ));
+    }
+
+    // One rate per head, as Mamba-2 has, may stand for the same rate in every entry.
+    let rates = context.input(3)?;
+    let rate_width = match rates.shape().dimensions() {
+        &[_, 1] => 1,
+        _ => size,
+    };
+    let expected = [
+        (context.input(1)?, vec![tokens, heads]),
+        (context.input(2)?, vec![tokens, heads]),
+        (rates, vec![heads, rate_width]),
+        (projection, vec![tokens, groups, size]),
+        (context.input(5)?, vec![tokens, groups, size]),
+        (state, vec![sequences, heads, channels, size]),
+    ];
+    for (operand, shape) in expected {
+        if operand.shape().dimensions() != shape.as_slice() {
+            return Err(Error::shape_mismatch(
+                "selective scan operand",
+                shape,
+                operand.shape().dimensions().to_vec(),
+            ));
+        }
+    }
+
+    if state.data_type() != DataType::F32 {
+        return Err(Error::data_type_mismatch(
+            "selective scan state",
+            DataType::F32,
+            state.data_type(),
+        ));
+    }
+
+    check_sequence_spans(context, 7, sequences, tokens, "selective scan spans")
+}
+
+pub fn selective_scan(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    selective_scan_shapes(context)?;
+    let (input, state) = (context.input(0)?, context.input(6)?);
+    let mut inference = context.same_type(input.shape());
+    inference.outputs[0] = ValueSpec::new(input.data_type(), input.shape().clone());
+    inference.outputs[1] = ValueSpec::new(DataType::F32, state.shape().clone());
+    Ok(inference)
+}
+
+pub fn selective_scan_output(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    selective_scan_shapes(context)?;
+    let input = context.input(0)?;
+    let mut inference = context.same_type(input.shape());
+    inference.outputs[0] = ValueSpec::new(input.data_type(), input.shape().clone());
+    Ok(inference)
+}
+
+pub fn selective_scan_state(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    selective_scan_shapes(context)?;
+    let state = context.input(6)?;
+    let mut inference = context.same_type(state.shape());
+    inference.outputs[0] = ValueSpec::new(DataType::F32, state.shape().clone());
+    Ok(inference)
+}
+
+pub fn deformable_attention(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    let (value, shapes, starts, locations, weights) = (
+        context.input(0)?,
+        context.input(1)?,
+        context.input(2)?,
+        context.input(3)?,
+        context.input(4)?,
+    );
+    let (&[batch, _, heads, channels], &[levels, 2], &[starts_levels]) = (
+        value.shape().dimensions(),
+        shapes.shape().dimensions(),
+        starts.shape().dimensions(),
+    ) else {
+        return Err(Error::invalid_argument(
+            "deformable attention's value is [batch, rows, heads, channels], its shapes [levels, 2], and its starts [levels]",
+        ));
+    };
+    let &[_, queries, _, _, points, 2] = locations.shape().dimensions() else {
+        return Err(Error::invalid_argument(
+            "deformable attention's locations are [batch, queries, heads, levels, points, 2]",
+        ));
+    };
+    let expected = [
+        (locations, vec![batch, queries, heads, levels, points, 2]),
+        (weights, vec![batch, queries, heads, levels, points]),
+    ];
+    for (operand, shape) in expected {
+        if operand.shape().dimensions() != shape.as_slice() {
+            return Err(Error::shape_mismatch(
+                "deformable attention operand",
+                shape,
+                operand.shape().dimensions().to_vec(),
+            ));
+        }
+    }
+
+    if starts_levels != levels {
+        return Err(Error::shape_mismatch(
+            "deformable attention starts",
+            vec![levels],
+            vec![starts_levels],
+        ));
+    }
+
+    for operand in [shapes, starts] {
+        if operand.data_type() != DataType::I64 {
+            return Err(Error::data_type_mismatch(
+                "deformable attention levels",
+                DataType::I64,
+                operand.data_type(),
+            ));
+        }
+    }
+
+    for operand in [locations, weights] {
+        if operand.data_type() != value.data_type() {
+            return Err(Error::data_type_mismatch(
+                "deformable attention samples",
+                value.data_type(),
+                operand.data_type(),
+            ));
+        }
+    }
+
+    let shape = Shape::create([batch, queries, heads * channels])?;
+    let mut inference = context.same_type(&shape);
+    inference.outputs[0] = ValueSpec::new(value.data_type(), shape);
+    Ok(inference)
+}
+
 // Multiplies rows sorted by group by their groups' weights, keeping the rows' type.
 pub fn grouped_matmul(context: &InferenceContext<'_>) -> Result<OperationInference> {
     let (input, weights, offsets) = (context.input(0)?, context.input(1)?, context.input(2)?);

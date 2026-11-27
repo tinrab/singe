@@ -1,0 +1,42 @@
+{
+  "cases": [
+    {
+      "name": "count",
+      "snapshot": "BITNET",
+      "task": "text-generation",
+      "data_type": "bf16",
+      "inputs": ["1, 2, 3, 4, 5, 6, 7,"],
+      "parameters": {
+        "max_new_tokens": 24
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            220, 23, 11, 220, 24, 11, 220, 605, 11, 220, 806, 11, 220, 717, 11, 220, 1032, 11, 220,
+            975, 11, 220, 868, 11
+          ],
+          "end_token_ids": [128001, 128009]
+        }
+      ]
+    },
+    {
+      "name": "code",
+      "snapshot": "BITNET",
+      "task": "text-generation",
+      "data_type": "bf16",
+      "inputs": ["def fibonacci(n):\n"],
+      "parameters": {
+        "max_new_tokens": 24
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            262, 422, 308, 2717, 220, 16, 512, 286, 471, 308, 198, 262, 775, 512, 286, 471, 76798,
+            1471, 12, 16, 8, 489, 76798, 1471
+          ],
+          "end_token_ids": [128001, 128009]
+        }
+      ]
+    }
+  ]
+}

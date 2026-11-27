@@ -1,9 +1,8 @@
 """SAM, generating masks of everything in an image with `transformers`' mask-generation pipeline, as `mod.rs` generates them in Singe."""
 
-import numpy
 from transformers import pipeline
 
-from support import DEVICE, Verification, data_url
+from support import DEVICE, Verification, mask_url
 
 
 def mask_generation(snapshot, dtype):
@@ -15,16 +14,7 @@ def mask_generation(snapshot, dtype):
             found = generate(path, **parameters)
             outputs.append(
                 {
-                    "masks": [
-                        data_url(
-                            numpy.repeat(
-                                numpy.asarray(mask, dtype=numpy.uint8)[..., None] * 255,
-                                3,
-                                axis=2,
-                            )
-                        )
-                        for mask in found["masks"]
-                    ],
+                    "masks": [mask_url(mask) for mask in found["masks"]],
                     "scores": [float(score) for score in found["scores"]],
                 }
             )

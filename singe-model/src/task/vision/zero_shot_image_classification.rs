@@ -1,10 +1,10 @@
-//! `zero-shot-image-classification`: an image and candidate labels to each label's score, best first: the softmax of the image's scaled cosines with each label's hypothesis, as `transformers`' pipeline scores them with a CLIP-style model.
+//! `zero-shot-image-classification`: an image and candidate labels to each label's score, best first: the softmax of the image's scaled cosines with each label's hypothesis, as `transformers`' pipeline scores them with a CLIP-style model, or each one's sigmoid with `SigLIP`'s bias added.
 
 use serde::Deserialize;
 
 use crate::{
     error::Result,
-    head::{ContrastiveEncoder, ScoreFunction},
+    head::ContrastiveEncoder,
     model,
     processor::{image::ImageTransforms, text::TextTokenizer},
     source::{LoadOptions, Source},
@@ -66,7 +66,7 @@ impl Pipeline for ZeroShotImageClassificationPipeline {
         Ok(ranked(
             &logits[0],
             &input.candidate_labels,
-            ScoreFunction::Softmax,
+            self.model.score_function(),
             usize::MAX,
         ))
     }

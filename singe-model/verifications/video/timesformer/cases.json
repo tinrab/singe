@@ -1,0 +1,35 @@
+{
+  "cases": [
+    {
+      "name": "classification",
+      "snapshot": "TIMESFORMER",
+      "task": "video-classification",
+      "data_type": "f32",
+      "inputs": ["media/spaghetti"],
+      "expected": [
+        [
+          {
+            "score": 0.963796,
+            "label": "eating spaghetti"
+          },
+          {
+            "score": 0.0303473,
+            "label": "dining"
+          },
+          {
+            "score": 0.00205679,
+            "label": "cooking chicken"
+          },
+          {
+            "score": 0.00200152,
+            "label": "eating ice cream"
+          },
+          {
+            "score": 0.000750092,
+            "label": "tasting food"
+          }
+        ]
+      ]
+    }
+  ]
+}

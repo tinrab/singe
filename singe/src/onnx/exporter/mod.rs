@@ -16,16 +16,18 @@ use singe_onnx::proto::onnx::{
 };
 
 use crate::{
+    backend::registry::{Operation, OperationAttributes},
     data_type::DataType,
     graph::{
         CaptureInfo, GraphProgram, InputDimensionGuard, ProgramInputBinding, StateBindingKind,
-        StateSnapshot, decompose_attention,
+        StateSnapshot, decompose_for_export,
         ir::{Graph, ValueId},
     },
     onnx::{
         error::Result,
         export_contract::{SHAPE_CONTRACT, annotate_dimension},
         exporter::proto::{raw_tensor, tensor, unsupported, value_info},
+        utility::{FUSED_INPUT, FUSED_OPERATION},
     },
     scalar::Scalar,
     shape::Shape,
@@ -67,9 +69,20 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
     }
 
     // `Attention` has no sinks and aligns its causal mask to key lengths at the bottom right, so attention with either exports as what it computes.
-    let graph = decompose_attention(program.logical_graph(), |attention| {
-        attention.sinks || (attention.key_lengths && (attention.causal || attention.masked))
-    })?;
+    // Deformable attention has no ONNX operator and exports as its gathers, marked so Singe's importer reads them as the operation.
+    let (graph, decomposed) =
+        decompose_for_export(program.logical_graph(), |operation, attributes| {
+            match (operation, attributes) {
+                (
+                    Operation::ScaledDotProductAttention,
+                    OperationAttributes::ScaledDotProductAttention(attention),
+                ) => {
+                    attention.sinks
+                        || (attention.key_lengths && (attention.causal || attention.masked))
+                }
+                (operation, _) => operation == Operation::DeformableAttention,
+            }
+        })?;
     let ir = graph.to_ir()?;
     let source = &ir;
     // A graph that writes inputs returns their new values as trailing outputs, named `present.<input>` beside the input they update.
@@ -112,6 +125,11 @@ fn exported(program: &GraphProgram, state: &StateSnapshot) -> Result<Exported> {
         grown: Default::default(),
         traced: None,
         origin: None,
+        fused: decomposed
+            .into_iter()
+            .filter(|(operation, _, _)| *operation == Operation::DeformableAttention)
+            .map(|(operation, output, inputs)| (output, (operation, inputs)))
+            .collect(),
     };
     for input in program.signature().inputs() {
         let mut info = value_info(
@@ -306,6 +324,7 @@ struct Exporter<'a> {
     grown: [HashMap<ValueId, Option<Shape>>; 2],
     traced: Option<String>,
     origin: Option<String>,
+    fused: HashMap<ValueId, (Operation, Vec<ValueId>)>,
 }
 
 impl Exporter<'_> {
@@ -346,6 +365,38 @@ impl Exporter<'_> {
             doc_string: self.origin.clone().unwrap_or_default(),
             ..Default::default()
         });
+    }
+
+    // An `Identity` of a decomposition's `output` whose metadata names the `operation` it computes and its `inputs`, which Singe's importer reads as the operation itself.
+    fn marked(
+        &mut self,
+        output: String,
+        operation: Operation,
+        inputs: &[ValueId],
+    ) -> Result<String> {
+        let mut metadata_props = vec![StringStringEntryProto {
+            key: FUSED_OPERATION.into(),
+            value: operation.name().into(),
+        }];
+        for (index, &input) in inputs.iter().enumerate() {
+            metadata_props.push(StringStringEntryProto {
+                key: format!("{FUSED_INPUT}.{index}"),
+                value: self.emit(input)?,
+            });
+        }
+
+        let marked = self.fresh();
+        let name = self.fresh();
+        self.graph.node.push(NodeProto {
+            name,
+            op_type: "Identity".into(),
+            input: vec![output],
+            output: vec![marked.clone()],
+            doc_string: self.origin.clone().unwrap_or_default(),
+            metadata_props,
+            ..Default::default()
+        });
+        Ok(marked)
     }
 
     fn temporary(
@@ -444,7 +495,10 @@ impl Exporter<'_> {
                     .ok_or_else(|| unsupported("operation without the requested result"))?
             };
             self.origin = previous;
-            output
+            match self.fused.remove(&value) {
+                Some((operation, inputs)) => self.marked(output, operation, &inputs)?,
+                None => output,
+            }
         };
         self.names.insert(value, output.clone());
         self.visiting.remove(&value);

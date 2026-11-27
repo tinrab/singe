@@ -97,14 +97,13 @@ impl Layer<DenseAttentionInput<'_>> for GroupedQueryAttention {
             rotate_heads(key, true)?,
             rotate_heads(value, false)?,
         );
-        // Each sequence's count of keys hides its padded keys from every query and head.
-        let attended = input
-            .key_lengths
-            .map_or_else(
-                || query.attend(&key, &value, None, None, self.options),
-                |lengths| query.attend_padded(&key, &value, lengths, self.options),
-            )?
-            .permute(&[0, 2, 1, 3])?;
+        // Each sequence's count of keys hides its padded keys from every query and head, unless a mask does.
+        let attended = match (input.mask, input.key_lengths) {
+            (Some(mask), _) => query.attend(&key, &value, Some(mask), None, self.options)?,
+            (None, Some(lengths)) => query.attend_padded(&key, &value, lengths, self.options)?,
+            (None, None) => query.attend(&key, &value, None, None, self.options)?,
+        }
+        .permute(&[0, 2, 1, 3])?;
         let shape = [
             hidden.dimension(0)?,
             hidden.dimension(1)?,

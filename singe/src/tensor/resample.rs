@@ -283,14 +283,17 @@ impl Tensor {
 
         if extent % size == 0 {
             let window = extent / size;
-            let mut grouped = self.shape().dimensions().to_vec();
+            // The other axes follow a program's run-time axes.
+            let mut grouped = (0..self.shape().dimensions().len())
+                .map(|axis| self.dimension(axis))
+                .collect::<Result<Vec<_>>>()?;
             let axis = grouped.len()
                 - usize::try_from(-dim)
                     .map_err(|_| Error::dimension_out_of_bounds("adaptive pooling dim"))?;
-            grouped.splice(axis..=axis, [size, window]);
+            grouped.splice(axis..=axis, [size.into(), window.into()]);
             let reduced = i64::try_from(axis + 1)
                 .map_err(|_| Error::dimension_out_of_bounds("adaptive pooling axis"))?;
-            return reduce(&self.reshape(grouped)?, &[reduced], false);
+            return reduce(&self.reshape_with(&grouped)?, &[reduced], false);
         }
 
         let windows = (0..size)

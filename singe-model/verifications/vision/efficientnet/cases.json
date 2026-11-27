@@ -1,0 +1,57 @@
+{
+  "cases": [
+    {
+      "name": "classification",
+      "snapshot": "EFFICIENTNET",
+      "task": "image-classification",
+      "data_type": "f32",
+      "inputs": ["media/coco-cats.png", "media/cat-448x320.png"],
+      "expected": [
+        [
+          {
+            "label": "tabby, tabby cat",
+            "score": 0.499133
+          },
+          {
+            "label": "tiger cat",
+            "score": 0.227305
+          },
+          {
+            "label": "Egyptian cat",
+            "score": 0.186889
+          },
+          {
+            "label": "lynx, catamount",
+            "score": 0.0123443
+          },
+          {
+            "label": "quilt, comforter, comfort, puff",
+            "score": 0.00392579
+          }
+        ],
+        [
+          {
+            "label": "lynx, catamount",
+            "score": 0.807644
+          },
+          {
+            "label": "snow leopard, ounce, Panthera uncia",
+            "score": 0.0122352
+          },
+          {
+            "label": "tiger, Panthera tigris",
+            "score": 0.0118183
+          },
+          {
+            "label": "Norfolk terrier",
+            "score": 0.00681152
+          },
+          {
+            "label": "tabby, tabby cat",
+            "score": 0.00663338
+          }
+        ]
+      ]
+    }
+  ]
+}

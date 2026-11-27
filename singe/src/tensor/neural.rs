@@ -358,14 +358,28 @@ impl Tensor {
             DimensionExpr::constant(channels / groups),
             |points, axis| points * axis.clone(),
         );
-        let mut normalized = self
-            .reshape_with(&[
-                original[0].clone(),
-                DimensionExpr::constant(groups),
-                grouped,
-            ])?
-            .layer_norm(&[points], None, None, eps)?
-            .reshape_with(&original)?;
+        let is_fixed = grouped.is_constant();
+        let reshaped = self.reshape_with(&[
+            original[0].clone(),
+            DimensionExpr::constant(groups),
+            grouped,
+        ])?;
+        // A layer norm's normalized length is fixed where it is built, so points that follow run-time axes are normalized through reductions, which hold no length.
+        let normalized = if is_fixed {
+            reshaped.layer_norm(&[points], None, None, eps)?
+        } else {
+            let wide = reshaped.cast(if self.data_type() == DataType::F64 {
+                DataType::F64
+            } else {
+                DataType::F32
+            })?;
+            let centered = wide.sub(&wide.mean(&[2], true)?)?;
+            let variance = centered.mul(&centered)?.mean(&[2], true)?;
+            centered
+                .mul(&variance.add_scalar(f64::from(eps))?.rsqrt()?)?
+                .cast(self.data_type())?
+        };
+        let mut normalized = normalized.reshape_with(&original)?;
         // The affine parameters hold one value per channel, broadcast over the spatial points.
         let mut channel = vec![1; dimensions.len() - 1];
         channel[0] = channels;
@@ -573,6 +587,59 @@ impl Tensor {
         match (outputs.next(), outputs.next()) {
             (Some(output), Some(state)) => Ok((output, state)),
             _ => Err(Error::missing_output("gated delta rule")),
+        }
+    }
+}
+
+impl Tensor {
+    pub fn deformable_attention(
+        &self,
+        shapes: &Self,
+        starts: &Self,
+        locations: &Self,
+        weights: &Self,
+    ) -> Result<Self> {
+        call_one(
+            Operation::DeformableAttention,
+            OperationAttributes::None,
+            &[self, shapes, starts, locations, weights],
+        )
+    }
+
+    // Runs a diagonal linear recurrence over each sequence's real rows of `self`, `[T, H, P]`, from `state`, `[S, H, P, N]` in `F32`, or zeros for a sequence starting at position zero.
+    // For each row in order, head `h`'s state entry `[p, n]` becomes `exp(decay[h] · a[h, n])` times itself plus `strength[h] · x[h, p] · input_projection[g, n]`, with `g` the head's group, and the output is `Σ_n state[p, n] · output_projection[g, n]`.
+    // `decay` and `strength` are `[T, H]`, `a` is `[H, N]` or `[H, 1]` for one rate per head, and the projections are `[T, G, N]` with `H` a multiple of `G`.
+    // Returns the output, whose rows that are not a sequence's own are zero, and the state the step leaves, a sequence's state as it was when the step has no real rows of it.
+    pub fn selective_scan(
+        &self,
+        decay: &Self,
+        strength: &Self,
+        a: &Self,
+        input_projection: &Self,
+        output_projection: &Self,
+        state: &Self,
+        spans: SequenceSpans<'_>,
+    ) -> Result<(Self, Self)> {
+        let mut outputs = call(
+            Operation::SelectiveScan,
+            OperationAttributes::None,
+            &[
+                self,
+                decay,
+                strength,
+                a,
+                input_projection,
+                output_projection,
+                state,
+                spans.query_offsets,
+                spans.real_tokens,
+                spans.positions,
+            ],
+        )?
+        .into_iter();
+        match (outputs.next(), outputs.next()) {
+            (Some(output), Some(state)) => Ok((output, state)),
+            _ => Err(Error::missing_output("selective scan")),
         }
     }
 }

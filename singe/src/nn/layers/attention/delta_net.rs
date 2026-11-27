@@ -3,13 +3,11 @@ use serde::{Deserialize, Serialize};
 use crate::{
     data_type::DataType,
     error::{Error, Result},
-    graph::capture,
     nn::{
         AttentionInput, DecodingLayer, Layer, Linear, ModelState, RmsNorm, StateCache,
         StateCacheSpec, StateKey,
     },
-    shape::Shape,
-    tensor::{SequenceSpans, Tensor},
+    tensor::Tensor,
 };
 
 // The sizes of a [`GatedDeltaNet`]: `key_heads` heads of `key_dim` for queries and keys, `value_heads` heads of `value_dim` for values, and a convolution of `kernel` taps.
@@ -35,8 +33,8 @@ impl GatedDeltaNetSpec {
             channels: self.channels(),
             width: self.kernel,
             heads: self.value_heads,
-            key_dim: self.key_dim,
-            value_dim: self.value_dim,
+            rows: self.key_dim,
+            columns: self.value_dim,
         }
     }
 }
@@ -165,40 +163,20 @@ impl DecodingLayer for GatedDeltaNet {
             .mul(&rate)?;
         let (attended, left) =
             query.gated_delta_rule(&key, &value, &decay, &strength, cache.recurrent(), spans)?;
-        // Each trail row runs the rule and the convolution's state again over a sequence's first rows alone, so a check of drafted tokens keeps the state its accepted rows leave.
-        let trail = cache.trail_rows()?;
-        if trail > 0 {
-            let mut convolutions = Vec::new();
-            let mut states = Vec::new();
-            for rows in 1..=trail {
-                let real = spans
-                    .real_tokens
-                    .minimum(&capture::literal(hidden.device(), |device| {
-                        Tensor::from_vec(device, Shape::create([1])?, vec![rows])
-                    })?)?;
-                let first = SequenceSpans {
-                    real_tokens: &real,
-                    ..spans
-                };
-                convolutions.push(mixed.causal_conv1d_state(cache.convolution(), first)?);
-                let (_, state) = query.gated_delta_rule(
-                    &key,
-                    &value,
-                    &decay,
-                    &strength,
-                    cache.recurrent(),
-                    first,
-                )?;
-                states.push(state);
-            }
-
-            cache.write_trail(
-                &Tensor::stack(&convolutions, 0)?,
-                &Tensor::stack(&states, 0)?,
+        cache.write_step(spans, &convolution, &left, |first| {
+            let (_, state) = query.gated_delta_rule(
+                &key,
+                &value,
+                &decay,
+                &strength,
+                cache.recurrent(),
+                first,
             )?;
-        }
-
-        cache.write(&convolution, &left)?;
+            Ok((
+                mixed.causal_conv1d_state(cache.convolution(), first)?,
+                state,
+            ))
+        })?;
         let head_shape = [
             tokens.clone(),
             spec.value_heads.into(),

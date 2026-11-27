@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::Result,
-    head::{ObjectDetector, ScoreFunction, argmax},
+    head::{DetectionScoring, ObjectDetector, ScoreFunction, argmax},
     model,
     processor::image::{Image, ImageTransforms},
     source::{LoadOptions, Source},
@@ -77,23 +77,51 @@ impl Pipeline for ObjectDetectionPipeline {
         })
     }
 
-    /// Detects the objects in `image`: each query's labels go through a softmax with the no-object score, and a query whose best real label scores above the threshold is kept with that label.
+    /// Detects the objects in `image`, as the model's scoring picks them, and keeps those scoring above the threshold.
+    /// Under [`DetectionScoring::NoObject`] each query's labels go through a softmax with the no-object score, and a query is kept with its best real label, in query order.
+    /// Under [`DetectionScoring::SigmoidTopK`] every query's label scores go through a sigmoid, and the best `k` pairs of a query and a label are kept, best first.
     fn run_one(&self, image: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
         let labels = self.model.config().labels();
         let pixels =
             self.processor
                 .preprocess(image, self.options.device, self.options.data_type)?;
-        Ok(self.model.detect(&pixels)?[0]
-            .iter()
-            .filter_map(|query| {
-                let scores = ScoreFunction::Softmax.apply(&query.scores);
-                let (label, score) = argmax(scores[..labels.len()].iter().copied().enumerate())?;
-                (score > parameters.threshold).then(|| DetectedObject {
-                    score,
-                    label: labels[label].clone(),
-                    bounds: BoundingBox::from_center(query.center_box, image.width, image.height),
+        let queries = &self.model.detect(&pixels)?[0];
+        let detected = |query: usize, label: usize, score: f32| DetectedObject {
+            score,
+            label: labels[label].clone(),
+            bounds: BoundingBox::from_center(queries[query].center_box, image.width, image.height),
+        };
+        Ok(match self.model.scoring() {
+            DetectionScoring::NoObject => queries
+                .iter()
+                .enumerate()
+                .filter_map(|(index, query)| {
+                    let scores = ScoreFunction::Softmax.apply(&query.scores);
+                    let (label, score) =
+                        argmax(scores[..labels.len()].iter().copied().enumerate())?;
+                    (score > parameters.threshold).then(|| detected(index, label, score))
                 })
-            })
-            .collect())
+                .collect(),
+            DetectionScoring::SigmoidTopK(k) => {
+                let mut ranked = queries
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(index, query)| {
+                        ScoreFunction::Sigmoid
+                            .apply(&query.scores)
+                            .into_iter()
+                            .enumerate()
+                            .map(move |(label, score)| (index, label, score))
+                    })
+                    .collect::<Vec<_>>();
+                ranked.sort_by(|left, right| right.2.total_cmp(&left.2));
+                ranked
+                    .into_iter()
+                    .take(k)
+                    .filter(|&(_, _, score)| score > parameters.threshold)
+                    .map(|(index, label, score)| detected(index, label, score))
+                    .collect()
+            }
+        })
     }
 }

@@ -292,6 +292,28 @@ pub const GATED_DELTA_RULE_OPERANDS: &[OperandRole] = &[
     OperandRole::Indices,
 ];
 
+// A selective scan's inputs, decays, strengths, state matrix, input and output projections, state, and the sequences' spans.
+pub const SELECTIVE_SCAN_OPERANDS: &[OperandRole] = &[
+    OperandRole::Input,
+    OperandRole::Input,
+    OperandRole::Input,
+    OperandRole::Input,
+    OperandRole::Input,
+    OperandRole::Input,
+    OperandRole::Input,
+    OperandRole::Indices,
+    OperandRole::Indices,
+    OperandRole::Indices,
+];
+
+pub const DEFORMABLE_ATTENTION_OPERANDS: &[OperandRole] = &[
+    OperandRole::Input,
+    OperandRole::Indices,
+    OperandRole::Indices,
+    OperandRole::Input,
+    OperandRole::Weight,
+];
+
 // A grouped matmul's rows, its groups' weights, and the group offsets.
 pub const GROUPED_MATMUL_OPERANDS: &[OperandRole] = &[
     OperandRole::Input,

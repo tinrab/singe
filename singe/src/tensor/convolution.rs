@@ -80,6 +80,20 @@ impl Tensor {
             );
         }
 
+        if groups == 1
+            && dilation == Spatial2d::square(1)
+            && (stride.height > 1 || stride.width > 1)
+        {
+            return self.convolution_transpose2d_by_phases(
+                weight,
+                bias,
+                [inputs, per_group, kernel_height, kernel_width],
+                stride,
+                padding,
+                output_padding,
+            );
+        }
+
         let flipped = weight
             .reshape([
                 groups,
@@ -191,6 +205,119 @@ impl Tensor {
         match bias {
             Some(bias) => blocks.add(&bias.reshape([1, outputs, 1, 1])?),
             None => Ok(blocks),
+        }
+    }
+
+    // The strided transposed convolution without inserted zeros: output point `t = q · s + r` sums the input points `q - j` times the kernel taps `j · s + r`, so each of the `s` phases `r` is an ordinary convolution with its own taps, flipped.
+    // One convolution computes every phase as `s · O` output channels, over the input padded by `J - 1` on each side, where the kernel padded with zero taps spans `J · s`; interleaving the phases and cropping `padding` from the front gives the output.
+    fn convolution_transpose2d_by_phases(
+        &self,
+        weight: &Self,
+        bias: Option<&Self>,
+        [inputs, outputs, kernel_height, kernel_width]: [i64; 4],
+        stride: Spatial2dI64,
+        padding: Spatial2dI64,
+        output_padding: Spatial2dI64,
+    ) -> Result<Self> {
+        let (stride_height, stride_width) = (stride.height, stride.width);
+        let taps = |kernel: i64, stride: i64| (kernel + stride - 1) / stride;
+        let (taps_height, taps_width) = (
+            taps(kernel_height, stride_height),
+            taps(kernel_width, stride_width),
+        );
+        let phases = weight
+            .pad(
+                &[
+                    Padding::ZERO,
+                    Padding::ZERO,
+                    Padding::new(0, taps_height * stride_height - kernel_height),
+                    Padding::new(0, taps_width * stride_width - kernel_width),
+                ],
+                0.0,
+            )?
+            .reshape([
+                inputs,
+                outputs,
+                taps_height,
+                stride_height,
+                taps_width,
+                stride_width,
+            ])?
+            .flip(&[2, 4])?
+            .permute(&[3, 5, 1, 0, 2, 4])?
+            .reshape([
+                stride_height * stride_width * outputs,
+                inputs,
+                taps_height,
+                taps_width,
+            ])?;
+        let convolved = self.convolution2d(
+            &phases,
+            None,
+            (1, 1),
+            Padding2d::symmetric(taps_height - 1, taps_width - 1),
+            (1, 1),
+            1,
+        )?;
+        let (batch, height, width) = (
+            convolved.dimension(0)?,
+            convolved.dimension(2)?,
+            convolved.dimension(3)?,
+        );
+        let mut output = convolved
+            .reshape_with(&[
+                batch.clone(),
+                stride_height.into(),
+                stride_width.into(),
+                outputs.into(),
+                height.clone(),
+                width.clone(),
+            ])?
+            .permute(&[0, 3, 4, 1, 5, 2])?
+            .contiguous()?
+            .reshape_with(&[
+                batch,
+                outputs.into(),
+                height * stride_height,
+                width * stride_width,
+            ])?;
+        // The output spans `(input - 1) · s - 2 · padding + kernel + output_padding` points from `padding`; output padding past the phases' reach adds zeros.
+        for (axis, input, stride, kernel, taps, pad, extra) in [
+            (
+                2_usize,
+                self.dimension(2)?,
+                stride_height,
+                kernel_height,
+                taps_height,
+                padding.height,
+                output_padding.height,
+            ),
+            (
+                3,
+                self.dimension(3)?,
+                stride_width,
+                kernel_width,
+                taps_width,
+                padding.width,
+                output_padding.width,
+            ),
+        ] {
+            let beyond = kernel + extra - pad - taps * stride;
+            if beyond > 0 {
+                let mut margins = vec![Padding::ZERO; 4];
+                margins[axis] = Padding::new(0, beyond);
+                output = output.pad(&margins, 0.0)?;
+            }
+
+            output = output.narrow_with(
+                to_i64(axis, "transposed convolution axis")?,
+                pad,
+                (input - 1) * stride - 2 * pad + kernel + extra,
+            )?;
+        }
+        match bias {
+            Some(bias) => output.add(&bias.reshape([1, outputs, 1, 1])?),
+            None => Ok(output),
         }
     }
 

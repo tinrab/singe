@@ -113,6 +113,14 @@ const UNCOVERED: &[(&str, &str)] = &[
         "is `gated_delta_rule`'s second result as graph capture records it; its cases cover it",
     ),
     (
+        "selective_scan_output",
+        "is `selective_scan`'s first result as graph capture records it; its cases cover it",
+    ),
+    (
+        "selective_scan_state",
+        "is `selective_scan`'s second result as graph capture records it; its cases cover it",
+    ),
+    (
         "assign",
         "writes its destination in place; `tensor_mutation` covers it",
     ),
@@ -832,6 +840,8 @@ fn tolerance(data_type: DataType, operation: &str) -> (f64, f64) {
             | "paged_mla_attention"
             | "causal_conv1d"
             | "gated_delta_rule"
+            | "selective_scan"
+            | "deformable_attention"
     );
     match data_type {
         DataType::F32 if reassociates => (1e-5, 1e-4),

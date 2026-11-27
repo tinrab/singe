@@ -7,6 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use singe_model::{
+    head::SpeechPrompt,
     processor::audio::Audio,
     task::{
         Pipeline, Task,
@@ -170,11 +171,16 @@ pub async fn speak(
         noise_scale: request.noise_scale,
         noise_scale_duration: request.noise_scale_duration,
         seed: request.seed.unwrap_or(0),
+        max_new_tokens: request.max_new_tokens,
+        do_sample: request.do_sample,
+        temperature: request.temperature,
+        top_k: request.top_k,
     };
     let text = request.input;
     let generated = worker
         .call(move |pipeline| {
-            Ok(downcast::<TextToAudioPipeline>(&**pipeline)?.run_one(&text, &parameters)?)
+            Ok(downcast::<TextToAudioPipeline>(&**pipeline)?
+                .run_one(&SpeechPrompt::Text(text), &parameters)?)
         })
         .await?;
     let rate = u32::try_from(generated.sampling_rate)

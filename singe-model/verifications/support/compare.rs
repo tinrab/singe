@@ -21,10 +21,12 @@ pub fn outputs(task: &str, want: &Value, got: &Value) -> (bool, String) {
         "image-segmentation" => masks(want, got),
         "keypoint-detection" => keypoints(want, got),
         "keypoint-matching" => matches(want, got),
-        "mask-generation" => masks(&regions(want), &regions(got)),
+        "mask-generation" | "mask-tracking" => masks(&regions(want), &regions(got)),
         "audio-to-audio" | "text-to-audio" => waveforms(want, got),
         "text-generation" | "image-text-to-text" | "video-text-to-text" => tokens(want, got),
-        "feature-extraction" | "image-feature-extraction" => features(want, got),
+        "feature-extraction" | "image-feature-extraction" | "video-feature-extraction" => {
+            features(want, got)
+        }
         "automatic-speech-recognition" => text(want, got),
         "summarization"
         | "translation"

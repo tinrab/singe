@@ -1,0 +1,157 @@
+{
+  "cases": [
+    {
+      "name": "fill",
+      "snapshot": "ESM2",
+      "task": "fill-mask",
+      "data_type": "f32",
+      "inputs": [
+        "MKTAYIAKQRQISFVKSHFSRQ<mask>EERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKALPDAQFEVVHSLAKWKRQTLGQHDFSAGEGLYTHMKALRPDEDRLSPLHSVYVDQWDWERVMGDGERQFSTLKSTVEAIWAGIKATEAAVSEEFGLAPFLPDQIHFVHSQELLSRYPDLDAKGRERAIAKDLGAVFLVGIGGKLSDGHRHDVRAPDYDDWSTPSELGHAGLNGDILVWNPVLEDAFELSSMGIRVDADTLKHQLALTGDEDRLELEWHQALLRGEMPQTIGGGIGQSRLTMLLLQLPHIGQVQAGVWPAACRESVPALL"
+      ],
+      "expected": [
+        [
+          {
+            "score": 0.264585,
+            "token": 4,
+            "token_str": "L",
+            "sequence": "M K T A Y I A K Q R Q I S F V K S H F S R Q L E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q V K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q I H F V H S Q E L L S R Y P D L D A K G R E R A I A K D L G A V F L V G I G G K L S D G H R H D V R A P D Y D D W S T P S E L G H A G L N G D I L V W N P V L E D A F E L S S M G I R V D A D T L K H Q L A L T G D E D R L E L E W H Q A L L R G E M P Q T I G G G I G Q S R L T M L L L Q L P H I G Q V Q A G V W P A A C R E S V P A L L"
+          },
+          {
+            "score": 0.114779,
+            "token": 7,
+            "token_str": "V",
+            "sequence": "M K T A Y I A K Q R Q I S F V K S H F S R Q V E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q V K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q I H F V H S Q E L L S R Y P D L D A K G R E R A I A K D L G A V F L V G I G G K L S D G H R H D V R A P D Y D D W S T P S E L G H A G L N G D I L V W N P V L E D A F E L S S M G I R V D A D T L K H Q L A L T G D E D R L E L E W H Q A L L R G E M P Q T I G G G I G Q S R L T M L L L Q L P H I G Q V Q A G V W P A A C R E S V P A L L"
+          },
+          {
+            "score": 0.102789,
+            "token": 12,
+            "token_str": "I",
+            "sequence": "M K T A Y I A K Q R Q I S F V K S H F S R Q I E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q V K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q I H F V H S Q E L L S R Y P D L D A K G R E R A I A K D L G A V F L V G I G G K L S D G H R H D V R A P D Y D D W S T P S E L G H A G L N G D I L V W N P V L E D A F E L S S M G I R V D A D T L K H Q L A L T G D E D R L E L E W H Q A L L R G E M P Q T I G G G I G Q S R L T M L L L Q L P H I G Q V Q A G V W P A A C R E S V P A L L"
+          },
+          {
+            "score": 0.0815656,
+            "token": 5,
+            "token_str": "A",
+            "sequence": "M K T A Y I A K Q R Q I S F V K S H F S R Q A E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q V K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q I H F V H S Q E L L S R Y P D L D A K G R E R A I A K D L G A V F L V G I G G K L S D G H R H D V R A P D Y D D W S T P S E L G H A G L N G D I L V W N P V L E D A F E L S S M G I R V D A D T L K H Q L A L T G D E D R L E L E W H Q A L L R G E M P Q T I G G G I G Q S R L T M L L L Q L P H I G Q V Q A G V W P A A C R E S V P A L L"
+          },
+          {
+            "score": 0.0597124,
+            "token": 18,
+            "token_str": "F",
+            "sequence": "M K T A Y I A K Q R Q I S F V K S H F S R Q F E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q V K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q I H F V H S Q E L L S R Y P D L D A K G R E R A I A K D L G A V F L V G I G G K L S D G H R H D V R A P D Y D D W S T P S E L G H A G L N G D I L V W N P V L E D A F E L S S M G I R V D A D T L K H Q L A L T G D E D R L E L E W H Q A L L R G E M P Q T I G G G I G Q S R L T M L L L Q L P H I G Q V Q A G V W P A A C R E S V P A L L"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "fill-two",
+      "snapshot": "ESM2",
+      "task": "fill-mask",
+      "data_type": "f32",
+      "inputs": [
+        "MKTAYIAKQRQISFVKSHFSRQ<mask>EERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQ<mask>KVKALPDAQFEVVHSLAKWKRQTLGQHDFSAGEGLYTHMKALRPDEDRLSPLHSVYVDQWDWERVMGDGERQFSTLKSTVEAIWAGIKATEAAVSEEFGLAPFLPDQ",
+        "MSEQ<mask>LLKEIAKQ"
+      ],
+      "expected": [
+        [
+          [
+            {
+              "score": 0.267109,
+              "token": 4,
+              "token_str": "L",
+              "sequence": "<cls> M K T A Y I A K Q R Q I S F V K S H F S R Q L E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q <mask> K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q <eos>"
+            },
+            {
+              "score": 0.110531,
+              "token": 7,
+              "token_str": "V",
+              "sequence": "<cls> M K T A Y I A K Q R Q I S F V K S H F S R Q V E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q <mask> K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q <eos>"
+            },
+            {
+              "score": 0.110282,
+              "token": 12,
+              "token_str": "I",
+              "sequence": "<cls> M K T A Y I A K Q R Q I S F V K S H F S R Q I E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q <mask> K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q <eos>"
+            },
+            {
+              "score": 0.0774718,
+              "token": 5,
+              "token_str": "A",
+              "sequence": "<cls> M K T A Y I A K Q R Q I S F V K S H F S R Q A E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q <mask> K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q <eos>"
+            },
+            {
+              "score": 0.0770499,
+              "token": 18,
+              "token_str": "F",
+              "sequence": "<cls> M K T A Y I A K Q R Q I S F V K S H F S R Q F E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q <mask> K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q <eos>"
+            }
+          ],
+          [
+            {
+              "score": 0.17572,
+              "token": 5,
+              "token_str": "A",
+              "sequence": "<cls> M K T A Y I A K Q R Q I S F V K S H F S R Q <mask> E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q A K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q <eos>"
+            },
+            {
+              "score": 0.109393,
+              "token": 9,
+              "token_str": "E",
+              "sequence": "<cls> M K T A Y I A K Q R Q I S F V K S H F S R Q <mask> E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q E K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q <eos>"
+            },
+            {
+              "score": 0.100931,
+              "token": 4,
+              "token_str": "L",
+              "sequence": "<cls> M K T A Y I A K Q R Q I S F V K S H F S R Q <mask> E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q L K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q <eos>"
+            },
+            {
+              "score": 0.0978339,
+              "token": 7,
+              "token_str": "V",
+              "sequence": "<cls> M K T A Y I A K Q R Q I S F V K S H F S R Q <mask> E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q V K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q <eos>"
+            },
+            {
+              "score": 0.0647555,
+              "token": 10,
+              "token_str": "R",
+              "sequence": "<cls> M K T A Y I A K Q R Q I S F V K S H F S R Q <mask> E E R L G L I E V Q A P I L S R V G D G T Q D N L S G A E K A V Q R K V K A L P D A Q F E V V H S L A K W K R Q T L G Q H D F S A G E G L Y T H M K A L R P D E D R L S P L H S V Y V D Q W D W E R V M G D G E R Q F S T L K S T V E A I W A G I K A T E A A V S E E F G L A P F L P D Q <eos>"
+            }
+          ]
+        ],
+        [
+          {
+            "score": 0.138533,
+            "token": 9,
+            "token_str": "E",
+            "sequence": "M S E Q E L L K E I A K Q"
+          },
+          {
+            "score": 0.093041,
+            "token": 15,
+            "token_str": "K",
+            "sequence": "M S E Q K L L K E I A K Q"
+          },
+          {
+            "score": 0.0806414,
+            "token": 13,
+            "token_str": "D",
+            "sequence": "M S E Q D L L K E I A K Q"
+          },
+          {
+            "score": 0.0745257,
+            "token": 4,
+            "token_str": "L",
+            "sequence": "M S E Q L L L K E I A K Q"
+          },
+          {
+            "score": 0.070983,
+            "token": 16,
+            "token_str": "Q",
+            "sequence": "M S E Q Q L L K E I A K Q"
+          }
+        ]
+      ]
+    }
+  ]
+}

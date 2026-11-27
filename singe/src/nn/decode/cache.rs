@@ -8,7 +8,7 @@ use crate::{
     index::TensorIndex,
     nn::{DecodeStep, InputGroup, SourcePages, TensorGroup, decode::input_group, pages_for},
     shape::{Shape, spatial::Padding},
-    tensor::Tensor,
+    tensor::{SequenceSpans, Tensor},
 };
 
 // A cache a decoder's blocks read and extend, whose tensors a compiled step takes as inputs.
@@ -368,17 +368,17 @@ impl DecodeCache for EncoderDecoderCache {
     }
 }
 
-// What sizes a [`StateCache`]: a causal convolution over `channels` of `width` taps, and a recurrent state of `heads` heads of `key_dim` by `value_dim`.
+// What sizes a [`StateCache`]: a causal convolution over `channels` of `width` taps, and a recurrent state of `heads` heads of `rows` by `columns`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StateCacheSpec {
     pub channels: i64,
     pub width: i64,
     pub heads: i64,
-    pub key_dim: i64,
-    pub value_dim: i64,
+    pub rows: i64,
+    pub columns: i64,
 }
 
-// One linear-attention layer's state for each sequence row: the convolution's last inputs, `[S, channels, width − 1]`, and the recurrent state, `[S, heads, key_dim, value_dim]`, in F32.
+// One recurrent layer's state for each sequence row: the convolution's last inputs, `[S, channels, width − 1]`, and the recurrent state, `[S, heads, rows, columns]`, in F32.
 //
 // A row's state is not paged: a step reads and writes it by the row's index, and starts from zero for a row whose first token is at position zero.
 #[derive(Debug, Clone)]
@@ -426,6 +426,41 @@ impl StateCache {
     pub fn write(&self, convolution: &Tensor, recurrent: &Tensor) -> Result<()> {
         self.convolution.assign(convolution)?;
         self.recurrent.assign(recurrent)
+    }
+
+    // Writes what a step over `spans` leaves, as `write` does, and with a trail, the states `rerun` leaves over each sequence's first rows alone, one trail row per count of them, so a check of drafted tokens keeps the state its accepted rows leave.
+    pub fn write_step(
+        &self,
+        spans: SequenceSpans<'_>,
+        convolution: &Tensor,
+        recurrent: &Tensor,
+        rerun: impl Fn(SequenceSpans<'_>) -> Result<(Tensor, Tensor)>,
+    ) -> Result<()> {
+        let trail = self.trail_rows()?;
+        if trail > 0 {
+            let mut convolutions = Vec::new();
+            let mut states = Vec::new();
+            for rows in 1..=trail {
+                let real = spans
+                    .real_tokens
+                    .minimum(&capture::literal(spans.real_tokens.device(), |device| {
+                        Tensor::from_vec(device, Shape::create([1])?, vec![rows])
+                    })?)?;
+                let (convolution, state) = rerun(SequenceSpans {
+                    real_tokens: &real,
+                    ..spans
+                })?;
+                convolutions.push(convolution);
+                states.push(state);
+            }
+
+            self.write_trail(
+                &Tensor::stack(&convolutions, 0)?,
+                &Tensor::stack(&states, 0)?,
+            )?;
+        }
+
+        self.write(convolution, recurrent)
     }
 
     // Returns the convolution's last inputs.
@@ -484,7 +519,7 @@ impl DecodeCache for StateCache {
         }
 
         let convolution = [size.sequences, spec.channels, spec.width - 1];
-        let recurrent = [size.sequences, spec.heads, spec.key_dim, spec.value_dim];
+        let recurrent = [size.sequences, spec.heads, spec.rows, spec.columns];
         let trail = (size.trail > 0)
             .then(|| -> Result<[Tensor; 2]> {
                 let rows = |dimensions: &[i64]| {
@@ -509,13 +544,15 @@ impl DecodeCache for StateCache {
 pub enum HybridCacheSpec {
     Attention(KvCacheSpec),
     State(StateCacheSpec),
+    Parallel(KvCacheSpec, StateCacheSpec),
 }
 
-// The cache of a layer of a hybrid model, whose attention layers hold paged keys and values and whose linear-attention layers hold a state.
+// The cache of a layer of a hybrid model, whose attention layers hold paged keys and values, whose recurrent layers hold a state, and whose layers that run both hold both.
 #[derive(Debug, Clone)]
 pub enum HybridCache {
     Attention(KvCache),
     State(StateCache),
+    Parallel(KvCache, StateCache),
 }
 
 impl TensorGroup for HybridCache {
@@ -523,6 +560,11 @@ impl TensorGroup for HybridCache {
         match self {
             Self::Attention(cache) => cache.named_tensors(),
             Self::State(cache) => cache.named_tensors(),
+            Self::Parallel(attention, recurrent) => {
+                let mut tensors = attention.named_tensors();
+                tensors.extend(recurrent.named_tensors());
+                tensors
+            }
         }
     }
 }
@@ -543,6 +585,10 @@ impl DecodeCache for HybridCache {
             HybridCacheSpec::State(spec) => {
                 Self::State(StateCache::create(device, data_type, size, spec)?)
             }
+            HybridCacheSpec::Parallel(attention, recurrent) => Self::Parallel(
+                KvCache::create(device, data_type, size, attention)?,
+                StateCache::create(device, data_type, size, recurrent)?,
+            ),
         })
     }
 
@@ -550,6 +596,11 @@ impl DecodeCache for HybridCache {
         Ok(match self {
             Self::Attention(cache) => Self::Attention(cache.rebuilt(tensors)?),
             Self::State(cache) => Self::State(cache.rebuilt(tensors)?),
+            Self::Parallel(attention, recurrent) => {
+                let split = attention.named_tensors().len().min(tensors.len());
+                let (keys, states) = tensors.split_at(split);
+                Self::Parallel(attention.rebuilt(keys)?, recurrent.rebuilt(states)?)
+            }
         })
     }
 
@@ -557,6 +608,10 @@ impl DecodeCache for HybridCache {
         match self {
             Self::Attention(cache) => cache.keep_trail(row),
             Self::State(cache) => cache.keep_trail(row),
+            Self::Parallel(attention, recurrent) => {
+                attention.keep_trail(row)?;
+                recurrent.keep_trail(row)
+            }
         }
     }
 }

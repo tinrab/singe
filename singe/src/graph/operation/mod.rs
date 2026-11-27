@@ -58,6 +58,8 @@ impl GraphOperationInputs {
             (RegistryOperation::PagedMlaAttention, 1) => RegistryOperation::PagedMlaAttentionLse,
             (RegistryOperation::GatedDeltaRule, 0) => RegistryOperation::GatedDeltaRuleOutput,
             (RegistryOperation::GatedDeltaRule, 1) => RegistryOperation::GatedDeltaRuleState,
+            (RegistryOperation::SelectiveScan, 0) => RegistryOperation::SelectiveScanOutput,
+            (RegistryOperation::SelectiveScan, 1) => RegistryOperation::SelectiveScanState,
             (operation, 0) => operation,
             _ => return Err(Error::missing_output("for result")),
         };

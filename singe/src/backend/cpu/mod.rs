@@ -13,6 +13,7 @@ mod pooling;
 pub mod random;
 mod recurrence;
 mod reduction;
+mod sampling;
 mod shape;
 pub mod storage;
 mod unary;

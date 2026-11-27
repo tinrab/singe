@@ -4,7 +4,7 @@ use serde::Deserialize;
 use singe::nn::Activation;
 
 use crate::{
-    assembly::attention_rules,
+    assembly::{HifiGanConfig, attention_rules, hifigan_rules},
     error::{Error, Result},
     format::{Rules, transformers::activation_field},
     model::audio::vits::VitsConfig,
@@ -110,12 +110,16 @@ pub(crate) fn config(source: &Source) -> Result<VitsConfig> {
         prior_flows: fields.prior_encoder_num_flows,
         wavenet_layers: fields.prior_encoder_num_wavenet_layers,
         wavenet_kernel: fields.wavenet_kernel_size,
-        upsample_initial: fields.upsample_initial_channel,
-        upsample_rates: fields.upsample_rates,
-        upsample_kernels: fields.upsample_kernel_sizes,
-        resblock_kernels: fields.resblock_kernel_sizes,
-        resblock_dilations: fields.resblock_dilation_sizes,
-        leaky_slope: fields.leaky_relu_slope,
+        vocoder: HifiGanConfig {
+            input: fields.flow_size,
+            initial: fields.upsample_initial_channel,
+            upsample_rates: fields.upsample_rates,
+            upsample_kernels: fields.upsample_kernel_sizes,
+            resblock_kernels: fields.resblock_kernel_sizes,
+            resblock_dilations: fields.resblock_dilation_sizes,
+            leaky_slope: fields.leaky_relu_slope,
+            post_bias: false,
+        },
         sample_rate: fields.sampling_rate,
         noise_scale: fields.noise_scale,
         noise_scale_duration: fields.noise_scale_duration,
@@ -199,9 +203,5 @@ pub(crate) fn rules(config: &VitsConfig) -> Rules {
         )
         .rename("flow.flows.*.conv_pre", "couplings.*.pre")
         .rename("flow.flows.*.conv_post", "couplings.*.post")
-        .rename("decoder.conv_pre", "decoder.pre")
-        .rename("decoder.conv_post", "decoder.post")
-        .rename("decoder.upsampler", "decoder.upsamplers")
-        .rename("decoder.resblocks.*.convs1", "decoder.resblocks.*.first")
-        .rename("decoder.resblocks.*.convs2", "decoder.resblocks.*.second")
+        .then(hifigan_rules("decoder", "decoder"))
 }

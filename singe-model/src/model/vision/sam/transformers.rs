@@ -124,7 +124,7 @@ pub(crate) fn config(source: &Source) -> Result<SamConfig> {
 }
 
 /// Returns the rules that import a `SamFeedForward`'s layers, stored as `proj_in`, `layers.N`, and `proj_out`, to layers under `to` numbered in order.
-fn linear_stack_rules(from: &str, to: &str, depth: i64) -> Rules {
+pub(crate) fn linear_stack_rules(from: &str, to: &str, depth: i64) -> Rules {
     let mut rules = Rules::new()
         .rename(&join(from, "proj_in"), &join(to, "0"))
         .rename(&join(from, "proj_out"), &join(to, &(depth - 1).to_string()));

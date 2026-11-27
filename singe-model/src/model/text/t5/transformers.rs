@@ -9,12 +9,12 @@ use crate::{
         Rules, join,
         transformers::{activation, default_true},
     },
-    model::text::t5::{StackRole, T5Config},
+    model::text::t5::{StackRole, SwitchExperts, T5Config, TransientGlobal},
     source::Source,
 };
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-struct Fields {
+pub(crate) struct Fields {
     vocab_size: i64,
     d_model: i64,
     d_kv: i64,
@@ -30,6 +30,19 @@ struct Fields {
     feed_forward_proj: String,
     #[serde(default = "default_true")]
     tie_word_embeddings: bool,
+    num_experts: Option<i64>,
+    #[serde(default)]
+    encoder_sparse_step: i64,
+    #[serde(default)]
+    decoder_sparse_step: i64,
+    expert_capacity: Option<i64>,
+    #[serde(default)]
+    router_bias: bool,
+    router_dtype: Option<String>,
+    num_selected_experts: Option<i64>,
+    encoder_attention_type: Option<String>,
+    local_radius: Option<i64>,
+    global_block_size: Option<i64>,
 }
 
 const fn max_distance() -> i64 {
@@ -42,12 +55,18 @@ fn relu() -> String {
 }
 
 pub(crate) fn config(source: &Source) -> Result<T5Config> {
-    let fields: Fields = source.json("config.json")?;
+    fields_config(&source.json("config.json")?)
+}
+
+/// Reads T5's config from its fields, as a composite model such as `MusicGen` nests them.
+pub(crate) fn fields_config(fields: &Fields) -> Result<T5Config> {
     // `gated-gelu` names a gated feed-forward and its activation, as T5 v1.1 has it.
-    let (gated, name) = match fields.feed_forward_proj.strip_prefix("gated-") {
-        Some(name) => (true, name),
-        None => (false, fields.feed_forward_proj.as_str()),
-    };
+    let (gated, name) = fields
+        .feed_forward_proj
+        .strip_prefix("gated-")
+        .map_or((false, fields.feed_forward_proj.as_str()), |name| {
+            (true, name)
+        });
     let activation = match name {
         // `transformers` maps T5's `gelu` to its tanh approximation.
         "gelu" if gated => Activation::Gelu,
@@ -56,6 +75,51 @@ pub(crate) fn config(source: &Source) -> Result<T5Config> {
     if fields.relative_attention_num_buckets < 2 {
         return Err(Error::unsupported("fewer than two position buckets"));
     }
+
+    let experts = match fields.num_experts {
+        Some(count) => {
+            if fields.router_bias
+                || fields
+                    .router_dtype
+                    .as_deref()
+                    .is_some_and(|dtype| dtype != "float32")
+                || fields
+                    .num_selected_experts
+                    .is_some_and(|selected| selected != 1)
+            {
+                return Err(Error::unsupported(
+                    "Switch experts other than one per token, routed in F32 without bias",
+                ));
+            }
+
+            Some(SwitchExperts {
+                count,
+                encoder_step: fields.encoder_sparse_step,
+                decoder_step: fields.decoder_sparse_step,
+                capacity: fields
+                    .expert_capacity
+                    .ok_or_else(|| Error::unsupported("Switch experts without a capacity"))?,
+            })
+        }
+        None => None,
+    };
+
+    let transient_global = match fields.encoder_attention_type.as_deref() {
+        None => None,
+        Some("transient-global") => Some(TransientGlobal {
+            radius: fields
+                .local_radius
+                .ok_or_else(|| Error::unsupported("LongT5 without a local radius"))?,
+            block: fields
+                .global_block_size
+                .ok_or_else(|| Error::unsupported("LongT5 without a global block size"))?,
+        }),
+        Some(other) => {
+            return Err(Error::unsupported(format!(
+                "LongT5 encoder attention `{other}`"
+            )));
+        }
+    };
 
     Ok(T5Config {
         vocab_size: fields.vocab_size,
@@ -71,6 +135,8 @@ pub(crate) fn config(source: &Source) -> Result<T5Config> {
         activation,
         gated,
         tied: fields.tie_word_embeddings,
+        experts,
+        transient_global,
     })
 }
 
@@ -105,11 +171,28 @@ fn stack_rules(stack: &str, role: StackRole) -> Rules {
             part(2),
         ),
     };
+    // LongT5's encoder names its attention `TransientGlobalSelfAttention`, with a global table beside the position table and a norm of the global tokens in each block.
+    let global = join(&part(0), "TransientGlobalSelfAttention");
     Rules::new()
         .rename(
             &format!("{stack}.block.0.layer.0.SelfAttention.relative_attention_bias.weight"),
             &format!("{stack}.position_bias"),
         )
+        .rename(
+            &format!("{stack}.block.0.layer.0.TransientGlobalSelfAttention.relative_attention_bias.weight"),
+            &format!("{stack}.position_bias"),
+        )
+        .rename(
+            &format!(
+                "{stack}.block.0.layer.0.TransientGlobalSelfAttention.global_relative_attention_bias.weight"
+            ),
+            &format!("{stack}.global_bias"),
+        )
+        .rename(
+            &join(&global, "global_input_layer_norm"),
+            &join(&blocks, "global_norm"),
+        )
+        .then(projection_rules(&global, &join(&blocks, "attention")))
         .then(projection_rules(
             &join(&part(0), "SelfAttention"),
             &join(&blocks, "attention"),
@@ -128,12 +211,25 @@ fn stack_rules(stack: &str, role: StackRole) -> Rules {
                 ("DenseReluDense.wi_0", "feed_forward.gate"),
                 ("DenseReluDense.wi_1", "feed_forward.up"),
                 ("DenseReluDense.wo", "feed_forward.down"),
+                // Switch Transformers' names, for its dense layers and its experts.
+                ("mlp.wi", "feed_forward.up"),
+                ("mlp.wo", "feed_forward.down"),
+                ("mlp.router.classifier", "feed_forward.router"),
+                ("mlp.experts", "feed_forward.experts"),
             ],
         )
         .rename(
             &format!("{stack}.final_layer_norm"),
             &format!("{stack}.norm"),
         )
+}
+
+/// Imports the encoder of a T5 stored under `prefix`, its embeddings `shared`, to [`T5Encoder`](crate::model::text::t5::T5Encoder)'s names under the same prefix.
+pub(crate) fn encoder_rules(prefix: &str) -> Rules {
+    Rules::new()
+        .rename(&join(prefix, "shared"), &join(prefix, "tokens"))
+        .skip(&join(prefix, "encoder.embed_tokens"))
+        .then(stack_rules(&join(prefix, "encoder"), StackRole::Encoder))
 }
 
 pub(crate) fn rules(tied: bool) -> Rules {

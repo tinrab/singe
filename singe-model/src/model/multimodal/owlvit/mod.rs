@@ -143,5 +143,5 @@ pub fn load_detector(loader: &mut Loader<'_>) -> Result<OpenVocabularyDetector> 
     let model = Schema::model(loader.options().data_type, |schema| layers(schema, &config))?;
     let model = loader.load_whole(&model, &transformers::rules())?;
     let (images, texts) = model.layer().split(model.state());
-    Ok(OpenVocabularyDetector::new(images, texts))
+    Ok(OpenVocabularyDetector::Patches { images, texts })
 }

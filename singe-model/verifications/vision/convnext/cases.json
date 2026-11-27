@@ -1,0 +1,110 @@
+{
+  "cases": [
+    {
+      "name": "classification",
+      "snapshot": "CONVNEXT_V2",
+      "task": "image-classification",
+      "data_type": "f32",
+      "inputs": ["media/coco-cats.png", "media/cat-448x320.png"],
+      "expected": [
+        [
+          {
+            "label": "tabby, tabby cat",
+            "score": 0.552119
+          },
+          {
+            "label": "tiger cat",
+            "score": 0.30839
+          },
+          {
+            "label": "Egyptian cat",
+            "score": 0.0311883
+          },
+          {
+            "label": "remote control, remote",
+            "score": 0.0169947
+          },
+          {
+            "label": "Siamese cat, Siamese",
+            "score": 0.00285681
+          }
+        ],
+        [
+          {
+            "label": "lynx, catamount",
+            "score": 0.913956
+          },
+          {
+            "label": "badger",
+            "score": 0.00556447
+          },
+          {
+            "label": "marmot",
+            "score": 0.00367696
+          },
+          {
+            "label": "snow leopard, ounce, Panthera uncia",
+            "score": 0.00223487
+          },
+          {
+            "label": "fox squirrel, eastern fox squirrel, Sciurus niger",
+            "score": 0.00220566
+          }
+        ]
+      ]
+    },
+    {
+      "name": "classification_v1",
+      "snapshot": "CONVNEXT",
+      "task": "image-classification",
+      "data_type": "f32",
+      "inputs": ["media/coco-cats.png", "media/cat-448x320.png"],
+      "expected": [
+        [
+          {
+            "label": "tabby, tabby cat",
+            "score": 0.612278
+          },
+          {
+            "label": "tiger cat",
+            "score": 0.274639
+          },
+          {
+            "label": "Egyptian cat",
+            "score": 0.00957745
+          },
+          {
+            "label": "quilt, comforter, comfort, puff",
+            "score": 0.00176826
+          },
+          {
+            "label": "pillow",
+            "score": 0.00173608
+          }
+        ],
+        [
+          {
+            "label": "lynx, catamount",
+            "score": 0.738488
+          },
+          {
+            "label": "wombat",
+            "score": 0.0584392
+          },
+          {
+            "label": "badger",
+            "score": 0.0232916
+          },
+          {
+            "label": "marmot",
+            "score": 0.0188395
+          },
+          {
+            "label": "tabby, tabby cat",
+            "score": 0.00699845
+          }
+        ]
+      ]
+    }
+  ]
+}

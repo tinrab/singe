@@ -1,6 +1,9 @@
 #[cfg(test)]
 use std::cell::Cell;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::{
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap, HashSet},
+};
 
 use crate::{
     backend::registry::{
@@ -324,19 +327,21 @@ impl Graph {
             }
         }
 
-        let mut queue: VecDeque<ValueId> = in_degree
+        // The ready node created first runs first, so the order stays the traced program's where it can: values that read only state, such as a weight unpacked before its matmul, then run beside their reader rather than all at the start, and their storage is reused.
+        let mut queue: BinaryHeap<Reverse<usize>> = in_degree
             .iter()
             .enumerate()
             .filter(|&(_, d)| *d == 0)
-            .map(|(index, _)| ValueId::new(index))
+            .map(|(index, _)| Reverse(index))
             .collect();
         let mut order = Vec::new();
-        while let Some(node) = queue.pop_front() {
+        while let Some(Reverse(index)) = queue.pop() {
+            let node = ValueId::new(index);
             order.push(node);
-            for &next in &adj[node.index()] {
+            for &next in &adj[index] {
                 in_degree[next.index()] -= 1;
                 if in_degree[next.index()] == 0 {
-                    queue.push_back(next);
+                    queue.push(Reverse(next.index()));
                 }
             }
         }

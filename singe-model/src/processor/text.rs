@@ -8,6 +8,7 @@ use singe::{DataType, Device, Error as SingeError, Shape, Tensor, nn::TokenBatch
 use tokenizers::{
     DecodeStream, Decoder, DecoderWrapper, EncodeInput, Encoding, ModelWrapper, NormalizerWrapper,
     PostProcessorWrapper, PreTokenizerWrapper, Tokenizer, TruncationParams, TruncationStrategy,
+    normalizers::{Lowercase, Sequence as NormalizerSequence},
 };
 
 use crate::{
@@ -230,6 +231,21 @@ impl TextTokenizer {
                 what: "clear truncation",
                 source,
             })?;
+        // `transformers` loads SigLIP 2's tokenizer as `Siglip2Tokenizer`, which lowercases before the snapshot's normalizer.
+        let model: Value = source.optional_json("config.json")?.unwrap_or_default();
+        if model["model_type"].as_str() == Some("siglip2") {
+            let mut normalizers = vec![NormalizerWrapper::Lowercase(Lowercase)];
+            normalizers.extend(inner.get_normalizer().cloned());
+            inner
+                .with_normalizer(Some(NormalizerWrapper::Sequence(NormalizerSequence::new(
+                    normalizers,
+                ))))
+                .map_err(|source| Error::Tokenizer {
+                    what: "add lowercasing",
+                    source,
+                })?;
+        }
+
         let mut config = Map::new();
         for file in ["special_tokens_map.json", "tokenizer_config.json"] {
             if let Some(Value::Object(fields)) = source.optional_json(file)? {
@@ -699,5 +715,77 @@ impl CharacterTokenizer {
             interspersed[2 * index + 1] = id;
         }
         interspersed
+    }
+}
+
+/// A tokenizer of space-separated `ARPAbet` phonemes, as `FastSpeech2ConformerTokenizer` maps what its grapheme-to-phoneme model gives: each phoneme's id, or the unknown token's, then the end token.
+/// It reads phonemes, not text, since Singe has no grapheme-to-phoneme model.
+#[derive(Debug, Clone)]
+pub struct PhonemeTokenizer {
+    vocabulary: HashMap<String, i64>,
+    unknown: i64,
+    end: i64,
+}
+
+impl PhonemeTokenizer {
+    pub fn load(source: &Source) -> Result<Self> {
+        let vocabulary: HashMap<String, i64> = source
+            .optional_json("vocab.json")?
+            .ok_or_else(|| Error::unsupported("a phoneme snapshot without vocab.json"))?;
+        let config = tokenizer_config(source)?;
+        let id = |name: &str, default: &str| {
+            let token = special_or(&config, name, default);
+            vocabulary.get(&token).copied().ok_or_else(|| {
+                Error::unsupported(format!("a phoneme vocabulary without `{token}`"))
+            })
+        };
+        Ok(Self {
+            unknown: id("unk_token", "<unk>")?,
+            end: id("eos_token", "<sos/eos>")?,
+            vocabulary,
+        })
+    }
+
+    #[must_use]
+    pub fn encode(&self, phonemes: &str) -> Vec<i64> {
+        phonemes
+            .split_whitespace()
+            .map(|phoneme| {
+                self.vocabulary
+                    .get(phoneme)
+                    .copied()
+                    .unwrap_or(self.unknown)
+            })
+            .chain([self.end])
+            .collect()
+    }
+}
+
+/// A text-to-speech model's tokenizer: characters, as VITS reads them, or phonemes, as `FastSpeech2Conformer` does.
+#[derive(Debug, Clone)]
+pub enum SpeechTokenizer {
+    Characters(CharacterTokenizer),
+    Phonemes(PhonemeTokenizer),
+}
+
+impl SpeechTokenizer {
+    /// Loads the phoneme tokenizer for a snapshot whose tokenizer is `FastSpeech2ConformerTokenizer`, and the character tokenizer otherwise.
+    pub fn load(source: &Source) -> Result<Self> {
+        let config = tokenizer_config(source)?;
+        Ok(
+            if config["tokenizer_class"].as_str() == Some("FastSpeech2ConformerTokenizer") {
+                Self::Phonemes(PhonemeTokenizer::load(source)?)
+            } else {
+                Self::Characters(CharacterTokenizer::load(source)?)
+            },
+        )
+    }
+
+    #[must_use]
+    pub fn encode(&self, text: &str) -> Vec<i64> {
+        match self {
+            Self::Characters(tokenizer) => tokenizer.encode(text),
+            Self::Phonemes(tokenizer) => tokenizer.encode(text),
+        }
     }
 }

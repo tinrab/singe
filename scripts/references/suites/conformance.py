@@ -1823,6 +1823,141 @@ def gated_delta_rule_reference(q, k, v, g, beta, state, offsets, real, positions
     return output.to(data_type), states.to(torch.float32)
 
 
+def selective_scan_samples(pool, dtype):
+    """The selective scan over each step of `DELTA_RULE_STEPS`, of four heads in two groups, three channels, and sixteen state entries, with positive decays and negative rates, giving the output and the states the step leaves.
+    The long prompts take one rate per head, as Mamba-2 has, which half-precision prompts scan in chunks on tensor cores."""
+    if dtype not in FLOATS:
+        return []
+    samples = []
+    for label, (rows, spans) in DELTA_RULE_STEPS.items():
+        explicit = lambda name, tensor, label=label: Input(
+            pool.explicit(f"selective scan {label} {name}", tensor)
+        )
+        sequences = len(spans["real tokens"])
+        operands = [
+            explicit("inputs", values("F64", [rows, 4, 3], 1, "any").to(DTYPES[dtype])),
+            explicit(
+                "decays",
+                (values("F64", [rows, 4], 2, "positive") / 4).to(DTYPES[dtype]),
+            ),
+            explicit(
+                "strengths", values("F64", [rows, 4], 3, "unit").to(DTYPES[dtype])
+            ),
+            explicit(
+                "rates",
+                -values(
+                    "F64", [4, 1 if label == "long prompts" else 16], 4, "positive"
+                ).to(DTYPES[dtype]),
+            ),
+            explicit(
+                "input projections",
+                values("F64", [rows, 2, 16], 5, "any").to(DTYPES[dtype]),
+            ),
+            explicit(
+                "output projections",
+                values("F64", [rows, 2, 16], 6, "any").to(DTYPES[dtype]),
+            ),
+            explicit("state", values("F32", [sequences, 4, 3, 16], 7, "unit")),
+            *[
+                explicit(name, torch.tensor(span, dtype=torch.int64))
+                for name, span in spans.items()
+            ],
+        ]
+        samples.append(Sample(label, operands, selective_scan_reference))
+    return samples
+
+
+def selective_scan_reference(
+    x, delta, strength, a, b, c, state, offsets, real, positions
+):
+    """Each sequence's real rows token by token from its state, or zeros from position zero, as `transformers`' `MambaMixer.slow_forward` scans them, with the other rows zero, and the `F32` states the step leaves."""
+    data_type = x.dtype
+    wide = torch.float64 if data_type == torch.float64 else torch.float32
+    x, delta, strength, a, b, c = (
+        tensor.to(wide) for tensor in (x, delta, strength, a, b, c)
+    )
+    per_group = x.shape[1] // b.shape[1]
+    b, c = b.repeat_interleave(per_group, dim=1), c.repeat_interleave(per_group, dim=1)
+    states = state.to(wide).clone()
+    output = torch.zeros_like(x)
+    for sequence, start, count, fresh in state_sequences(offsets, real, positions):
+        if count == 0:
+            continue
+        held = torch.zeros_like(states[sequence]) if fresh else states[sequence]
+        for row in range(start, start + count):
+            factor = (delta[row][:, None] * a).exp()[:, None, :]
+            written = (strength[row][:, None] * x[row])[:, :, None] * b[row][:, None, :]
+            held = factor * held + written
+            output[row] = (held * c[row][:, None, :]).sum(dim=-1)
+        states[sequence] = held
+    return output.to(data_type), states.to(torch.float32)
+
+
+def deformable_attention_samples(pool, dtype):
+    """Two images' value maps of two levels, 4 x 5 and 2 x 3, of two heads of four channels, sampled by three queries at two points per level, some of them outside their level."""
+    if dtype not in FLOATS:
+        return []
+    explicit = lambda name, tensor: Input(
+        pool.explicit(f"deformable attention {name}", tensor)
+    )
+    operands = [
+        explicit("value", values("F64", [2, 26, 2, 4], 1, "any").to(DTYPES[dtype])),
+        explicit("shapes", torch.tensor([[4, 5], [2, 3]], dtype=torch.int64)),
+        explicit("starts", torch.tensor([0, 20], dtype=torch.int64)),
+        explicit(
+            "locations",
+            (values("F64", [2, 3, 2, 2, 2, 2], 2, "unit") * 0.65 + 0.5).to(
+                DTYPES[dtype]
+            ),
+        ),
+        explicit(
+            "weights",
+            (values("F64", [2, 3, 2, 2, 2], 3, "positive") / 4).to(DTYPES[dtype]),
+        ),
+    ]
+    return [Sample("levels", operands, deformable_attention_reference)]
+
+
+def deformable_attention_reference(value, shapes, starts, locations, weights):
+    """Each level sampled by `grid_sample` without aligned corners and with zeros outside it, the samples weighted and summed, as `transformers`' `MultiScaleDeformableAttention` computes it."""
+    data_type = value.dtype
+    wide = torch.float64 if data_type == torch.float64 else torch.float32
+    value, locations, weights = (
+        tensor.to(wide) for tensor in (value, locations, weights)
+    )
+    batch, _, heads, channels = value.shape
+    _, queries, _, levels, points, _ = locations.shape
+    sizes = [(int(height), int(width)) for height, width in shapes.tolist()]
+    maps = value.split([height * width for height, width in sizes], dim=1)
+    grids = 2 * locations - 1
+    sampled = []
+    for level, (height, width) in enumerate(sizes):
+        level_value = (
+            maps[level]
+            .flatten(2)
+            .transpose(1, 2)
+            .reshape(batch * heads, channels, height, width)
+        )
+        grid = grids[:, :, :, level].transpose(1, 2).flatten(0, 1)
+        sampled.append(
+            functional.grid_sample(
+                level_value,
+                grid,
+                mode="bilinear",
+                padding_mode="zeros",
+                align_corners=False,
+            )
+        )
+    shares = weights.transpose(1, 2).reshape(batch * heads, 1, queries, levels * points)
+    output = (torch.stack(sampled, dim=-2).flatten(-2) * shares).sum(-1)
+    return (
+        output.view(batch, heads * channels, queries)
+        .transpose(1, 2)
+        .contiguous()
+        .to(data_type)
+    )
+
+
 def paged_mla_attention_samples(pool, dtype):
     """Absorbed latent queries over a paged latent cache of pages of three slots, handed out out of order: a decoding query, a prefill chunk after cached keys, and a sequence with no keys."""
     if dtype not in FLOATS:
@@ -3256,6 +3391,8 @@ def operations(pool):
         for name, cases in causal_conv1d_samples(pool, dtype).items():
             yield name, dtype, cases
         yield "gated_delta_rule", dtype, gated_delta_rule_samples(pool, dtype)
+        yield "selective_scan", dtype, selective_scan_samples(pool, dtype)
+        yield "deformable_attention", dtype, deformable_attention_samples(pool, dtype)
         yield "rotary_embedding", dtype, rotary_samples(pool, dtype)
     yield "scaled_mm", "F8E4M3", scaled_matmul_samples(pool, "F8E4M3")
     for name, samples in quantization_samples(pool).items():

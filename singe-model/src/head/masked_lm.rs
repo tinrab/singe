@@ -10,13 +10,12 @@ use singe::{
 };
 
 use crate::{
-    assembly::PostNormEncoder,
     error::Result,
     function::{
         TensorFunction,
         forward::{External, ExternalHead, Forward},
     },
-    head::{EncoderHead, HeadLayouts},
+    head::{EncoderBody, EncoderHead, HeadLayouts},
     schema::Schema,
     source::Source,
 };
@@ -100,17 +99,17 @@ impl EncoderHead for MaskedLm {
 
     fn layers(
         schema: &mut Schema<'_>,
-        encoder: PostNormEncoder,
+        encoder: EncoderBody,
         config: &MaskedLmConfig,
         layouts: &HeadLayouts,
     ) -> SingeResult<MaskedLmLayers> {
-        let encoder_config = encoder.config();
+        let encoder_config = encoder.sizes;
         let (width, vocab_size) = (encoder_config.width, encoder_config.vocab_size);
         let mut schema = schema.scope("masked_lm");
         let projection = schema.linear("projection", width, width, true)?;
         let norm = schema.layer_norm("norm", width, encoder_config.eps)?;
         let weight = if config.tied {
-            schema.tie("output.weight", encoder.tokens())?
+            schema.tie("output.weight", &encoder.tokens)?
         } else {
             schema.parameter("output.weight", [vocab_size, width])?
         };
@@ -119,7 +118,7 @@ impl EncoderHead for MaskedLm {
             activation: layouts
                 .masked_lm_activation
                 .unwrap_or(encoder_config.activation),
-            encoder: Box::new(encoder),
+            encoder: encoder.layers,
             projection,
             norm,
             output: Linear::new(weight, Some(bias)),

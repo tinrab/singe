@@ -2,10 +2,11 @@
 
 use crate::{
     backend::registry::{FlattenAttributes, Operation, OperationAttributes},
+    data_type::DataType,
     dispatch::call_one,
     error::{Error, Result},
     graph::capture,
-    nn::{Layer, ModelState, StateKey, joined_rows},
+    nn::{Layer, ModelState, RmsNorm, StateKey, joined_rows},
     tensor::Tensor,
 };
 
@@ -14,6 +15,53 @@ use crate::{
 pub struct Linear {
     weight: StateKey,
     bias: Option<StateKey>,
+    bit: Option<Box<BitLinear>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BitLinear {
+    pub norm: Option<RmsNorm>,
+    pub scale: StateKey,
+    // Whether the weight is `U8` `[R, C]` packing four ternary rows per byte, as `BitNet`'s offline checkpoints store it: bit pair `i` of row `r` holds row `i · R + r`'s value plus one.
+    pub packed: bool,
+}
+
+impl BitLinear {
+    // Multiplies `input` by the packed `weight`'s four row blocks in turn, each unpacked to the input's type just before its product, and joins the products.
+    fn packed_product(input: &Tensor, weight: &Tensor) -> Result<Tensor> {
+        let mask = capture::scalar(weight.device(), 3_u8)?;
+        let products = (0..4_u8)
+            .map(|pair| {
+                let rows = weight
+                    .bitwise_right_shift(&capture::scalar(weight.device(), 2 * pair)?)?
+                    .bitwise_and(&mask)?
+                    .cast(input.data_type())?
+                    .sub_scalar(1.0)?;
+                input.matmul(&rows.transpose(0, 1)?)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Tensor::concat(&products, -1)
+    }
+
+    fn quantized(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
+        let input = match &self.norm {
+            Some(norm) => input.apply(norm, state)?,
+            None => input.clone(),
+        };
+        let data_type = input.data_type();
+        let input = input.cast(DataType::F32)?;
+        let largest = input
+            .abs()?
+            .max_reduce(&[-1], true)?
+            .clamp(1e-5, f32::MAX)?;
+        let scale = largest.rdiv_scalar(127.0)?;
+        input
+            .mul(&scale)?
+            .round()?
+            .clamp(-128.0, 127.0)?
+            .div(&scale)?
+            .cast(data_type)
+    }
 }
 
 impl Linear {
@@ -22,7 +70,17 @@ impl Linear {
     /// Weights are interpreted in `[out_features, in_features]` order when the layer runs.
     #[must_use]
     pub fn new(weight: StateKey, bias: Option<StateKey>) -> Self {
-        Self { weight, bias }
+        Self {
+            weight,
+            bias,
+            bit: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_bit_linear(mut self, bit: BitLinear) -> Self {
+        self.bit = Some(Box::new(bit));
+        self
     }
 
     #[must_use]
@@ -41,7 +99,20 @@ impl Linear {
         weight: &Tensor,
         state: &ModelState,
     ) -> Result<Tensor> {
-        let output = input.matmul(&weight.transpose(0, 1)?)?;
+        let quantized = self
+            .bit
+            .as_ref()
+            .map(|bit| bit.quantized(input, state))
+            .transpose()?;
+        let input = quantized.as_ref().unwrap_or(input);
+        let output = match &self.bit {
+            Some(bit) if bit.packed => BitLinear::packed_product(input, weight)?,
+            _ => input.matmul(&weight.transpose(0, 1)?)?,
+        };
+        let output = match &self.bit {
+            Some(bit) => output.mul(state.tensor(&bit.scale)?)?,
+            None => output,
+        };
         match &self.bias {
             Some(bias) => output.add(state.tensor(bias)?),
             None => Ok(output),
@@ -62,7 +133,7 @@ pub(crate) fn joined_forward<const N: usize>(
     input: &Tensor,
     state: &ModelState,
 ) -> Result<Option<[Tensor; N]>> {
-    if capture::is_active() {
+    if capture::is_active() || linears.iter().any(|linear| linear.bit.is_some()) {
         return Ok(None);
     }
 

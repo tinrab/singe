@@ -28,6 +28,8 @@ pub enum Activation {
     Tanh,
     // GELU as CLIP approximates it, `x * sigmoid(1.702 x)`.
     QuickGelu,
+    Relu6,
+    Relu2,
 }
 
 impl Layer for Activation {
@@ -46,6 +48,11 @@ impl Layer for Activation {
                     &[&input.mul_scalar(1.702)?],
                 )?;
                 return input.mul(&gate);
+            }
+            Self::Relu6 => return input.clamp(0.0, 6.0),
+            Self::Relu2 => {
+                let rectified = call_one(Operation::Relu, OperationAttributes::None, &[input])?;
+                return rectified.mul(&rectified);
             }
         };
         call_one(operation, OperationAttributes::None, &[input])

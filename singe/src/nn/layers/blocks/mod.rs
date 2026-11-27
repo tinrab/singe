@@ -122,6 +122,39 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct PreNormResidual<L, N = RmsNorm> {
+    norm: N,
+    layer: L,
+}
+
+impl<L, N> PreNormResidual<L, N> {
+    #[must_use]
+    pub const fn new(norm: N, layer: L) -> Self {
+        Self { norm, layer }
+    }
+}
+
+impl<L, N> DecodingLayer for PreNormResidual<L, N>
+where
+    L: DecodingLayer,
+    N: Layer + 'static,
+{
+    type Cache = L::Cache;
+
+    fn decode(&self, input: &AttentionInput<'_, L::Cache>, state: &ModelState) -> Result<Tensor> {
+        let normed = input.hidden.apply(&self.norm, state)?;
+        let mixed = self.layer.decode(
+            &AttentionInput {
+                hidden: &normed,
+                ..*input
+            },
+            state,
+        )?;
+        input.hidden.add(&mixed)
+    }
+}
+
 // An encoder block that norms after each residual: attention, then a feed-forward of two projections around an activation, as BERT's layers are.
 // It has no dropout or RNG.
 #[derive(Debug, Clone)]
@@ -168,6 +201,7 @@ impl Layer for EncoderBlock {
                 hidden: input,
                 angles: None,
                 key_lengths: None,
+                mask: None,
             },
             state,
         )
@@ -273,11 +307,12 @@ impl DecodingLayer for EncoderDecoderBlock {
     }
 }
 
-// A layer of a hybrid decoder, which holds the cache its kind needs: attention over paged keys and values, or a layer that carries a state per sequence.
+// A layer of a hybrid decoder, which holds the cache its kind needs: attention over paged keys and values, a layer that carries a state per sequence, or both on the same input with their outputs summed, as Falcon-H1's layers run them.
 #[derive(Debug, Clone)]
 pub enum HybridLayer<A, S> {
     Attention(A),
     State(S),
+    Parallel(A, S),
 }
 
 impl<A, S> DecodingLayer for HybridLayer<A, S>
@@ -317,6 +352,27 @@ where
                 },
                 state,
             ),
+            (Self::Parallel(attention, recurrent), HybridCache::Parallel(keys, states)) => {
+                let attended = attention.decode(
+                    &AttentionInput {
+                        hidden,
+                        step,
+                        angles,
+                        cache: keys,
+                    },
+                    state,
+                )?;
+                let mixed = recurrent.decode(
+                    &AttentionInput {
+                        hidden,
+                        step,
+                        angles,
+                        cache: states,
+                    },
+                    state,
+                )?;
+                mixed.add(&attended)
+            }
             _ => Err(Error::invalid_argument(
                 "a hybrid layer's cache is of the other kind",
             )),

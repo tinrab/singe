@@ -4,9 +4,8 @@ use singe::{
 };
 
 use crate::{
-    assembly::PostNormEncoder,
     error::Result,
-    head::{Boxed, EncoderHead, HeadLayouts},
+    head::{Boxed, EncoderBody, EncoderHead, HeadLayouts},
     schema::Schema,
     source::Source,
 };
@@ -25,11 +24,11 @@ impl EncoderHead for TextEncoder {
 
     fn layers(
         _schema: &mut Schema<'_>,
-        encoder: PostNormEncoder,
+        encoder: EncoderBody,
         (): &(),
         _layouts: &HeadLayouts,
     ) -> SingeResult<Boxed<dyn Layer<TokenBatch>>> {
-        Ok(Boxed(Box::new(encoder)))
+        Ok(Boxed(encoder.layers))
     }
 
     fn new(model: Self, (): ()) -> Self {

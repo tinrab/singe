@@ -1,0 +1,44 @@
+{
+  "cases": [
+    {
+      "name": "prompt",
+      "snapshot": "MAMBA",
+      "task": "text-generation",
+      "data_type": "f32",
+      "inputs": ["The most important resource in Factorio is"],
+      "parameters": {
+        "max_new_tokens": 32
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            253, 941, 15, 380, 941, 310, 7141, 275, 247, 5447, 13, 534, 310, 247, 38524, 5447, 15,
+            380, 941, 310, 7141, 275, 247, 5447, 13, 534, 310, 247, 38524, 5447, 15, 380
+          ],
+          "end_token_ids": [0]
+        }
+      ]
+    },
+    {
+      "name": "story",
+      "snapshot": "MAMBA",
+      "task": "text-generation",
+      "data_type": "f32",
+      "inputs": [
+        "Once upon a time, on a planet rich in iron ore, a small team of engineers landed with nothing but a pickaxe and"
+      ],
+      "parameters": {
+        "max_new_tokens": 32
+      },
+      "expected": [
+        {
+          "generated_token_ids": [
+            247, 42553, 15, 1583, 1119, 247, 1039, 281, 1056, 247, 3811, 13, 533, 597, 574, 281,
+            3037, 281, 897, 616, 3564, 15, 187, 187, 510, 2285, 369, 1677, 247, 2628, 281, 513
+          ],
+          "end_token_ids": [0]
+        }
+      ]
+    }
+  ]
+}

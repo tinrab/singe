@@ -16,6 +16,7 @@ use crate::{
 
 const QWEN3_SPLIT: &str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+";
 const QWEN35_SPLIT: &str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?[\p{L}\p{M}]+|\p{N}| ?[^\s\p{L}\p{M}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+";
+const CL100K_SPLIT: &str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PromptTemplate {
@@ -102,29 +103,32 @@ fn encoder(
     vocabulary: &serde_json::Map<String, Value>,
     added: Vec<i64>,
     template: PromptTemplate,
-) -> Result<LoopEncoder> {
+) -> Result<Option<LoopEncoder>> {
     let composes = match &json["normalizer"] {
         Value::Null => false,
         normalizer if normalizer["type"] == "NFC" => true,
-        _ => return Err(Error::unsupported("a normalizer other than NFC")),
+        _ => return Ok(None),
     };
     let steps = &json["pre_tokenizer"]["pretokenizers"];
     let (split, bytes) = (&steps[0], &steps[1]);
-    let marks_are_letters = match split["pattern"]["Regex"].as_str() {
-        Some(QWEN3_SPLIT) => false,
-        Some(QWEN35_SPLIT) => true,
-        _ => return Err(Error::unsupported("a pre-tokenizer other than Qwen's")),
+    let (marks_are_letters, max_digits) = match split["pattern"]["Regex"].as_str() {
+        Some(QWEN3_SPLIT) => (false, 1),
+        Some(QWEN35_SPLIT) => (true, 1),
+        Some(CL100K_SPLIT) => (false, 3),
+        _ => return Ok(None),
     };
+    // Every character matches the pattern, so keeping its matches and removing what lies between them splits as isolating them does.
+    let isolates = (split["behavior"] == "Isolated" && split["invert"] == false)
+        || (split["behavior"] == "Removed" && split["invert"] == true);
     if json["pre_tokenizer"]["type"] != "Sequence"
         || steps.as_array().map(Vec::len) != Some(2)
         || split["type"] != "Split"
-        || split["behavior"] != "Isolated"
-        || split["invert"] != false
+        || !isolates
         || bytes["type"] != "ByteLevel"
         || bytes["use_regex"] != false
         || bytes["add_prefix_space"] != false
     {
-        return Err(Error::unsupported("a pre-tokenizer other than Qwen's"));
+        return Ok(None);
     }
 
     let merges = json["model"]["merges"]
@@ -149,7 +153,7 @@ fn encoder(
             ])
         })
         .collect::<Result<Vec<_>>>()?;
-    Ok(LoopEncoder {
+    Ok(Some(LoopEncoder {
         template: [template.before, template.after],
         placeholder: template.placeholder,
         added,
@@ -161,8 +165,9 @@ fn encoder(
             whitespace: class_ranges(r"\s")?,
         },
         marks_are_letters,
+        max_digits,
         composition: composes.then(composition),
-    })
+    }))
 }
 
 pub fn loop_tokenizer(
@@ -234,8 +239,10 @@ pub fn loop_tokenizer(
         added.extend(token["id"].as_i64());
     }
 
-    let encoder = template
-        .map(|template| encoder(&json, vocabulary, added, template))
-        .transpose()?;
+    // A tokenizer whose normalizer or pre-tokenizer the program cannot apply leaves it without an encoder, so it reads prompts as tokens.
+    let encoder = match template {
+        Some(template) => encoder(&json, vocabulary, added, template)?,
+        None => None,
+    };
     Ok(Some(LoopTokenizer { tokens, encoder }))
 }

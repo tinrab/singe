@@ -2,7 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 use singe::{
-    Result as SingeResult, Shape, Tensor,
+    Error as SingeError, Result as SingeResult, Shape, Tensor,
+    graph::capture,
     nn::{Activation, Conv2d, Conv2dConfig, Layer, LayerNorm, Linear, Mlp, ModelState, StateKey},
     shape::spatial::{Padding, Spatial2d, Spatial2dI64},
 };
@@ -115,6 +116,7 @@ struct Stage {
 
 #[derive(Debug, Clone)]
 pub struct Swin {
+    patch: i64,
     patches: Conv2d,
     patch_norm: LayerNorm,
     stages: Vec<Stage>,
@@ -208,6 +210,7 @@ impl Swin {
             })
             .collect::<SingeResult<Vec<_>>>()?;
         Ok(Self {
+            patch: config.patch_size,
             patches,
             patch_norm,
             stages,
@@ -222,8 +225,8 @@ impl Swin {
         Spatial2d { height, width }: Spatial2dI64,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
-        let dimensions = hidden.shape().dimensions();
-        let (batch, channels) = (dimensions[0], dimensions[2]);
+        let channels = hidden.shape().dimensions()[2];
+        let batch = hidden.dimension(0)?;
         // A map no larger than a window attends in one unshifted window.
         let (window, shift) = if height.min(width) <= self.window {
             (height.min(width), 0)
@@ -234,7 +237,7 @@ impl Swin {
         let padded_width = (width + window - 1) / window * window;
         let normed = hidden
             .apply(&block.attention_norm, state)?
-            .reshape([batch, height, width, channels])?
+            .reshape_with(&[batch.clone(), height.into(), width.into(), channels.into()])?
             .pad(
                 &[
                     Padding::ZERO,
@@ -247,22 +250,23 @@ impl Swin {
         let (rows, columns) = (padded_height / window, padded_width / window);
         let area = window * window;
         let windows = partition_windows(&normed.roll(&[-shift, -shift], &[1, 2])?, window)?;
-        let count = batch * rows * columns;
+        let count = batch.clone() * (rows * columns);
         let heads = block.heads;
         let head = channels / heads;
         let query = split_heads(&windows.apply(&block.query, state)?, heads)?;
         let key = split_heads(&windows.apply(&block.key, state)?, heads)?;
         let value = split_heads(&windows.apply(&block.value, state)?, heads)?;
         let device = hidden.device();
-        let index = Tensor::from_vec(
-            device,
-            Shape::create([area * area, 1])?,
-            relative_index(window),
-        )?
-        .expand(Shape::create([area * area, heads])?)?;
+        let index = capture::literal(device, |device| {
+            Tensor::from_vec(
+                device,
+                Shape::create([area * area])?,
+                relative_index(window),
+            )
+        })?;
         let bias = state
             .tensor(&block.bias_table)?
-            .gather(0, &index)?
+            .index_select(0, &index)?
             .reshape([area, area, heads])?
             .permute(&[2, 0, 1])?
             .unsqueeze(0)?;
@@ -272,65 +276,113 @@ impl Swin {
             .matmul(&key.transpose(2, 3)?)?
             .add(&bias)?;
         if shift > 0 {
-            let mask = Tensor::from_vec(
-                device,
-                Shape::create([1, rows * columns, 1, area, area])?,
-                shift_mask(padded_height, padded_width, window, shift, -100.0),
-            )?
+            let mask = capture::literal(device, |device| {
+                Tensor::from_vec(
+                    device,
+                    Shape::create([1, rows * columns, 1, area, area])?,
+                    shift_mask(padded_height, padded_width, window, shift, -100.0),
+                )
+            })?
             .cast(hidden.data_type())?;
             scores = scores
-                .reshape([batch, rows * columns, heads, area, area])?
+                .reshape_with(&[
+                    batch.clone(),
+                    (rows * columns).into(),
+                    heads.into(),
+                    area.into(),
+                    area.into(),
+                ])?
                 .add(&mask)?
-                .reshape([count, heads, area, area])?;
+                .reshape_with(&[count, heads.into(), area.into(), area.into()])?;
         }
 
         let attended =
             merge_heads(&scores.softmax(-1)?.matmul(&value)?)?.apply(&block.output, state)?;
-        let attended = merge_windows(&attended, window, (batch, padded_height, padded_width))?
-            .roll(&[shift, shift], &[1, 2])?
-            .narrow(1, 0, height)?
-            .narrow(2, 0, width)?
-            .reshape([batch, height * width, channels])?;
+        let attended = merge_windows(
+            &attended,
+            window,
+            batch.clone(),
+            (padded_height, padded_width),
+        )?
+        .roll(&[shift, shift], &[1, 2])?
+        .narrow(1, 0, height)?
+        .narrow(2, 0, width)?
+        .reshape_with(&[batch, (height * width).into(), channels.into()])?;
         let hidden = hidden.add(&attended)?;
         hidden
             .apply(&block.feed_forward_norm, state)?
             .apply(&block.feed_forward, state)?
             .add(&hidden)
     }
-}
 
-impl Layer for Swin {
-    /// Encodes images `[B, C, H, W]` into their last stage's tokens, `[B, h · w, W]`.
-    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+    /// Returns each stage's tokens before its merge, `[B, h · w, C]`, with the height and width of their map.
+    pub fn stage_tokens(
+        &self,
+        input: &Tensor,
+        state: &ModelState,
+    ) -> SingeResult<Vec<(Tensor, Spatial2dI64)>> {
+        // Zeros below and to the right make whole patches, as `SwinPatchEmbeddings.maybe_pad` adds them.
+        let &[_, _, rows, columns] = input.shape().dimensions() else {
+            return Err(SingeError::invalid_argument("Swin images, [B, C, H, W]"));
+        };
+        let excess = |extent: i64| (self.patch - extent % self.patch) % self.patch;
+        let input = if excess(rows) + excess(columns) > 0 {
+            input.pad(
+                &[
+                    Padding::ZERO,
+                    Padding::ZERO,
+                    Padding::new(0, excess(rows)),
+                    Padding::new(0, excess(columns)),
+                ],
+                0.0,
+            )?
+        } else {
+            input.clone()
+        };
         let patches = input.apply(&self.patches, state)?;
         let dimensions = patches.shape().dimensions();
         let (mut height, mut width) = (dimensions[2], dimensions[3]);
         let mut hidden = to_tokens(&patches)?.apply(&self.patch_norm, state)?;
+        let mut stages = Vec::with_capacity(self.stages.len());
         for stage in &self.stages {
             for block in &stage.blocks {
                 hidden = self.block(block, &hidden, Spatial2d::new(height, width), state)?;
             }
+
+            stages.push((hidden.clone(), Spatial2d::new(height, width)));
             if let Some(merge) = &stage.merge {
-                let dimensions = hidden.shape().dimensions();
-                let (batch, channels) = (dimensions[0], dimensions[2]);
-                let grid = hidden.reshape([batch, height, width, channels])?.pad(
-                    &[
-                        Padding::ZERO,
-                        Padding::new(0, height % 2),
-                        Padding::new(0, width % 2),
-                        Padding::ZERO,
-                    ],
-                    0.0,
-                )?;
+                let channels = hidden.shape().dimensions()[2];
+                let batch = hidden.dimension(0)?;
+                let grid = hidden
+                    .reshape_with(&[batch.clone(), height.into(), width.into(), channels.into()])?
+                    .pad(
+                        &[
+                            Padding::ZERO,
+                            Padding::new(0, height % 2),
+                            Padding::new(0, width % 2),
+                            Padding::ZERO,
+                        ],
+                        0.0,
+                    )?;
                 let (half_height, half_width) = ((height + 1) / 2, (width + 1) / 2);
                 // Each 2 × 2 square's points in `transformers`' order: top left, bottom left, top right, bottom right.
-                let squares = grid.reshape([batch, half_height, 2, half_width, 2, channels])?;
+                let squares = grid.reshape_with(&[
+                    batch.clone(),
+                    half_height.into(),
+                    2.into(),
+                    half_width.into(),
+                    2.into(),
+                    channels.into(),
+                ])?;
                 let corner = |row: i64, column: i64| -> SingeResult<Tensor> {
-                    squares.narrow(2, row, 1)?.narrow(4, column, 1)?.reshape([
-                        batch,
-                        half_height * half_width,
-                        channels,
-                    ])
+                    squares
+                        .narrow(2, row, 1)?
+                        .narrow(4, column, 1)?
+                        .reshape_with(&[
+                            batch.clone(),
+                            (half_height * half_width).into(),
+                            channels.into(),
+                        ])
                 };
                 hidden = Tensor::concat(
                     &[corner(0, 0)?, corner(1, 0)?, corner(0, 1)?, corner(1, 1)?],
@@ -342,7 +394,17 @@ impl Layer for Swin {
                 width = half_width;
             }
         }
-        Ok(hidden)
+        Ok(stages)
+    }
+}
+
+impl Layer for Swin {
+    /// Encodes images `[B, C, H, W]` into their last stage's tokens, `[B, h · w, W]`.
+    fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+        self.stage_tokens(input, state)?
+            .pop()
+            .map(|(tokens, _)| tokens)
+            .ok_or_else(|| SingeError::invalid_argument("a Swin without stages"))
     }
 }
 

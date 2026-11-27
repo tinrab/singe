@@ -21,7 +21,7 @@ use crate::{
     assembly::{merge_heads, split_heads},
     error::{Error, Result},
     format::Loader,
-    head::{Forecast, Forecaster, HeadLoader},
+    head::{Draws, Forecast, Forecaster, HeadLoader, PastValues, Series, refuse_draws},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -335,8 +335,14 @@ impl Layer for TimesFmLayers {
 pub type TimesFm = Model<TimesFmLayers>;
 
 impl Forecaster for TimesFm {
-    /// Forecasts `series` as `TimesFm2_5ModelForPrediction.forward` forecasts one series with its defaults.
-    fn forecast(&self, series: &[f32]) -> Result<Forecast> {
+    /// Forecasts a univariate series as `TimesFm2_5ModelForPrediction.forward` forecasts one series with its defaults.
+    fn forecast(&self, series: &Series, draws: Option<Draws>) -> Result<Forecast> {
+        refuse_draws(draws, "TimesFM")?;
+        series.refuse_extras("TimesFM")?;
+        series.refuse_missing("TimesFM")?;
+        let PastValues::Univariate(series) = &series.past_values else {
+            return Err(Error::unsupported("a TimesFM forecast of several channels"));
+        };
         let config = &self.layer().config;
         if series.is_empty() {
             return Err(Error::invalid("a series without values"));
@@ -390,7 +396,7 @@ impl Forecaster for TimesFm {
                     .collect::<Vec<f32>>()
             })
             .collect::<Vec<_>>();
-        Ok(Forecast {
+        Ok(Forecast::Quantiles {
             mean: full.iter().map(|step| step[median]).collect(),
             full,
         })

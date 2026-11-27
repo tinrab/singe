@@ -420,6 +420,7 @@ pub struct LoopEncoder {
     pub merges: Vec<[i64; 3]>,
     pub classes: CharacterClasses,
     pub marks_are_letters: bool,
+    pub max_digits: u8,
     pub composition: Option<Composition>,
 }
 

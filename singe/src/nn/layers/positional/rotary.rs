@@ -61,22 +61,66 @@ fn mscale_of(factor: f64, mscale: f64) -> f64 {
     }
 }
 
+// Llama 3's scaling of rotary frequencies: wavelengths longer than the original context over `low_frequency_factor` divided by `factor`, those shorter than it over `high_frequency_factor` kept, and those between blended.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Llama3Frequencies {
+    pub factor: f64,
+    pub low_frequency_factor: f64,
+    pub high_frequency_factor: f64,
+    pub original_max_positions: i64,
+}
+
+impl Llama3Frequencies {
+    // Scales `frequency` in F32, as `_compute_llama3_parameters` does.
+    fn scaled(&self, frequency: f32) -> f32 {
+        let original = self.original_max_positions as f32;
+        let (low, high) = (
+            self.low_frequency_factor as f32,
+            self.high_frequency_factor as f32,
+        );
+        let factor = self.factor as f32;
+        let wavelength = 2.0 * PI as f32 / frequency;
+        let scaled = if wavelength > original / low {
+            frequency / factor
+        } else {
+            frequency
+        };
+        if wavelength < original / high || wavelength > original / low {
+            return scaled;
+        }
+
+        let smooth = (original / wavelength - low) / (high - low);
+        (1.0 - smooth) * scaled / factor + smooth * scaled
+    }
+}
+
 // The frequencies a rotary table is computed from.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct RotaryFrequencies {
     pub theta: f64,
     pub yarn: Option<YarnFrequencies>,
+    pub llama3: Option<Llama3Frequencies>,
 }
 
 impl RotaryFrequencies {
     #[must_use]
     pub const fn new(theta: f64) -> Self {
-        Self { theta, yarn: None }
+        Self {
+            theta,
+            yarn: None,
+            llama3: None,
+        }
     }
 
     #[must_use]
     pub const fn with_yarn(mut self, yarn: YarnFrequencies) -> Self {
         self.yarn = Some(yarn);
+        self
+    }
+
+    #[must_use]
+    pub const fn with_llama3(mut self, llama3: Llama3Frequencies) -> Self {
+        self.llama3 = Some(llama3);
         self
     }
 
@@ -97,6 +141,13 @@ impl RotaryFrequencies {
         let extrapolation = (0..pairs)
             .map(|pair| 1.0 / (self.theta as f32).powf((2 * pair) as f32 / head_dim as f32))
             .collect::<Vec<_>>();
+        if let Some(llama3) = self.llama3 {
+            return extrapolation
+                .into_iter()
+                .map(|frequency| llama3.scaled(frequency))
+                .collect();
+        }
+
         let Some(yarn) = self.yarn else {
             return extrapolation;
         };

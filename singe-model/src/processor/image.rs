@@ -19,6 +19,9 @@ use crate::{
     source::Source,
 };
 
+/// The shortest edge from which a `ConvNeXt` processor warps images to a square instead of cropping them.
+const CONVNEXT_WARP: i64 = 384;
+
 /// An RGB image, `height × width × 3` bytes in row-major order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Image {
@@ -148,13 +151,19 @@ impl Image {
     fn padded(&self, padding: Padding) -> Result<Option<Self>> {
         match padding {
             Padding::Symmetric { multiple } => self.padded_symmetric(multiple).map(Some),
-            Padding::Centered { height, width } => self.padded_centered(height, width).map(Some),
+            Padding::Centered { height, width } => {
+                self.padded_centered(height, width, [0; 3]).map(Some)
+            }
+            Padding::Square { fill } => {
+                let side = i64::from(self.height.max(self.width));
+                self.padded_centered(side, side, fill).map(Some)
+            }
             Padding::Zeros { .. } => Ok(None),
         }
     }
 
-    /// Returns the image in the middle of a black `height × width` image, its odd pixel of margin at the bottom and right, as Donut's processor pads it.
-    fn padded_centered(&self, height: i64, width: i64) -> Result<Self> {
+    /// Returns the image in the middle of a `height × width` image of `fill`, its odd pixel of margin at the bottom and right, as Donut's and Janus's processors pad it.
+    fn padded_centered(&self, height: i64, width: i64, fill: [u8; 3]) -> Result<Self> {
         let (height, width) = (extent(height)?, extent(width)?);
         if height < self.height || width < self.width {
             return Err(Error::Media(format!(
@@ -164,7 +173,7 @@ impl Image {
         }
 
         let (top, left) = ((height - self.height) / 2, (width - self.width) / 2);
-        let mut pixels = vec![0; width as usize * height as usize * 3];
+        let mut pixels = fill.repeat(width as usize * height as usize);
         for row in 0..self.height as usize {
             let from = row * self.width as usize * 3;
             let to = ((row + top as usize) * width as usize + left as usize) * 3;
@@ -296,6 +305,11 @@ pub enum Resize {
     },
     /// The longer side becomes this long, and the shorter keeps the aspect ratio, rounded, as SAM's processor sizes images.
     Longest(i64),
+    /// The longer side becomes `edge` long and each side keeps the aspect ratio, rounded half to even as Python's `round` rounds, and at least `least`, as Janus's processor sizes images.
+    LongestEven {
+        edge: i64,
+        least: i64,
+    },
     /// The shorter side becomes the shorter of `height` and `width`, then the image shrinks, keeping its aspect ratio, until it fits within `height × width`, as Donut's processor resizes and thumbnails images.
     Thumbnail {
         height: i64,
@@ -307,6 +321,11 @@ pub enum Resize {
         width: i64,
         keep_aspect_ratio: bool,
         multiple: i64,
+    },
+    /// Both sides scaled alike, each rounded up to whole patches of `patch`, by the largest scale a binary search finds that keeps the patches at most `max_patches`, as `SigLIP` 2's `NaFlex` processor sizes images.
+    Patches {
+        patch: i64,
+        max_patches: i64,
     },
 }
 
@@ -332,6 +351,34 @@ impl Resize {
             Self::Longest(edge) => {
                 let scale = edge as f64 / height.max(width) as f64;
                 image.map(|side| (side as f64 * scale + 0.5) as i64)
+            }
+            Self::LongestEven { edge, least } => {
+                let scale = edge as f64 / height.max(width) as f64;
+                image.map(|side| ((side as f64 * scale).round_ties_even() as i64).max(least))
+            }
+            Self::Patches { patch, max_patches } => {
+                let scaled = |scale: f64, side: i64| {
+                    let side = ((side as f64 * scale) / patch as f64).ceil() as i64 * patch;
+                    side.max(patch)
+                };
+                // `get_image_size_for_max_num_patches`'s search, in the same floats.
+                let epsilon = 1e-5;
+                let (mut low, mut high) = (epsilon / 10.0, 100.0);
+                loop {
+                    if high - low < epsilon {
+                        break;
+                    }
+
+                    let scale = f64::midpoint(low, high);
+                    let patches = (scaled(scale, height) as f64 / patch as f64)
+                        * (scaled(scale, width) as f64 / patch as f64);
+                    if patches <= max_patches as f64 {
+                        low = scale;
+                    } else {
+                        high = scale;
+                    }
+                }
+                Spatial2d::new(scaled(low, height), scaled(low, width))
             }
             Self::Fitted {
                 height: target_height,
@@ -429,6 +476,8 @@ pub enum Padding {
     Zeros { height: i64, width: i64 },
     /// To `height × width` with black around the image, centered, before rescaling, as Donut's processor pads.
     Centered { height: i64, width: i64 },
+    /// To a square of the longer side with `fill` around the image, centered, before rescaling, as Janus's processor pads.
+    Square { fill: [u8; 3] },
 }
 
 /// Per-channel normalization after rescaling: `(x - mean) / std`.
@@ -436,6 +485,9 @@ pub enum Padding {
 pub struct Normalization {
     pub mean: [f64; 3],
     pub std: [f64; 3],
+    /// Whether the result is divided by the std a second time, as `EfficientNet`'s processor does with `include_top`.
+    #[serde(default)]
+    pub repeats_std: bool,
 }
 
 impl Normalization {
@@ -448,9 +500,13 @@ impl Normalization {
                 values,
             )?)
         };
-        Ok(tensor
-            .sub(&channels(self.mean)?)?
-            .div(&channels(self.std)?)?)
+        let std = channels(self.std)?;
+        let normalized = tensor.sub(&channels(self.mean)?)?.div(&std)?;
+        Ok(if self.repeats_std {
+            normalized.div(&std)?
+        } else {
+            normalized
+        })
     }
 }
 
@@ -475,11 +531,22 @@ impl ImageTransforms {
     ///
     /// Returns an error if `preprocessor_config.json` cannot be read or parsed, or if it asks for a size, crop, padding, normalization, or resampling filter these transforms do not support.
     pub fn load(source: &Source) -> Result<Self> {
-        let fields: Value = source.json("preprocessor_config.json")?;
+        // A processor may keep its image processor's config inside its own, as SAM 3's does, and a video model may have only a video processor's config, whose frames these transforms process one by one.
+        let nested = source
+            .optional_json::<Value>("processor_config.json")?
+            .and_then(|processor| processor.get("image_processor").cloned());
+        let fields: Value = match source.optional_json("preprocessor_config.json")? {
+            Some(fields) => fields,
+            None => match nested {
+                Some(fields) => fields,
+                None => source.json("video_preprocessor_config.json")?,
+            },
+        };
         // A processor's class, which decides what an older config's bare `size` means.
         let class = fields["image_processor_type"]
             .as_str()
             .or_else(|| fields["feature_extractor_type"].as_str())
+            .or_else(|| fields["video_processor_type"].as_str())
             .unwrap_or_default();
         let config = PreprocessorConfig {
             fields: &fields,
@@ -644,12 +711,33 @@ impl PreprocessorConfig<'_> {
 
     fn resize(&self) -> Result<Option<Resize>> {
         let fields = self.fields;
+        if self.class.starts_with("Siglip2ImageProcessor") && self.flag("do_resize", true) {
+            return Ok(Some(Resize::Patches {
+                patch: fields["patch_size"].as_i64().unwrap_or(16),
+                max_patches: fields["max_num_patches"].as_i64().unwrap_or(256),
+            }));
+        }
+
         // A config without a size leaves resizing to its class, whose default this takes to be off, as Swin2SR's is.
         if fields["size"].is_null() || !self.flag("do_resize", true) {
             return Ok(None);
         }
 
         let size = &fields["size"];
+        if self.class.starts_with("JanusImageProcessor") {
+            let Spatial2d { height, width } = sides(size)
+                .ok_or_else(|| Error::unsupported(format!("a Janus image size of {size}")))?;
+            if height != width {
+                return Err(Error::unsupported(format!(
+                    "a Janus image size of {height} × {width}, which is not square"
+                )));
+            }
+            return Ok(Some(Resize::LongestEven {
+                edge: height,
+                least: fields["min_size"].as_i64().unwrap_or(14),
+            }));
+        }
+
         let shortest_edge_class = ["CLIP", "VideoMAE", "Bit", "ConvNext", "MobileNet"]
             .iter()
             .any(|prefix| self.class.starts_with(prefix));
@@ -657,6 +745,17 @@ impl PreprocessorConfig<'_> {
         let shortest = size["shortest_edge"]
             .as_i64()
             .or_else(|| size.as_i64().filter(|_| shortest_edge_class));
+        if let Some(edge) = self.convnext_edge() {
+            // Below 384 the shortest edge grows by `crop_pct`, and `crop` takes the square back; from 384 the image is warped to a square.
+            return Ok(Some(if edge < CONVNEXT_WARP {
+                Resize::ShortestEdge((edge as f64 / self.convnext_crop_pct()) as i64)
+            } else {
+                Resize::Exact {
+                    height: edge,
+                    width: edge,
+                }
+            }));
+        }
         Ok(Some(match shortest {
             None if size["longest_edge"].is_i64() && size["height"].is_null() => {
                 Resize::Longest(size["longest_edge"].as_i64().unwrap_or_default())
@@ -713,7 +812,28 @@ impl PreprocessorConfig<'_> {
             .ok_or_else(|| Error::unsupported(format!("a Donut size of {size}")))
     }
 
+    /// Returns the shortest edge a `ConvNextImageProcessor` config resizes to, or `None` for another class.
+    fn convnext_edge(&self) -> Option<i64> {
+        if !self.class.starts_with("ConvNext") || !self.flag("do_resize", true) {
+            return None;
+        }
+
+        // Older configs give the size as a bare shortest edge.
+        let size = &self.fields["size"];
+        size["shortest_edge"].as_i64().or_else(|| size.as_i64())
+    }
+
+    /// Returns the share of the resized image a `ConvNeXt` processor's crop keeps, `224 / 256` by default.
+    fn convnext_crop_pct(&self) -> f64 {
+        self.fields["crop_pct"].as_f64().unwrap_or(224.0 / 256.0)
+    }
+
     fn crop(&self) -> Result<Option<Spatial2dI64>> {
+        // A ConvNeXt processor crops a square of its shortest edge after resizing below 384, whatever `do_center_crop` says.
+        if let Some(edge) = self.convnext_edge() {
+            return Ok((edge < CONVNEXT_WARP).then(|| Spatial2d::square(edge)));
+        }
+
         if !self.flag("do_center_crop", false) {
             return Ok(None);
         }
@@ -748,6 +868,8 @@ impl PreprocessorConfig<'_> {
         Ok(Some(Normalization {
             mean: channels("image_mean")?,
             std: channels("image_std")?,
+            repeats_std: self.class == "EfficientNetImageProcessor"
+                && self.flag("include_top", true),
         }))
     }
 
@@ -766,6 +888,16 @@ impl PreprocessorConfig<'_> {
                     .or_else(|| self.fields["pad_size"].as_i64())
                     .unwrap_or(8),
             }),
+            // `JanusImageProcessor.__init__` fills with the mean, ignoring a config's `background_color`.
+            class if class.starts_with("JanusImageProcessor") => {
+                let mut fill = [127; 3];
+                if let Some(mean) = self.fields["image_mean"].as_array() {
+                    for (channel, value) in fill.iter_mut().zip(mean) {
+                        *channel = (value.as_f64().unwrap_or(0.5) * 255.0) as u8;
+                    }
+                }
+                Some(Padding::Square { fill })
+            }
             "SamImageProcessor" => {
                 let size = &self.fields["pad_size"];
                 let Spatial2d { height, width } = sides(size)

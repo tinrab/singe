@@ -13,9 +13,9 @@ pub use self::{
     binary::{grouped_matmul, matmul, scaled_matmul},
     elementwise::elementwise,
     neural::{
-        avg_pool2d, batch_norm, convolution2d, convolution3d, embedding, layer_norm, max_pool2d,
-        paged_attention, paged_mla_attention, resample_linear, rms_norm, rotary_embedding,
-        rotary_halves, scaled_dot_product_attention, state_recurrence,
+        avg_pool2d, batch_norm, convolution2d, convolution3d, deformable_attention, embedding,
+        layer_norm, max_pool2d, paged_attention, paged_mla_attention, resample_linear, rms_norm,
+        rotary_embedding, rotary_halves, scaled_dot_product_attention, state_recurrence,
     },
     reduction::{
         argmax, argmin, argsort, cumprod, cumsum, logsumexp, max, mean, min, product, sum, topk,

@@ -110,11 +110,13 @@ fn tiny_model() -> Model<TinyDecoder> {
     let decoder = CausalLm::new(CausalLmParts {
         embedding: Embedding::new(embedding),
         embedding_scale: None,
-        rotary: RotarySpec {
+        logit_scale: None,
+        logit_cap: None,
+        rotary: Some(RotarySpec {
             head_dim: HEAD_DIM,
             frequencies: RotaryFrequencies::new(10_000.0),
             layout: RotaryLayout::HalfSplit,
-        },
+        }),
         caches: vec![
             KvCacheSpec {
                 kv_heads: 1,

@@ -339,6 +339,9 @@ macro_rules! backend_kernels {
                 }),
             );
         }
+        single!(builder, key, DeformableAttention, |call: &KernelCall<'_>| {
+            $kernels::deformable_attention(call.inputs())
+        });
         single!(builder, key, GroupedMatMul, |call: &KernelCall<'_>| {
             $kernels::grouped_matmul(call.input(0)?, call.input(1)?, call.input(2)?)
         });
@@ -348,6 +351,9 @@ macro_rules! backend_kernels {
             Operation::GatedDeltaRule,
             Operation::GatedDeltaRuleOutput,
             Operation::GatedDeltaRuleState,
+            Operation::SelectiveScan,
+            Operation::SelectiveScanOutput,
+            Operation::SelectiveScanState,
         ] {
             builder.kernel(
                 operation,

@@ -33,10 +33,21 @@ pub fn materialize_contiguous_operands(
     let mut id_map = HashMap::with_capacity(graph.node_count());
     let mut nodes = Vec::with_capacity(graph.node_count());
     let mut changed = false;
+    // One copy serves every node that reads its operand contiguous, so nodes reading the same operands, such as a two-result operation's two projections, still read the same values; a node whose result may reuse or write its first input's storage keeps copies of its own.
+    let mut shared = HashMap::new();
     for id in graph.node_ids() {
         let node = graph.required_node(id)?;
-        let mut copies = HashMap::new();
-        for input in copied_operands(graph, &node, cuda_providers)? {
+        let is_private = node
+            .schema()
+            .is_some_and(|schema| schema.alias_behavior() != AliasBehavior::None);
+        let mut private = HashMap::new();
+        let copies = if is_private {
+            &mut private
+        } else {
+            &mut shared
+        };
+        let operands = copied_operands(graph, &node, cuda_providers)?;
+        for &input in &operands {
             if copies.contains_key(&input) {
                 continue;
             }
@@ -52,10 +63,10 @@ pub fn materialize_contiguous_operands(
             copies.insert(input, push(&mut nodes, copy));
         }
 
-        changed |= !copies.is_empty();
+        changed |= !operands.is_empty();
         let node = node.map_inputs(|input| match copies.get(&input) {
-            Some(&copy) => Ok(copy),
-            None => remap_node_id(input, &id_map),
+            Some(&copy) if operands.contains(&input) => Ok(copy),
+            _ => remap_node_id(input, &id_map),
         })?;
         id_map.insert(id, push(&mut nodes, node));
     }

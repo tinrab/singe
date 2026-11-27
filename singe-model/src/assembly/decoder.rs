@@ -64,6 +64,7 @@ impl DecoderConfig {
             kv_heads: self.kv_heads,
             head_dim: self.head_dim,
             bias: self.attention_bias,
+            output_bias: self.attention_bias,
             head_norms: if self.head_norms {
                 HeadNorms::Rms(self.eps)
             } else {
@@ -94,7 +95,7 @@ pub fn grouped_decoder(
     causal_lm(
         schema,
         config,
-        CausalLmSpec::new(config.rotary(), |_| config.kv_cache()),
+        CausalLmSpec::new(Some(config.rotary()), |_| config.kv_cache()),
         |schema, _| {
             pre_norm_block(schema, config, |schema| {
                 grouped_attention(schema, config, options)
@@ -164,7 +165,9 @@ pub struct GroupedAttentionSpec {
     pub heads: i64,
     pub kv_heads: i64,
     pub head_dim: i64,
+    /// Whether the query, key, and value projections have a bias.
     pub bias: bool,
+    pub output_bias: bool,
     pub head_norms: HeadNorms,
     pub output_gate: bool,
 }
@@ -178,6 +181,7 @@ impl GroupedAttentionSpec {
             kv_heads: heads,
             head_dim: width / heads,
             bias,
+            output_bias: bias,
             head_norms: HeadNorms::Omitted,
             output_gate: false,
         }
@@ -194,6 +198,7 @@ pub fn grouped_attention_layers(
         kv_heads,
         head_dim,
         bias,
+        output_bias,
         head_norms,
         output_gate,
     } = *spec;
@@ -221,7 +226,7 @@ pub fn grouped_attention_layers(
     };
     let key = head("key", Some("key_norm"), kv_heads, kv_heads * head_dim)?;
     let value = head("value", None, kv_heads, kv_heads * head_dim)?;
-    let output = schema.linear("output", heads * head_dim, width, bias)?;
+    let output = schema.linear("output", heads * head_dim, width, output_bias)?;
     let layers = GroupedQueryLayers {
         query,
         key,
@@ -255,11 +260,13 @@ pub fn causal() -> AttentionOptions {
 pub type DraftLayer<'a, B, N> =
     &'a dyn Fn(&mut Schema<'_>) -> SingeResult<MultiTokenPrediction<B, N>>;
 
-/// What a causal model takes beside its blocks: its rotary table, each block's cache by index, a scale of its embeddings, and a draft layer.
+/// What a causal model takes beside its blocks: its rotary table if it rotates, each block's cache by index, scales of its embeddings and logits, a cap of its logits, and a draft layer.
 pub struct CausalLmSpec<'a, C, B: DecodingLayer, N> {
-    pub rotary: RotarySpec,
+    pub rotary: Option<RotarySpec>,
     pub cache: C,
     pub embedding_scale: Option<f32>,
+    pub logit_scale: Option<f32>,
+    pub logit_cap: Option<f32>,
     pub draft: Option<DraftLayer<'a, B, N>>,
 }
 
@@ -267,11 +274,13 @@ impl<C, B: DecodingLayer, N> CausalLmSpec<'_, C, B, N>
 where
     C: Fn(usize) -> <B::Cache as DecodeCache>::Spec,
 {
-    pub const fn new(rotary: RotarySpec, cache: C) -> Self {
+    pub const fn new(rotary: Option<RotarySpec>, cache: C) -> Self {
         Self {
             rotary,
             cache,
             embedding_scale: None,
+            logit_scale: None,
+            logit_cap: None,
             draft: None,
         }
     }
@@ -305,6 +314,8 @@ where
     let model = CausalLm::new(CausalLmParts {
         embedding: Embedding::new(embedding),
         embedding_scale: spec.embedding_scale,
+        logit_scale: spec.logit_scale,
+        logit_cap: spec.logit_cap,
         rotary: spec.rotary,
         blocks,
         norm,
@@ -315,6 +326,14 @@ where
         Some(draft) => Ok(model.with_draft_layer(draft(schema)?)),
         None => Ok(model),
     }
+}
+
+/// Imports what `from` matches to `to` multiplied by `scale` in `F32`, as a constant multiplier of a layer's output folds into its weight.
+#[must_use]
+pub fn rename_scaled(from: &str, to: &str, scale: f32) -> Rules {
+    Rules::new().derive(from, to, move |weight| {
+        weight.cast(DataType::F32)?.mul_scalar(scale)
+    })
 }
 
 /// Imports a Llama-family checkpoint whose decoder lies under `model` (`model`, or `model.language_model` in a model that also reads images or audio) into [`causal_lm`]'s names.

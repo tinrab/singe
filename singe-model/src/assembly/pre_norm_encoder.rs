@@ -147,6 +147,7 @@ fn run_block(
             hidden,
             angles: None,
             key_lengths,
+            mask: None,
         },
         state,
     )

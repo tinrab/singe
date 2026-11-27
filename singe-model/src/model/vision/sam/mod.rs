@@ -1,6 +1,6 @@
 //! Segment Anything: a vision transformer with windowed attention and decomposed relative positions embeds an image once, then a prompt encoder and a two-way transformer decode masks for points against that embedding.
 
-mod transformers;
+pub(crate) mod transformers;
 
 use std::f64::consts::PI;
 
@@ -16,8 +16,8 @@ use singe::{
 
 use crate::{
     assembly::{
-        Attention, AttentionSpec, LinearStack, PYTORCH_NORM_EPS, merge_windows, partition_windows,
-        patch_embedding, same_2d, to_map, to_tokens,
+        Attention, AttentionSpec, LinearStack, PYTORCH_NORM_EPS, channel_norm, merge_windows,
+        partition_windows, patch_embedding, same_2d, to_map, to_tokens,
     },
     error::Result,
     format::Loader,
@@ -56,24 +56,68 @@ impl SamConfig {
         self.image_size / self.patch_size
     }
 
-    const fn cross_attention(&self) -> AttentionSpec {
+    const fn two_way(&self) -> TwoWaySizes {
+        TwoWaySizes {
+            embedding: self.embedding,
+            heads: self.decoder_heads,
+            inner: self.decoder_inner,
+            activation: self.decoder_activation,
+            downsample: self.downsample,
+            eps: self.eps,
+        }
+    }
+}
+
+/// A two-way transformer's sizes, which SAM and SAM 2 share.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct TwoWaySizes {
+    pub embedding: i64,
+    pub heads: i64,
+    pub inner: i64,
+    pub activation: Activation,
+    /// What the cross-attentions' width is divided by.
+    pub downsample: i64,
+    pub eps: f32,
+}
+
+impl TwoWaySizes {
+    pub(crate) const fn cross_attention(&self) -> AttentionSpec {
         AttentionSpec {
             width: self.embedding,
             context: self.embedding,
             inner: self.embedding / self.downsample,
-            heads: self.decoder_heads,
+            heads: self.heads,
             qkv_bias: true,
             output_bias: true,
         }
     }
 }
 
-/// Applies a layer norm over the channels of `[B, C, H, W]`.
-fn channel_norm(input: &Tensor, norm: &LayerNorm, state: &ModelState) -> SingeResult<Tensor> {
-    input
-        .permute(&[0, 2, 3, 1])?
-        .apply(norm, state)?
-        .permute(&[0, 3, 1, 2])
+/// Returns random Fourier features of coordinates in [0, 1], `[..., 2]` to `[..., 2 · F]`: sines and cosines of `2π (2c - 1) G` for the Gaussian matrix `gaussian`, `[2, F]`.
+pub(crate) fn fourier(coordinates: &Tensor, gaussian: &Tensor) -> SingeResult<Tensor> {
+    let projected = coordinates
+        .mul_scalar(2.0)?
+        .add_scalar(-1.0)?
+        .matmul(gaussian)?
+        .mul_scalar(2.0 * PI)?;
+    let last = projected.shape().rank() - 1;
+    Tensor::concat(&[projected.sin()?, projected.cos()?], last)
+}
+
+/// Returns the Fourier positions of a `side × side` grid, `[1, side², C]`, each point at its center.
+pub(crate) fn grid_positions(side: i64, gaussian: &Tensor, device: Device) -> SingeResult<Tensor> {
+    let coordinates = (0..side)
+        .flat_map(|row| {
+            (0..side).flat_map(move |column| {
+                [
+                    (column as f32 + 0.5) / side as f32,
+                    (row as f32 + 0.5) / side as f32,
+                ]
+            })
+        })
+        .collect::<Vec<_>>();
+    let coordinates = Tensor::from_vec(device, Shape::create([1, side * side, 2])?, coordinates)?;
+    fourier(&coordinates, gaussian)
 }
 
 /// Returns each pair of a side's positions' relative embedding, `[side, side, C]`, from a table of `2 · side - 1` offsets, as `get_rel_pos` reads it when queries and keys have one size.
@@ -213,7 +257,7 @@ impl VisionBlock {
             let attended = self
                 .attend(&windows.reshape([count, window, window, channels])?, state)?
                 .reshape([count, window * window, channels])?;
-            merge_windows(&attended, window, (batch, padded_height, padded_width))?
+            merge_windows(&attended, window, batch, (padded_height, padded_width))?
                 .narrow(1, 0, height)?
                 .narrow(2, 0, width)?
         } else {
@@ -228,13 +272,13 @@ impl VisionBlock {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PromptPositions {
+pub(crate) enum PromptPositions {
     Skipped,
     Added,
 }
 
 #[derive(Debug, Clone)]
-struct TwoWayBlock {
+pub(crate) struct TwoWayBlock {
     attention: Attention,
     attention_norm: LayerNorm,
     token_to_image: Attention,
@@ -247,16 +291,16 @@ struct TwoWayBlock {
 }
 
 impl TwoWayBlock {
-    fn create(
+    pub(crate) fn create(
         schema: &mut Schema<'_>,
-        config: &SamConfig,
+        config: TwoWaySizes,
         prompt_positions: PromptPositions,
     ) -> SingeResult<Self> {
         let embedding = config.embedding;
         Ok(Self {
             attention: Attention::create(
                 &mut schema.scope("attention"),
-                AttentionSpec::square(embedding, config.decoder_heads),
+                AttentionSpec::square(embedding, config.heads),
             )?,
             attention_norm: schema.layer_norm("attention_norm", embedding, config.eps)?,
             token_to_image: Attention::create(
@@ -266,8 +310,8 @@ impl TwoWayBlock {
             token_to_image_norm: schema.layer_norm("token_to_image_norm", embedding, config.eps)?,
             feed_forward: schema.mlp(
                 "feed_forward",
-                [embedding, config.decoder_inner, embedding],
-                config.decoder_activation,
+                [embedding, config.inner, embedding],
+                config.activation,
                 true,
             )?,
             feed_forward_norm: schema.layer_norm("feed_forward_norm", embedding, config.eps)?,
@@ -280,7 +324,7 @@ impl TwoWayBlock {
         })
     }
 
-    fn forward(
+    pub(crate) fn forward(
         &self,
         (queries, keys): (&Tensor, &Tensor),
         (prompts, image_positions): (&Tensor, &Tensor),
@@ -393,14 +437,14 @@ impl SamLayers {
                 };
                 TwoWayBlock::create(
                     &mut schema.scope(format!("two_way.{index}")),
-                    config,
+                    config.two_way(),
                     prompt_positions,
                 )
             })
             .collect::<SingeResult<Vec<_>>>()?;
         let final_attention = Attention::create(
             &mut schema.scope("final_attention"),
-            config.cross_attention(),
+            config.two_way().cross_attention(),
         )?;
         let final_norm = schema.layer_norm("final_norm", embedding, PYTORCH_NORM_EPS)?;
         let doubling = ConvTranspose2dConfig {
@@ -456,38 +500,10 @@ impl SamLayers {
             config: config.clone(),
         })
     }
-
-    /// Returns random Fourier features of coordinates in [0, 1], `[..., 2]` to `[..., 2 · F]`: sines and cosines of `2π (2c - 1) G`.
-    fn fourier(&self, coordinates: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
-        let projected = coordinates
-            .mul_scalar(2.0)?
-            .add_scalar(-1.0)?
-            .matmul(state.tensor(&self.gaussian)?)?
-            .mul_scalar(2.0 * PI)?;
-        let last = projected.shape().rank() - 1;
-        Tensor::concat(&[projected.sin()?, projected.cos()?], last)
-    }
-
-    /// Returns the positions of the embedding's `side × side` grid, `[1, side², C]`, each point at its center.
-    fn grid_positions(&self, side: i64, device: Device, state: &ModelState) -> SingeResult<Tensor> {
-        let coordinates = (0..side)
-            .flat_map(|row| {
-                (0..side).flat_map(move |column| {
-                    [
-                        (column as f32 + 0.5) / side as f32,
-                        (row as f32 + 0.5) / side as f32,
-                    ]
-                })
-            })
-            .collect::<Vec<_>>();
-        let coordinates =
-            Tensor::from_vec(device, Shape::create([1, side * side, 2])?, coordinates)?;
-        self.fourier(&coordinates, state)
-    }
 }
 
 impl PromptableLayers for SamLayers {
-    fn embed(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
+    fn embed(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<Vec<Tensor>> {
         let side = self.config.side();
         let tokens = pixels.apply(&self.patches, state)?;
         let &[batch, _, width] = tokens.shape().dimensions() else {
@@ -506,19 +522,22 @@ impl PromptableLayers for SamLayers {
             &self.neck_norms[0],
             state,
         )?;
-        channel_norm(
+        Ok(vec![channel_norm(
             &hidden.apply(&self.neck[1], state)?,
             &self.neck_norms[1],
             state,
-        )
+        )?])
     }
 
     fn decode(
         &self,
-        embedding: &Tensor,
+        embedding: &[Tensor],
         points: &[[f32; 2]],
         state: &ModelState,
     ) -> SingeResult<(Tensor, Tensor)> {
+        let [embedding] = embedding else {
+            return Err(SingeError::invalid_argument("SAM's one image embedding"));
+        };
         let device = embedding.device();
         let &[_, channels, side, _] = embedding.shape().dimensions() else {
             return Err(SingeError::invalid_argument("SAM image embedding"));
@@ -533,7 +552,7 @@ impl PromptableLayers for SamLayers {
             .collect::<Vec<_>>();
         let coordinates = Tensor::from_vec(device, Shape::create([count, 1, 2])?, coordinates)?;
         let positive = state.tensor(&self.point_embeddings[1])?;
-        let points = self.fourier(&coordinates, state)?.add(positive)?;
+        let points = fourier(&coordinates, state.tensor(&self.gaussian)?)?.add(positive)?;
         let padding = state
             .tensor(&self.not_a_point)?
             .unsqueeze(0)?
@@ -558,8 +577,7 @@ impl PromptableLayers for SamLayers {
             &embedding.add(&state.tensor(&self.no_mask)?.reshape([1, channels, 1, 1])?)?,
         )?
         .expand(Shape::create([count, side * side, channels])?)?;
-        let image_positions = self
-            .grid_positions(side, device, state)?
+        let image_positions = grid_positions(side, state.tensor(&self.gaussian)?, device)?
             .expand(Shape::create([count, side * side, channels])?)?;
 
         let (mut queries, mut keys) = (prompts.clone(), image);

@@ -1,10 +1,10 @@
-//! Heads over a text encoder, and the one loader every model built on `assembly`'s post-norm encoder shares.
-//! A model gives its `transformers` config and rules and its heads' layouts; each head registers its own layers and reads its own config.
+//! Heads over a text encoder, and the one loader every encoder model shares.
+//! A model gives its `transformers` config and rules, its encoder's layers, and its heads' layouts; each head registers its own layers and reads its own config.
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use singe::{
     Result as SingeResult,
-    nn::{Activation, Model},
+    nn::{Activation, Layer, Model, StateKey, TokenBatch},
 };
 
 use crate::{
@@ -27,6 +27,41 @@ pub struct HeadLayouts {
     pub masked_lm_activation: Option<Activation>,
 }
 
+/// What heads read of a text encoder beside its layers.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EncoderSizes {
+    pub width: i64,
+    pub vocab_size: i64,
+    pub eps: f32,
+    pub activation: Activation,
+}
+
+/// A text encoder heads sit on: its layers, from tokens to each token's last hidden state, `[B, T, W]`, its sizes, and its token table, which a masked language model's output may share.
+#[derive(Debug)]
+pub struct EncoderBody {
+    pub layers: Box<dyn Layer<TokenBatch>>,
+    pub sizes: EncoderSizes,
+    pub tokens: StateKey,
+}
+
+/// Creates `assembly`'s post-norm encoder as the body heads sit on.
+pub fn post_norm_body(
+    schema: &mut Schema<'_>,
+    config: &PostNormEncoderConfig,
+) -> SingeResult<EncoderBody> {
+    let encoder = PostNormEncoder::create(schema, config)?;
+    Ok(EncoderBody {
+        sizes: EncoderSizes {
+            width: config.width,
+            vocab_size: config.vocab_size,
+            eps: config.eps,
+            activation: config.activation,
+        },
+        tokens: encoder.tokens().clone(),
+        layers: Box::new(encoder),
+    })
+}
+
 /// A head that sits on a text encoder: what it reads from a `transformers` config, the layers it registers beside the encoder, and what it wraps the loaded model in.
 pub trait EncoderHead: LoadHead {
     type Config: Serialize + DeserializeOwned;
@@ -39,7 +74,7 @@ pub trait EncoderHead: LoadHead {
     /// Registers the head's layers over `encoder` in the encoder's schema, laid out as `layouts` says.
     fn layers(
         schema: &mut Schema<'_>,
-        encoder: PostNormEncoder,
+        encoder: EncoderBody,
         config: &Self::Config,
         layouts: &HeadLayouts,
     ) -> SingeResult<Self::Layers>;
@@ -47,12 +82,17 @@ pub trait EncoderHead: LoadHead {
     fn new(model: Model<Self::Layers>, config: Self::Config) -> Self;
 }
 
-/// What a model built on the post-norm encoder gives the shared loader.
+/// What an encoder model gives the shared loader.
 pub trait EncoderModel {
+    type Config: Serialize + DeserializeOwned;
+
     const LAYOUTS: HeadLayouts;
 
     /// Reads the encoder's config from a `transformers` snapshot.
-    fn config(source: &Source) -> Result<PostNormEncoderConfig>;
+    fn config(source: &Source) -> Result<Self::Config>;
+
+    /// Creates the encoder heads sit on.
+    fn create(schema: &mut Schema<'_>, config: &Self::Config) -> SingeResult<EncoderBody>;
 
     /// Returns the rules of the encoder's tensors, which skip every head's.
     fn encoder_rules() -> Rules;
@@ -63,21 +103,21 @@ pub trait EncoderModel {
 
 /// An encoder's config with its head's, as a native config stores them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-struct EncoderWithHead<C> {
-    encoder: PostNormEncoderConfig,
+struct EncoderWithHead<E, C> {
+    encoder: E,
     head: C,
 }
 
 /// Loads model `M`'s encoder and head `H` over it.
 pub fn load_encoder_head<M: EncoderModel, H: EncoderHead>(loader: &mut Loader<'_>) -> Result<H> {
-    let config: EncoderWithHead<H::Config> = loader.config(|source| {
+    let config: EncoderWithHead<M::Config, H::Config> = loader.config(|source| {
         Ok(EncoderWithHead {
             encoder: M::config(source)?,
             head: H::transformers_config(source)?,
         })
     })?;
     let model = Schema::model(loader.options().data_type, |schema| {
-        let encoder = PostNormEncoder::create(schema, &config.encoder)?;
+        let encoder = M::create(schema, &config.encoder)?;
         H::layers(schema, encoder, &config.head, &M::LAYOUTS)
     })?;
     let rules = M::head_rules(H::HEAD)

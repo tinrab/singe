@@ -1,0 +1,85 @@
+{
+  "cases": [
+    {
+      "name": "zero-shot",
+      "snapshot": "DEBERTA_NLI",
+      "task": "zero-shot-classification",
+      "data_type": "f32",
+      "inputs": [
+        {
+          "sequences": "One day I will launch a rocket into space.",
+          "candidate_labels": ["space travel", "logistics", "cooking"]
+        }
+      ],
+      "expected": [
+        {
+          "sequence": "One day I will launch a rocket into space.",
+          "labels": ["space travel", "logistics", "cooking"],
+          "scores": [0.992778, 0.00680322, 0.000419249]
+        }
+      ]
+    },
+    {
+      "name": "pairs",
+      "snapshot": "DEBERTA_NLI",
+      "task": "text-classification",
+      "data_type": "f32",
+      "inputs": [
+        {
+          "text": "The engineer is building a factory.",
+          "text_pair": "Nobody is building anything."
+        }
+      ],
+      "parameters": {
+        "top_k": null
+      },
+      "expected": [
+        [
+          {
+            "label": "contradiction",
+            "score": 0.999967
+          },
+          {
+            "label": "neutral",
+            "score": 2.72216e-5
+          },
+          {
+            "label": "entailment",
+            "score": 5.84168e-6
+          }
+        ]
+      ]
+    },
+    {
+      "name": "long-pair",
+      "snapshot": "DEBERTA_NLI",
+      "task": "text-classification",
+      "data_type": "f32",
+      "inputs": [
+        {
+          "text": "The factory began as a single furnace beside a patch of iron ore, and within an hour belts carried plates to assemblers that built gears, then circuits, then the parts of a rocket. The factory began as a single furnace beside a patch of iron ore, and within an hour belts carried plates to assemblers that built gears, then circuits, then the parts of a rocket. The factory began as a single furnace beside a patch of iron ore, and within an hour belts carried plates to assemblers that built gears, then circuits, then the parts of a rocket. The factory began as a single furnace beside a patch of iron ore, and within an hour belts carried plates to assemblers that built gears, then circuits, then the parts of a rocket. The factory began as a single furnace beside a patch of iron ore, and within an hour belts carried plates to assemblers that built gears, then circuits, then the parts of a rocket.",
+          "text_pair": "The factory builds rockets."
+        }
+      ],
+      "parameters": {
+        "top_k": null
+      },
+      "expected": [
+        [
+          {
+            "label": "neutral",
+            "score": 0.946212
+          },
+          {
+            "label": "entailment",
+            "score": 0.0526886
+          },
+          {
+            "label": "contradiction",
+            "score": 0.00109928
+          }
+        ]
+      ]
+    }
+  ]
+}

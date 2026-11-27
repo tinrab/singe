@@ -1,0 +1,190 @@
+{
+  "cases": [
+    {
+      "name": "caption",
+      "snapshot": "FLORENCE2",
+      "task": "image-to-text",
+      "data_type": "f32",
+      "inputs": ["media/coco-cats.png"],
+      "parameters": {
+        "prompt": "<CAPTION>",
+        "max_new_tokens": 32
+      },
+      "expected": [
+        {
+          "generated_text": "Two cats laying on a pink couch next to a remote control."
+        }
+      ]
+    },
+    {
+      "name": "ocr",
+      "snapshot": "FLORENCE2",
+      "task": "image-to-text",
+      "data_type": "f32",
+      "inputs": ["media/invoice.png"],
+      "parameters": {
+        "prompt": "<OCR>",
+        "max_new_tokens": 64
+      },
+      "expected": [
+        {
+          "generated_text": "INVOICEInvoice number: 4521Date: 12 March 2024Bill to: Northwind TradersCoffee beans, 2 kg .... 24.00Delivery .... 13.80TOTAL DUE: 37.80 EUR"
+        }
+      ]
+    },
+    {
+      "name": "objects",
+      "snapshot": "FLORENCE2",
+      "task": "image-to-text",
+      "data_type": "f32",
+      "inputs": ["media/coco-cats.png"],
+      "parameters": {
+        "prompt": "<OD>",
+        "max_new_tokens": 64
+      },
+      "expected": [
+        {
+          "generated_text": "cat<loc_8><loc_113><loc_497><loc_989><loc_539><loc_48><loc_998><loc_775>remote control<loc_61><loc_151><loc_275><loc_245><loc_519><loc_159><loc_580><loc_390>",
+          "parsed": {
+            "bboxes": [
+              [5, 54, 318, 474],
+              [345, 23, 639, 372],
+              [39, 72, 176, 117],
+              [332, 76, 371, 187]
+            ],
+            "labels": ["cat", "cat", "remote control", "remote control"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "regions",
+      "snapshot": "FLORENCE2",
+      "task": "image-to-text",
+      "data_type": "f32",
+      "inputs": ["media/invoice.png"],
+      "parameters": {
+        "prompt": "<OCR_WITH_REGION>",
+        "max_new_tokens": 192
+      },
+      "expected": [
+        {
+          "generated_text": "INVOICE<loc_83><loc_73><loc_344><loc_73><loc_344><loc_115><loc_83><loc_115>Invoice number: 4521<loc_81><loc_164><loc_453><loc_163><loc_453><loc_191><loc_81><loc_192>Date: 12 March 2024<loc_83><loc_239><loc_440><loc_239><loc_440><loc_266><loc_83><loc_266>Bill to: Northwind Traders<loc_83><loc_313><loc_517><loc_313><loc_517><loc_341><loc_83><loc_341>Coffee beans, 2 kg .... 24.00<loc_81><loc_387><loc_522><loc_387><loc_522><loc_415><loc_81><loc_415>Delivery .... 13.80<loc_81><loc_460><loc_445><loc_460><loc_445><loc_486><loc_81><loc_486>TOTAL DUE: 37.80 EUR<loc_81><loc_534><loc_565><loc_534><loc_565><loc_566><loc_81><loc_566>",
+          "parsed": {
+            "quad_boxes": [
+              [80, 94, 330, 94, 330, 147, 80, 147],
+              [78, 210, 435, 209, 435, 245, 78, 246],
+              [80, 306, 422, 306, 422, 341, 80, 341],
+              [80, 401, 496, 401, 496, 437, 80, 437],
+              [78, 496, 501, 496, 501, 531, 78, 531],
+              [78, 589, 427, 589, 427, 622, 78, 622],
+              [78, 684, 542, 684, 542, 725, 78, 725]
+            ],
+            "labels": [
+              "INVOICE",
+              "Invoice number: 4521",
+              "Date: 12 March 2024",
+              "Bill to: Northwind Traders",
+              "Coffee beans, 2 kg .... 24.00",
+              "Delivery .... 13.80",
+              "TOTAL DUE: 37.80 EUR"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "grounding",
+      "snapshot": "FLORENCE2",
+      "task": "image-to-text",
+      "data_type": "f32",
+      "inputs": ["media/coco-cats.png"],
+      "parameters": {
+        "prompt": "<CAPTION_TO_PHRASE_GROUNDING>Two cats lying on a pink couch.",
+        "max_new_tokens": 64
+      },
+      "expected": [
+        {
+          "generated_text": "Two cats<loc_0><loc_0><loc_998><loc_998><loc_12><loc_45><loc_998><loc_985><loc_15><loc_110><loc_496><loc_988><loc_539><loc_48><loc_998><loc_778>couch<loc_0><loc_0><loc_997><loc_998>",
+          "parsed": {
+            "bboxes": [
+              [0, 0, 639, 479],
+              [8, 21, 639, 473],
+              [9, 53, 317, 474],
+              [345, 23, 639, 373],
+              [0, 0, 638, 479]
+            ],
+            "labels": ["Two cats", "Two cats", "Two cats", "Two cats", "couch"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "segmentation",
+      "snapshot": "FLORENCE2",
+      "task": "image-to-text",
+      "data_type": "f32",
+      "inputs": ["media/coco-cats.png"],
+      "parameters": {
+        "prompt": "<REFERRING_EXPRESSION_SEGMENTATION>a cat",
+        "max_new_tokens": 256
+      },
+      "expected": [
+        {
+          "generated_text": "<loc_204><loc_233><loc_213><loc_227><loc_221><loc_223><loc_230><loc_219><loc_255><loc_217><loc_264><loc_210><loc_275><loc_195><loc_283><loc_186><loc_292><loc_182><loc_300><loc_178><loc_309><loc_169><loc_317><loc_158><loc_326><loc_154><loc_343><loc_152><loc_351><loc_141><loc_359><loc_132><loc_371><loc_128><loc_404><loc_126><loc_421><loc_124><loc_427><loc_120><loc_446><loc_118><loc_452><loc_124><loc_451><loc_141><loc_446><loc_150><loc_441><loc_160><loc_440><loc_171><loc_446><loc_182><loc_451><loc_193><loc_460><loc_204><loc_468><loc_208><loc_477><loc_212><loc_485><loc_217><loc_479><loc_225><loc_471><loc_227><loc_463><loc_240><loc_457><loc_242><loc_449><loc_253><loc_440><loc_264><loc_432><loc_268><loc_424><loc_275><loc_415><loc_283><loc_410><loc_294><loc_407><loc_305><loc_404><loc_316><loc_413><loc_327><loc_421><loc_331><loc_429><loc_338><loc_437><loc_344><loc_446><loc_351><loc_460><loc_370><loc_468><loc_385><loc_474><loc_398><loc_480><loc_409><loc_485><loc_420><loc_491><loc_433><loc_490><loc_446><loc_482><loc_453><loc_468><loc_455><loc_468><loc_468><loc_469><loc_490><loc_463><loc_498><loc_446><loc_496><loc_437><loc_483><loc_429><loc_468><loc_426><loc_457><loc_424><loc_446><loc_418><loc_437><loc_410><loc_433><loc_401><loc_431><loc_393><loc_427><loc_384><loc_422><loc_376><loc_418><loc_367><loc_414><loc_359><loc_407><loc_342><loc_405><loc_334><loc_400><loc_320><loc_402><loc_311><loc_409><loc_303><loc_420><loc_297><loc_435><loc_292><loc_446><loc_286><loc_457><loc_278><loc_470><loc_269><loc_485><loc_264><loc_496><loc_261><loc_509><loc_260><loc_522><loc_255><loc_531><loc_250><loc_539><loc_249><loc_561><loc_246><loc_572><loc_241><loc_581><loc_235><loc_594><loc_232><loc_604><loc_230><loc_615><loc_224><loc_626><loc_218><loc_637><loc_210><loc_650><loc_205><loc_661><loc_213><loc_667><loc_224><loc_665><loc_227><loc_654><loc_235><loc_641><loc_244><loc_637><loc_252><loc_630><loc_260><loc_624><loc_266><loc_622><loc_275><loc_615><loc_283><loc_606><loc_292><loc_602><loc_317><loc_604><loc_328><loc_608><loc_336><loc_613><loc_334><loc_624><loc_339><loc_632><loc_336><loc_648><loc_328><loc_656><loc_320><loc_663><loc_311><loc_669><loc_303><loc_676><loc_295><loc_682><loc_286><loc_689><loc_277><loc_697><loc_258><loc_719><loc_255><loc_728><loc_246><loc_739><loc_235><loc_743>",
+          "parsed": {
+            "polygons": [
+              [
+                [
+                  130, 112, 136, 109, 141, 107, 147, 105, 163, 104, 169, 101, 176, 93, 181, 89, 187,
+                  87, 192, 85, 198, 81, 203, 76, 208, 74, 219, 73, 224, 67, 230, 63, 237, 61, 258,
+                  60, 269, 59, 273, 57, 285, 56, 289, 59, 288, 67, 285, 72, 282, 77, 281, 82, 285,
+                  87, 288, 92, 294, 98, 299, 100, 305, 102, 310, 104, 306, 108, 301, 109, 296, 115,
+                  292, 116, 287, 121, 281, 126, 276, 128, 271, 132, 265, 136, 262, 141, 260, 146,
+                  258, 151, 264, 157, 269, 159, 274, 162, 280, 165, 285, 168, 294, 177, 299, 185,
+                  303, 191, 307, 196, 310, 201, 314, 208, 313, 214, 308, 217, 299, 218, 299, 224,
+                  300, 235, 296, 239, 285, 238, 280, 232, 274, 224, 272, 219, 271, 214, 267, 210,
+                  262, 208, 256, 207, 251, 205, 246, 202, 240, 200, 235, 198, 230, 195, 219, 194,
+                  214, 192, 205, 193, 199, 196, 194, 201, 190, 209, 187, 214, 183, 219, 178, 225,
+                  172, 233, 169, 238, 167, 244, 166, 250, 163, 255, 160, 258, 159, 269, 157, 274,
+                  154, 279, 150, 285, 148, 290, 147, 295, 143, 300, 139, 306, 134, 312, 131, 317,
+                  136, 320, 143, 319, 145, 314, 150, 307, 156, 306, 161, 302, 166, 299, 170, 298,
+                  176, 295, 181, 291, 187, 289, 203, 290, 210, 292, 215, 294, 214, 299, 217, 303,
+                  215, 311, 210, 315, 205, 318, 199, 321, 194, 324, 189, 327, 183, 330, 177, 334,
+                  165, 345, 163, 349, 157, 354, 150, 356
+                ]
+              ]
+            ],
+            "labels": [""]
+          }
+        }
+      ]
+    },
+    {
+      "name": "proposals",
+      "snapshot": "FLORENCE2",
+      "task": "image-to-text",
+      "data_type": "f32",
+      "inputs": ["media/coco-cats.png"],
+      "parameters": {
+        "prompt": "<REGION_PROPOSAL>",
+        "max_new_tokens": 128
+      },
+      "expected": [
+        {
+          "generated_text": "<loc_0><loc_0><loc_998><loc_998><loc_8><loc_114><loc_497><loc_990><loc_539><loc_50><loc_998><loc_777><loc_61><loc_152><loc_275><loc_246><loc_519><loc_160><loc_580><loc_391>",
+          "parsed": {
+            "bboxes": [
+              [0, 0, 639, 479],
+              [5, 54, 318, 475],
+              [345, 24, 639, 373],
+              [39, 73, 176, 118],
+              [332, 77, 371, 187]
+            ],
+            "labels": ["", "", "", "", ""]
+          }
+        }
+      ]
+    }
+  ]
+}

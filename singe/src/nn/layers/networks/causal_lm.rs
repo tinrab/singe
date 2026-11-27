@@ -19,7 +19,9 @@ pub struct CausalLmParts<B: DecodingLayer, N = RmsNorm> {
     pub embedding: Embedding,
     // What each token's embedding is multiplied by, if anything.
     pub embedding_scale: Option<f32>,
-    pub rotary: RotarySpec,
+    pub logit_scale: Option<f32>,
+    pub logit_cap: Option<f32>,
+    pub rotary: Option<RotarySpec>,
     pub blocks: Vec<B>,
     pub norm: N,
     pub head: Linear,
@@ -52,7 +54,7 @@ impl<B: DecodingLayer, N: Debug> Debug for MultiTokenPrediction<B, N> {
     }
 }
 
-// A causal language model: an embedding, rotary blocks over one cache each, a final norm, and an output head on each sequence's last token, with a layer that drafts the tokens after it if it has one.
+// A causal language model: an embedding, blocks over one cache each, rotating by a rotary table if it has one, a final norm, and an output head on each sequence's last token, with a layer that drafts the tokens after it if it has one.
 pub struct CausalLm<B: DecodingLayer, N = RmsNorm> {
     parts: CausalLmParts<B, N>,
     draft: Option<MultiTokenPrediction<B, N>>,
@@ -73,6 +75,17 @@ impl<B: DecodingLayer, N> CausalLm<B, N> {
         self
     }
 
+    fn scale_logits(&self, logits: Tensor) -> Result<Tensor> {
+        let logits = match self.parts.logit_scale {
+            Some(scale) => logits.mul_scalar(scale)?,
+            None => logits,
+        };
+        match self.parts.logit_cap {
+            Some(cap) => logits.mul_scalar(cap.recip())?.tanh()?.mul_scalar(cap),
+            None => Ok(logits),
+        }
+    }
+
     fn embed_tokens(&self, tokens: &Tensor, state: &ModelState) -> Result<Tensor> {
         let parts = &self.parts;
         let hidden = tokens.apply(&parts.embedding, state)?;
@@ -91,6 +104,8 @@ impl<B: DecodingLayer, N: Debug> Debug for CausalLm<B, N> {
             .debug_struct("CausalLm")
             .field("embedding", &parts.embedding)
             .field("embedding_scale", &parts.embedding_scale)
+            .field("logit_scale", &parts.logit_scale)
+            .field("logit_cap", &parts.logit_cap)
             .field("rotary", &parts.rotary)
             .field("blocks", &parts.blocks)
             .field("norm", &parts.norm)
@@ -108,10 +123,18 @@ where
 {
     type Cache = B::Cache;
 
-    type Tables = RotaryTable;
+    type Tables = Option<RotaryTable>;
 
-    fn tables(&self, data_type: DataType, device: Device, capacity: i64) -> Result<RotaryTable> {
-        RotaryTable::create(device, data_type, self.parts.rotary, capacity)
+    fn tables(
+        &self,
+        data_type: DataType,
+        device: Device,
+        capacity: i64,
+    ) -> Result<Option<RotaryTable>> {
+        self.parts
+            .rotary
+            .map(|rotary| RotaryTable::create(device, data_type, rotary, capacity))
+            .transpose()
     }
 
     fn caches(
@@ -138,7 +161,7 @@ where
     fn forward(
         &self,
         step: &DecodeStep,
-        tables: &RotaryTable,
+        tables: &Option<RotaryTable>,
         caches: &[B::Cache],
         state: &ModelState,
     ) -> Result<Tensor> {
@@ -161,12 +184,12 @@ where
         &self,
         step: &DecodeStep,
         hidden: Tensor,
-        tables: &RotaryTable,
+        tables: &Option<RotaryTable>,
         caches: &[B::Cache],
         state: &ModelState,
     ) -> Result<Tensor> {
-        let angles = tables.angles(step.positions())?;
-        self.forward_rotated(step, hidden, &angles, caches, state)
+        let angles = step_angles(tables.as_ref(), step)?;
+        self.forward_rotated(step, hidden, angles.as_ref(), caches, state)
     }
 
     // Runs the step from its embeddings, `[T, W]`, rotating by `angles` rather than by its positions.
@@ -174,20 +197,21 @@ where
         &self,
         step: &DecodeStep,
         hidden: Tensor,
-        angles: &RotaryAngles,
+        angles: Option<&RotaryAngles>,
         caches: &[B::Cache],
         state: &ModelState,
     ) -> Result<Tensor> {
         self.hidden_rotated(step, hidden, angles, caches, state)?
             .index_select(0, step.last_rows())?
             .apply(&self.parts.head, state)
+            .and_then(|logits| self.scale_logits(logits))
     }
 
     fn hidden_rotated(
         &self,
         step: &DecodeStep,
         mut hidden: Tensor,
-        angles: &RotaryAngles,
+        angles: Option<&RotaryAngles>,
         caches: &[B::Cache],
         state: &ModelState,
     ) -> Result<Tensor> {
@@ -197,7 +221,7 @@ where
                 &AttentionInput {
                     hidden: &hidden,
                     step,
-                    angles: Some(angles),
+                    angles,
                     cache,
                 },
                 state,
@@ -227,13 +251,17 @@ where
         let parts = &self.parts;
         let mut hidden = self.embed_tokens(tokens, state)?;
         let positions = Tensor::range(tokens.device(), 0, tokens.dimension(1)?)?;
-        let angles = parts.rotary.angles(&positions, hidden.data_type())?;
+        let angles = parts
+            .rotary
+            .map(|rotary| rotary.angles(&positions, hidden.data_type()))
+            .transpose()?;
         for block in &parts.blocks {
             hidden = block.forward(
                 &DenseAttentionInput {
                     hidden: &hidden,
-                    angles: Some(&angles),
+                    angles: angles.as_ref(),
                     key_lengths: Some(key_lengths),
+                    mask: None,
                 },
                 state,
             )?;
@@ -254,13 +282,22 @@ where
     fn forward_rows(
         &self,
         step: &DecodeStep,
-        tables: &RotaryTable,
+        tables: &Option<RotaryTable>,
         caches: &[B::Cache],
         state: &ModelState,
     ) -> Result<(Tensor, Tensor)> {
-        let angles = tables.angles(step.positions())?;
-        let hidden = self.hidden_rotated(step, self.embed(step, state)?, &angles, caches, state)?;
-        Ok((hidden.apply(&self.parts.head, state)?, hidden))
+        let angles = step_angles(tables.as_ref(), step)?;
+        let hidden = self.hidden_rotated(
+            step,
+            self.embed(step, state)?,
+            angles.as_ref(),
+            caches,
+            state,
+        )?;
+        Ok((
+            self.scale_logits(hidden.apply(&self.parts.head, state)?)?,
+            hidden,
+        ))
     }
 
     fn draft_cache(
@@ -276,7 +313,7 @@ where
         &self,
         step: &DecodeStep,
         hidden: &Tensor,
-        tables: &RotaryTable,
+        tables: &Option<RotaryTable>,
         cache: &B::Cache,
         state: &ModelState,
     ) -> Result<(Tensor, Tensor)> {
@@ -290,14 +327,14 @@ where
             1,
         )?
         .apply(&draft.projection, state)?;
-        let angles = tables.angles(step.positions())?;
+        let angles = step_angles(tables.as_ref(), step)?;
         let hidden = draft
             .block
             .decode(
                 &AttentionInput {
                     hidden: &joined,
                     step,
-                    angles: Some(&angles),
+                    angles: angles.as_ref(),
                     cache,
                 },
                 state,
@@ -311,7 +348,7 @@ where
             }
             None => hidden.apply(&self.parts.head, state)?,
         };
-        Ok((logits, hidden))
+        Ok((self.scale_logits(logits)?, hidden))
     }
 
     fn draft_buffers(&self, state: &ModelState) -> Result<Vec<(String, Tensor)>> {
@@ -326,6 +363,12 @@ where
 }
 
 const DRAFT_HEAD: &str = "draft_head";
+
+fn step_angles(tables: Option<&RotaryTable>, step: &DecodeStep) -> Result<Option<RotaryAngles>> {
+    tables
+        .map(|table| table.angles(step.positions()))
+        .transpose()
+}
 
 // A causal language model whose prompts read sources in place of a placeholder token, as Qwen3-ASR's prompt reads audio features in place of its audio tokens.
 //
@@ -441,9 +484,14 @@ where
 {
     type Cache = SourcedCache<B::Cache>;
 
-    type Tables = RotaryTable;
+    type Tables = Option<RotaryTable>;
 
-    fn tables(&self, data_type: DataType, device: Device, capacity: i64) -> Result<RotaryTable> {
+    fn tables(
+        &self,
+        data_type: DataType,
+        device: Device,
+        capacity: i64,
+    ) -> Result<Option<RotaryTable>> {
         self.model.tables(data_type, device, capacity)
     }
 
@@ -479,7 +527,7 @@ where
     fn forward(
         &self,
         step: &DecodeStep,
-        tables: &RotaryTable,
+        tables: &Option<RotaryTable>,
         caches: &[Self::Cache],
         state: &ModelState,
     ) -> Result<Tensor> {
@@ -495,16 +543,17 @@ where
         let sources =
             sources.ok_or_else(|| Error::missing_input("a sourced decoder's source cache"))?;
         let embedded = sources.embed(step, &self.model.embed(step, state)?, self.placeholder)?;
-        let angles = match (self.sections, positions) {
-            (Some(sections), Some(positions)) => {
-                tables.angles_in_sections(&positions.positions(step)?, sections)?
+        let angles = match (tables, self.sections, positions) {
+            (None, ..) => None,
+            (Some(tables), Some(sections), Some(positions)) => {
+                Some(tables.angles_in_sections(&positions.positions(step)?, sections)?)
             }
-            (None, _) => tables.angles(step.positions())?,
-            (Some(_), None) => {
+            (Some(tables), None, _) => Some(tables.angles(step.positions())?),
+            (Some(_), Some(_), None) => {
                 return Err(Error::missing_input("a sourced decoder's position cache"));
             }
         };
         self.model
-            .forward_rotated(step, embedded, &angles, &layers, state)
+            .forward_rotated(step, embedded, angles.as_ref(), &layers, state)
     }
 }
