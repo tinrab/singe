@@ -1,7 +1,30 @@
-//! Low-level FFI bindings for the CUDA driver and runtime APIs, NVRTC, nvJitLink, NVVM, NVTX 3, and the shared CUDA library types, generated with bindgen from their headers.
-//! Each API has its own module: [`driver`], [`runtime`], [`nvrtc`], [`nvjitlink`], [`nvvm`], [`nvtx`], [`profiler`], and [`library_types`].
-//! Every library loads at run time through [`singe-loader`](singe_loader), on the first call of one of its functions or up front with [`load_driver`] and the other `load_*` functions, so nothing links at build time.
+//! Low-level FFI bindings for the CUDA driver and runtime APIs, NVRTC, NVVM, nvJitLink, NVTX, and the CUDA profiler.
+//!
 //! Most users want the safe crate, `singe-cuda`.
+//!
+//! # Bindings
+//!
+//! | Binds                                   | Header               | Module            | Feature          |
+//! | --------------------------------------- | -------------------- | ----------------- | ---------------- |
+//! | The CUDA driver API                     | `cuda.h`             | [`driver`]        | `driver_13_4`    |
+//! | The CUDA runtime API                    | `cuda_runtime_api.h` | [`runtime`]       | `runtime_13_4`   |
+//! | CUDA profiler start and stop            | `cudaProfiler.h`     | [`profiler`]      | `driver_13_4`    |
+//! | Data types shared by the CUDA libraries | `library_types.h`    | [`library_types`] | `runtime_13_4`   |
+//! | NVRTC, which compiles CUDA C++          | `nvrtc.h`            | [`nvrtc`]         | `nvrtc_13_4`     |
+//! | NVVM, which compiles NVVM IR            | `nvvm.h`             | [`nvvm`]          | `nvvm_13_4`      |
+//! | nvJitLink, which links device code      | `nvJitLink.h`        | [`nvjitlink`]     | `nvjitlink_13_4` |
+//! | NVTX annotations                        | `nvToolsExt.h`       | [`nvtx`]          | `nvtx_3`         |
+//!
+//! Every feature is on by default.
+//! The bindings are generated with bindgen from the CUDA 13.4 and NVTX 3 headers.
+//!
+//! # Loading
+//!
+//! Nothing links at build time.
+//! [`singe_loader`] loads each library on the first call of one of its functions, or up front with [`load_driver`], [`load_runtime`], [`load_nvrtc`], [`load_nvvm`], [`load_nvjitlink`], or [`load_nvtx`].
+//! When a library or one of its symbols is missing, a function that returns a status returns an error status, and [`take_absence`] reports what was missing.
+//! A function without a status returns zero, null, or nothing instead.
+//! [`provide_driver`] and [`provide_runtime`] serve the driver and runtime from an in-process implementation instead, such as `singe-cuda-emulator`.
 #![allow(
     deprecated,
     non_camel_case_types,

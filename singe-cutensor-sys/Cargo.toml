@@ -1,6 +1,6 @@
 [package]
 name = "singe-cutensor-sys"
-description = "Low-level FFI bindings for the NVIDIA cuTENSOR tensor algebra library."
+description = "Low-level FFI bindings for NVIDIA cuTENSOR, cuTENSORMg, and cuTENSORMp."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-cutensor-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "cutensor", "ffi", "bindings"]
+keywords = ["cuda", "nvidia", "cutensor", "ffi", "tensor"]
 categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 

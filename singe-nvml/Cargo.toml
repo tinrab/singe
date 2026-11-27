@@ -1,6 +1,6 @@
 [package]
 name = "singe-nvml"
-description = "Safe Rust wrappers for the NVIDIA Management Library (NVML), for monitoring and managing GPUs."
+description = "Safe Rust wrappers for NVML, the NVIDIA Management Library, for monitoring and managing GPUs."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-nvml"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["nvidia", "nvml", "gpu", "monitoring"]
+keywords = ["nvidia", "nvml", "gpu", "monitoring", "nvidia-smi"]
 categories = ["api-bindings", "hardware-support"]
 include.workspace = true
 

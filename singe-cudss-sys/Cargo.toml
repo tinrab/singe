@@ -1,6 +1,6 @@
 [package]
 name = "singe-cudss-sys"
-description = "Low-level FFI bindings for the NVIDIA Direct Sparse Solvers (cuDSS) library."
+description = "Low-level FFI bindings for NVIDIA cuDSS, the direct sparse solver library."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-cudss-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "cudss", "ffi", "bindings"]
+keywords = ["cuda", "nvidia", "cudss", "ffi", "sparse"]
 categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 

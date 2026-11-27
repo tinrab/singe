@@ -70,10 +70,10 @@ libloading = "0.9.1"
 singe-core = { path = "singe-core", version = "0.1.0" }
 singe-cublas = { path = "singe-cublas", version = "0.1.0" }
 singe-cublas-sys = { path = "singe-cublas-sys", version = "0.1.0", default-features = false }
-singe-cuda = { path = "singe-cuda", version = "0.1.0", default-features = false }
+singe-cuda = { path = "singe-cuda", version = "0.2.0", default-features = false }
 singe-cuda-macros = { path = "singe-cuda-macros", version = "0.1.0" }
 singe-cuda-find = { path = "singe-cuda-find", version = "0.1.0" }
-singe-cuda-sys = { path = "singe-cuda-sys", version = "0.1.0", default-features = false }
+singe-cuda-sys = { path = "singe-cuda-sys", version = "0.2.0", default-features = false }
 singe-cuda-emulator = { path = "singe-cuda-emulator", version = "0.1.0" }
 singe-cufile = { path = "singe-cufile", version = "0.1.0" }
 singe-cufile-sys = { path = "singe-cufile-sys", version = "0.1.0", default-features = false }

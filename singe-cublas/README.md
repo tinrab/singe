@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-cublas/badge.svg)](https://docs.rs/singe-cublas)
 ![License](https://img.shields.io/crates/l/singe-cublas.svg)
 
-Safe Rust wrappers for NVIDIA cuBLAS dense linear algebra on the GPU: the classic BLAS API, cuBLASLt for configurable matrix multiplication, and cuBLASXt for BLAS3 across several GPUs.
+Safe Rust wrappers for NVIDIA cuBLAS, cuBLASLt, and cuBLASXt: BLAS, configurable matrix multiplication, and BLAS level 3 across several GPUs.
 
 This crate provides:
 

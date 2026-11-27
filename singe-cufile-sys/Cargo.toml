@@ -1,6 +1,6 @@
 [package]
 name = "singe-cufile-sys"
-description = "Low-level FFI bindings for the NVIDIA cuFile GPUDirect Storage library."
+description = "Low-level FFI bindings for NVIDIA cuFile, the GPUDirect Storage library."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-cufile-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "cufile", "ffi", "bindings"]
+keywords = ["cuda", "nvidia", "cufile", "ffi", "gpudirect"]
 categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 

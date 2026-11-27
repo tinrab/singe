@@ -1,6 +1,6 @@
 [package]
 name = "singe-nvml-sys"
-description = "Low-level FFI bindings for the NVIDIA Management Library (NVML)."
+description = "Low-level FFI bindings for NVML, the NVIDIA Management Library."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-nvml-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "nvml", "ffi", "bindings"]
+keywords = ["nvidia", "nvml", "ffi", "gpu", "monitoring"]
 categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 

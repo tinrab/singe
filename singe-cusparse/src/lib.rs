@@ -1,4 +1,4 @@
-//! Safe Rust wrappers for NVIDIA cuSPARSE, for sparse linear algebra on the GPU.
+//! Safe Rust wrappers for NVIDIA cuSPARSE, for sparse matrix products, format conversions, and triangular solves on the GPU.
 //! A [`Context`](crate::context::Context) owns a cuSPARSE handle in a [`singe-cuda`](singe_cuda) context, and the descriptors in [`matrix`] and [`vector`] borrow device buffers.
 //! Creating and configuring descriptors is safe; every operation and workspace-size query is `unsafe`, because a descriptor does not check that its sparse indices are in bounds or its values initialized.
 //!

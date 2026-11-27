@@ -1,10 +1,23 @@
-//! Low-level FFI bindings for nvJPEG, from the CUDA Toolkit, and for nvJPEG 2000 0.11, generated from `nvjpeg.h` and `nvjpeg2k.h`.
-//! [`singe-loader`](singe_loader) loads each library at run time, on the first call or through [`load`] and `load_k2`, so building links no NVIDIA library.
-//! Most users want the safe `singe-nvjpeg` crate.
+//! Low-level FFI bindings for NVIDIA nvJPEG and nvJPEG2000.
 //!
-//! # Features
+//! Most users want the safe crate, `singe-nvjpeg`.
 //!
-//! - `k2`: adds the nvJPEG 2000 bindings in the `k2` module.
+//! # Bindings
+//!
+//! | Binds                                       | Header       | Module     | Feature       |
+//! | ------------------------------------------- | ------------ | ---------- | ------------- |
+//! | nvJPEG, JPEG decoding and encoding          | `nvjpeg.h`   | crate root | `nvjpeg_13_2` |
+//! | nvJPEG2000, JPEG 2000 decoding and encoding | `nvjpeg2k.h` | `k2`       | `k2`          |
+//!
+//! The `nvjpeg_13_2` feature is on by default, and `k2` is off.
+//! The bindings are generated with bindgen from the nvJPEG 13.2 and nvJPEG2000 0.11 headers.
+//!
+//! # Loading
+//!
+//! Nothing links at build time.
+//! [`singe_loader`] loads each library on the first call of one of its functions, or up front with [`load`] for nvJPEG and `load_k2` for nvJPEG2000.
+//! When a library or one of its symbols is missing, a function that returns a status returns an error status, and [`take_absence`] reports what was missing.
+//! A function without a status returns zero, null, or nothing instead.
 #![allow(
     unpredictable_function_pointer_comparisons,
     non_upper_case_globals,

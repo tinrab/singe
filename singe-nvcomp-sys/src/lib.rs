@@ -1,10 +1,23 @@
-//! Low-level FFI bindings for the nvCOMP C API, the NVIDIA GPU compression library, generated from `nvcomp.h`.
-//! [`singe-loader`](singe_loader) loads the library at run time, on the first call or through [`load`], so building links no NVIDIA library unless the `manager` feature is on.
-//! Most users want the safe `singe-nvcomp` crate.
+//! Low-level FFI bindings for NVIDIA nvCOMP, the GPU compression library, and its C++ manager API.
 //!
-//! # Features
+//! Most users want the safe crate, `singe-nvcomp`.
 //!
-//! - `manager`: compiles a C++ bridge to nvCOMP's manager API, which needs the nvCOMP and CUDA headers at build time and links nvCOMP.
+//! # Bindings
+//!
+//! | Binds                                                           | Header                        | Module     | Feature      |
+//! | --------------------------------------------------------------- | ----------------------------- | ---------- | ------------ |
+//! | The nvCOMP C API: batched compression for each codec, and CRC32 | `nvcomp.h`, `nvcomp/*.h`      | crate root | `nvcomp_6_0` |
+//! | A C++ bridge to nvCOMP's managers and streaming API             | `cpp/bridge.h`, in this crate | `manager`  | `manager`    |
+//!
+//! The `nvcomp_6_0` feature is on by default, and `manager` is off.
+//! The bindings are generated with bindgen from the nvCOMP 6.0 headers and this crate's bridge header.
+//!
+//! # Loading
+//!
+//! Nothing links at build time unless the `manager` feature is on; its C++ bridge needs the nvCOMP and CUDA headers to build, and links nvCOMP.
+//! [`singe_loader`] loads the library on the first call of one of its functions, or up front with [`load`].
+//! When the library or one of its symbols is missing, a function that returns a status returns an error status, and [`take_absence`] reports what was missing.
+//! A function without a status returns zero, null, or nothing instead.
 #![allow(
     unpredictable_function_pointer_comparisons,
     non_upper_case_globals,

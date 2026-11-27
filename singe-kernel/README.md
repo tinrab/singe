@@ -40,7 +40,7 @@ fn main() {
 Enable the kernel families you use through Cargo features:
 
 ```toml
-singe-cuda = "0.1"
+singe-cuda = "0.2"
 singe-kernel = { version = "0.1", features = ["kernel_matmul"] }
 ```
 

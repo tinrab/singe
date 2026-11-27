@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-cutensor/badge.svg)](https://docs.rs/singe-cutensor)
 ![License](https://img.shields.io/crates/l/singe-cutensor.svg)
 
-Safe Rust wrappers for NVIDIA cuTENSOR, for tensor contractions, reductions, permutations, and elementwise operations on the GPU.
+Safe Rust wrappers for NVIDIA cuTENSOR, cuTENSORMg, and cuTENSORMp, for tensor contractions, reductions, permutations, and elementwise operations on one or several GPUs.
 
 This crate provides:
 

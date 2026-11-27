@@ -1,6 +1,6 @@
 [package]
 name = "singe-cublas-sys"
-description = "Low-level FFI bindings for the NVIDIA cuBLAS dense linear algebra library."
+description = "Low-level FFI bindings for NVIDIA cuBLAS, cuBLASLt, and cuBLASXt."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-cublas-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "cublas", "ffi", "bindings"]
+keywords = ["cuda", "nvidia", "cublas", "ffi", "cublaslt"]
 categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 

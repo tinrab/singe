@@ -1,6 +1,6 @@
 [package]
 name = "singe-nvjpeg-sys"
-description = "Low-level FFI bindings for the NVIDIA nvJPEG and nvJPEG 2000 libraries."
+description = "Low-level FFI bindings for NVIDIA nvJPEG and nvJPEG2000."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-nvjpeg-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "nvjpeg", "ffi", "bindings"]
+keywords = ["cuda", "nvidia", "nvjpeg", "ffi", "jpeg"]
 categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 

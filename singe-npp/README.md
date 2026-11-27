@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-npp/badge.svg)](https://docs.rs/singe-npp)
 ![License](https://img.shields.io/crates/l/singe-npp.svg)
 
-Safe Rust wrappers for NVIDIA Performance Primitives (NPP), for image and signal processing on the GPU.
+Safe Rust wrappers for NPP, the NVIDIA Performance Primitives, for image and signal processing on the GPU.
 
 This crate provides:
 

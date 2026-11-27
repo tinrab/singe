@@ -1,4 +1,4 @@
-//! Safe Rust wrappers for cuDNN, NVIDIA's deep neural network library, including a Rust port of NVIDIA's cuDNN Frontend graph API.
+//! Safe Rust wrappers for NVIDIA cuDNN deep neural network primitives, with a Rust port of the cuDNN Frontend graph API.
 //!
 //! This crate provides:
 //!

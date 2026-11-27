@@ -1,4 +1,4 @@
-//! Safe Rust wrappers for NVIDIA Performance Primitives (NPP), for image and signal processing on the GPU.
+//! Safe Rust wrappers for NPP, the NVIDIA Performance Primitives, for image and signal processing on the GPU.
 //!
 //! This crate wraps NPP version queries, stream contexts, image and signal device memory, image processing pipelines, signal processing pipelines, typed image views, channel layouts, sizes, rectangles, and temporary workspaces.
 //!

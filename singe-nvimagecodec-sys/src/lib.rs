@@ -1,6 +1,22 @@
-//! Low-level FFI bindings for nvImageCodec, the NVIDIA image codec library, generated from `nvimgcodec.h`.
-//! [`singe-loader`](singe_loader) loads the library at run time, on the first call or through [`load`], so building links no NVIDIA library.
-//! Most users want the safe `singe-nvimagecodec` crate.
+//! Low-level FFI bindings for NVIDIA nvImageCodec, the image codec library.
+//!
+//! Most users want the safe crate, `singe-nvimagecodec`.
+//!
+//! # Bindings
+//!
+//! | Binds                                                        | Header         | Module     | Feature            |
+//! | ------------------------------------------------------------ | -------------- | ---------- | ------------------ |
+//! | nvImageCodec decoding, encoding, and its codec extension API | `nvimgcodec.h` | crate root | `nvimagecodec_0_9` |
+//!
+//! The `nvimagecodec_0_9` feature is on by default.
+//! The bindings are generated with bindgen from the nvImageCodec 0.9 headers.
+//!
+//! # Loading
+//!
+//! Nothing links at build time.
+//! [`singe_loader`] loads the library on the first call of one of its functions, or up front with [`load`].
+//! When the library or one of its symbols is missing, a function that returns a status returns an error status, and [`take_absence`] reports what was missing.
+//! A function without a status returns zero, null, or nothing instead.
 #![allow(
     non_camel_case_types,
     non_snake_case,

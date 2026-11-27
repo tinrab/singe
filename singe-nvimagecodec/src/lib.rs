@@ -1,4 +1,4 @@
-//! Safe Rust wrappers for nvImageCodec, which decodes and encodes JPEG, JPEG 2000, TIFF, PNG, BMP, and other formats through codec modules that run on the CPU or the GPU.
+//! Safe Rust wrappers for NVIDIA nvImageCodec, for decoding and encoding JPEG, JPEG 2000, TIFF, PNG, BMP, and other image formats on the GPU or CPU.
 //!
 //! This crate provides:
 //!

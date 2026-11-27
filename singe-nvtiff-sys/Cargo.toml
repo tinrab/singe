@@ -1,6 +1,6 @@
 [package]
 name = "singe-nvtiff-sys"
-description = "Low-level FFI bindings for the NVIDIA nvTIFF library."
+description = "Low-level FFI bindings for NVIDIA nvTIFF, the TIFF codec library."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-nvtiff-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "nvtiff", "ffi", "bindings"]
+keywords = ["cuda", "nvidia", "nvtiff", "ffi", "tiff"]
 categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 

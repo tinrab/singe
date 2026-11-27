@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-cudss/badge.svg)](https://docs.rs/singe-cudss)
 ![License](https://img.shields.io/crates/l/singe-cudss.svg)
 
-Safe Rust wrappers for NVIDIA cuDSS, the CUDA direct sparse solver library.
+Safe Rust wrappers for NVIDIA cuDSS, for solving sparse linear systems with direct methods on one or several GPUs.
 
 This crate provides:
 

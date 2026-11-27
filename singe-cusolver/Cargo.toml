@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-cusolver"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "cusolver", "solver"]
+keywords = ["cuda", "nvidia", "cusolver", "lapack", "linear-algebra"]
 categories = ["api-bindings", "hardware-support", "science"]
 include.workspace = true
 

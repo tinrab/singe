@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-cufft/badge.svg)](https://docs.rs/singe-cufft)
 ![License](https://img.shields.io/crates/l/singe-cufft.svg)
 
-Safe Rust wrappers for NVIDIA cuFFT, for Fourier transforms on the GPU.
+Safe Rust wrappers for NVIDIA cuFFT, cuFFTXt, and the cuFFT device API, for fast Fourier transforms on one or several GPUs.
 
 This crate provides:
 

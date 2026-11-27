@@ -1,6 +1,6 @@
 [package]
 name = "singe-cusparse"
-description = "Safe Rust wrappers for NVIDIA cuSPARSE, for sparse linear algebra on the GPU."
+description = "Safe Rust wrappers for NVIDIA cuSPARSE, for sparse matrix products, format conversions, and triangular solves on the GPU."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-cusparse"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "cusparse", "sparse"]
+keywords = ["cuda", "nvidia", "cusparse", "sparse", "linear-algebra"]
 categories = ["api-bindings", "hardware-support", "science"]
 include.workspace = true
 

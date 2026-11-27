@@ -1,4 +1,4 @@
-//! Safe Rust wrappers for NVIDIA cuDSS, the CUDA direct sparse solver library.
+//! Safe Rust wrappers for NVIDIA cuDSS, for solving sparse linear systems with direct methods on one or several GPUs.
 //!
 //! This crate provides:
 //!

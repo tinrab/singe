@@ -1,7 +1,22 @@
-//! Low-level FFI bindings for cuDSS (`cudss.h`).
-//! The library loads at run time through [`singe-loader`](singe_loader), on the first call of one of its functions or up front with [`load`], so building links no NVIDIA library.
-//! If the library or one of its symbols is missing, a function that returns a status returns a failure status, and [`take_absence`] reports what was missing.
-//! Most users want the safe `singe-cudss` crate.
+//! Low-level FFI bindings for NVIDIA cuDSS, the direct sparse solver library.
+//!
+//! Most users want the safe crate, `singe-cudss`.
+//!
+//! # Bindings
+//!
+//! | Binds                                           | Header    | Module     | Feature     |
+//! | ----------------------------------------------- | --------- | ---------- | ----------- |
+//! | cuDSS, direct solvers for sparse linear systems | `cudss.h` | crate root | `cudss_1_0` |
+//!
+//! The `cudss_1_0` feature is on by default.
+//! The bindings are generated with bindgen from the cuDSS 1.0 headers.
+//!
+//! # Loading
+//!
+//! Nothing links at build time.
+//! [`singe_loader`] loads the library on the first call of one of its functions, or up front with [`load`].
+//! When the library or one of its symbols is missing, a function that returns a status returns an error status, and [`take_absence`] reports what was missing.
+//! A function without a status returns zero, null, or nothing instead.
 #![allow(
     unpredictable_function_pointer_comparisons,
     non_upper_case_globals,

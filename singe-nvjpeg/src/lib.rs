@@ -1,4 +1,4 @@
-//! Safe Rust wrappers for nvJPEG, which decodes and encodes JPEG images on the GPU, and for nvJPEG 2000 behind the `k2` feature.
+//! Safe Rust wrappers for NVIDIA nvJPEG and nvJPEG2000, for decoding and encoding JPEG and JPEG 2000 images on the GPU.
 //! The crate works on bytes in memory; read and write files with [`std::fs`].
 //!
 //! This crate provides:

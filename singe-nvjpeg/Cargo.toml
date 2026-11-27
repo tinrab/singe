@@ -1,6 +1,6 @@
 [package]
 name = "singe-nvjpeg"
-description = "Safe Rust wrappers for the NVIDIA nvJPEG and nvJPEG 2000 libraries."
+description = "Safe Rust wrappers for NVIDIA nvJPEG and nvJPEG2000, for decoding and encoding JPEG and JPEG 2000 images on the GPU."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-nvjpeg"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "nvjpeg", "jpeg", "image"]
+keywords = ["cuda", "nvidia", "nvjpeg", "jpeg", "jpeg2000"]
 categories = ["api-bindings", "hardware-support", "multimedia::images"]
 include.workspace = true
 

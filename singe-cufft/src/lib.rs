@@ -1,4 +1,4 @@
-//! Safe Rust wrappers for NVIDIA cuFFT, for Fourier transforms on the GPU.
+//! Safe Rust wrappers for NVIDIA cuFFT, cuFFTXt, and the cuFFT device API, for fast Fourier transforms on one or several GPUs.
 //!
 //! This crate provides:
 //!

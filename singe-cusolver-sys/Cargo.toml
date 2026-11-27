@@ -1,6 +1,6 @@
 [package]
 name = "singe-cusolver-sys"
-description = "Low-level FFI bindings for the NVIDIA cuSOLVER dense and sparse solver library."
+description = "Low-level FFI bindings for NVIDIA cuSOLVERDn, the dense cuSOLVER API."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-cusolver-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "cusolver", "ffi", "bindings"]
+keywords = ["cuda", "nvidia", "cusolver", "ffi", "lapack"]
 categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 

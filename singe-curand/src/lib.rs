@@ -1,4 +1,4 @@
-//! Safe Rust wrappers for the NVIDIA cuRAND, for random number generation.
+//! Safe Rust wrappers for NVIDIA cuRAND, for generating random numbers on the GPU.
 //! A [`Generator`](crate::generator::Generator) fills device memory on a CUDA stream, and a [`HostGenerator`](crate::generator::HostGenerator) fills host slices on the calling thread with the same algorithms.
 //!
 //! This crate provides:

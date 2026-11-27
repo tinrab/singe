@@ -1,6 +1,23 @@
-//! Low-level FFI bindings for NVML, the NVIDIA Management Library, generated from `nvml.h`.
-//! [`singe-loader`](singe_loader) loads the NVML library that ships with the NVIDIA driver at run time, on the first call or through [`load`], so building links no NVIDIA library.
-//! Most users want the safe `singe-nvml` crate.
+//! Low-level FFI bindings for NVML, the NVIDIA Management Library.
+//!
+//! Most users want the safe crate, `singe-nvml`.
+//!
+//! # Bindings
+//!
+//! | Binds                               | Header   | Module     | Feature   |
+//! | ----------------------------------- | -------- | ---------- | --------- |
+//! | NVML, GPU monitoring and management | `nvml.h` | crate root | `nvml_13` |
+//!
+//! The `nvml_13` feature is on by default.
+//! The bindings are generated with bindgen from the NVML 13 headers.
+//!
+//! # Loading
+//!
+//! Nothing links at build time.
+//! [`singe_loader`] loads the library on the first call of one of its functions, or up front with [`load`].
+//! When the library or one of its symbols is missing, a function that returns a status returns an error status, and [`take_absence`] reports what was missing.
+//! A function without a status returns zero, null, or nothing instead.
+//! NVML ships with the NVIDIA driver, not the CUDA Toolkit.
 #![allow(
     non_camel_case_types,
     non_snake_case,

@@ -1,6 +1,6 @@
 [package]
 name = "singe-cufft"
-description = "Safe Rust wrappers for NVIDIA cuFFT, for Fourier transforms on the GPU."
+description = "Safe Rust wrappers for NVIDIA cuFFT, cuFFTXt, and the cuFFT device API, for fast Fourier transforms on one or several GPUs."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-cufft"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "cufft", "fft"]
+keywords = ["cuda", "nvidia", "cufft", "fft", "fourier"]
 categories = ["api-bindings", "hardware-support", "science"]
 include.workspace = true
 

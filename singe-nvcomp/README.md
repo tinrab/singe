@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-nvcomp/badge.svg)](https://docs.rs/singe-nvcomp)
 ![License](https://img.shields.io/crates/l/singe-nvcomp.svg)
 
-Safe Rust wrappers for nvCOMP, which compresses and decompresses data in GPU memory with the LZ4, Snappy, Zstd, Deflate, Gzip, `GDeflate`, ANS, Cascaded, and Bitcomp codecs.
+Safe Rust wrappers for NVIDIA nvCOMP, for compressing and decompressing data on the GPU with LZ4, Snappy, Zstd, Deflate, Gzip, GDeflate, ANS, Cascaded, and Bitcomp.
 
 This crate provides:
 

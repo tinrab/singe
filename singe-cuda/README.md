@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-cuda/badge.svg)](https://docs.rs/singe-cuda)
 ![License](https://img.shields.io/crates/l/singe-cuda.svg)
 
-Safe Rust wrappers for the CUDA driver and runtime APIs.
+Safe Rust wrappers for the CUDA driver and runtime APIs, NVRTC, NVVM, nvJitLink, NVTX, and the CUDA profiler.
 
 This crate provides:
 

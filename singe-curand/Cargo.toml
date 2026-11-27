@@ -1,6 +1,6 @@
 [package]
 name = "singe-curand"
-description = "Safe Rust wrappers for the NVIDIA cuRAND, for random number generation."
+description = "Safe Rust wrappers for NVIDIA cuRAND, for generating random numbers on the GPU."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-curand"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "curand", "rng"]
+keywords = ["cuda", "nvidia", "curand", "rng", "random"]
 categories = ["api-bindings", "hardware-support", "science"]
 include.workspace = true
 

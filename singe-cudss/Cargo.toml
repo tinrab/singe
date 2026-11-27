@@ -1,6 +1,6 @@
 [package]
 name = "singe-cudss"
-description = "Safe Rust wrappers for NVIDIA cuDSS, the CUDA direct sparse solver library."
+description = "Safe Rust wrappers for NVIDIA cuDSS, for solving sparse linear systems with direct methods on one or several GPUs."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true

@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-nvml/badge.svg)](https://docs.rs/singe-nvml)
 ![License](https://img.shields.io/crates/l/singe-nvml.svg)
 
-Safe Rust wrappers for the NVIDIA Management Library (NVML), for monitoring and managing GPUs.
+Safe Rust wrappers for NVML, the NVIDIA Management Library, for monitoring and managing GPUs.
 NVML ships with the NVIDIA driver and needs no CUDA Toolkit or CUDA runtime.
 
 This crate provides:

@@ -1,7 +1,23 @@
-//! Low-level FFI bindings for cuDNN (`cudnn.h`).
-//! The library loads at run time through [`singe-loader`](singe_loader), on the first call of one of its functions or up front with [`load`], so building links no NVIDIA library.
-//! If the library or one of its symbols is missing, a function that returns a status returns a failure status, and [`take_absence`] reports what was missing.
-//! Most users want the safe `singe-cudnn` crate.
+//! Low-level FFI bindings for NVIDIA cuDNN, the deep neural network library.
+//!
+//! Most users want the safe crate, `singe-cudnn`.
+//!
+//! # Bindings
+//!
+//! | Binds                                      | Header    | Module     | Feature      |
+//! | ------------------------------------------ | --------- | ---------- | ------------ |
+//! | cuDNN, its graph API and legacy operations | `cudnn.h` | crate root | `cudnn_9_27` |
+//!
+//! The `cudnn_9_27` feature is on by default.
+//! The bindings are generated with bindgen from the cuDNN 9.27 headers.
+//!
+//! # Loading
+//!
+//! Nothing links at build time.
+//! [`singe_loader`] loads the library on the first call of one of its functions, or up front with [`load`].
+//! When the library or one of its symbols is missing, a function that returns a status returns an error status, and [`take_absence`] reports what was missing.
+//! A function without a status returns zero, null, or nothing instead.
+//! cuDNN loads its own sub-libraries.
 #![allow(
     deprecated,
     dead_code,

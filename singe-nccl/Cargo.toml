@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-nccl"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "nccl", "communication"]
+keywords = ["cuda", "nvidia", "nccl", "collectives", "multi-gpu"]
 categories = ["api-bindings", "hardware-support", "concurrency"]
 include.workspace = true
 

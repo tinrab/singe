@@ -1,4 +1,4 @@
-//! Safe Rust wrappers for the NVIDIA Management Library (NVML), for monitoring and managing GPUs.
+//! Safe Rust wrappers for NVML, the NVIDIA Management Library, for monitoring and managing GPUs.
 //! NVML ships with the NVIDIA driver and needs no CUDA Toolkit or CUDA runtime.
 //!
 //! This crate provides:

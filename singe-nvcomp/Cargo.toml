@@ -1,6 +1,6 @@
 [package]
 name = "singe-nvcomp"
-description = "Safe Rust wrappers for NVIDIA nvCOMP, for compressing and decompressing data on the GPU."
+description = "Safe Rust wrappers for NVIDIA nvCOMP, for compressing and decompressing data on the GPU with LZ4, Snappy, Zstd, Deflate, Gzip, GDeflate, ANS, Cascaded, and Bitcomp."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-nvcomp"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "nvcomp", "compression"]
+keywords = ["cuda", "nvidia", "nvcomp", "compression", "lz4"]
 categories = ["api-bindings", "hardware-support", "compression"]
 include.workspace = true
 

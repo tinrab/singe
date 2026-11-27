@@ -1,6 +1,6 @@
 [package]
 name = "singe-npp"
-description = "Safe Rust wrappers for NVIDIA Performance Primitives (NPP), for image and signal processing on the GPU."
+description = "Safe Rust wrappers for NPP, the NVIDIA Performance Primitives, for image and signal processing on the GPU."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-npp"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "npp", "image"]
+keywords = ["cuda", "nvidia", "npp", "image-processing", "signal-processing"]
 categories = ["api-bindings", "hardware-support", "multimedia::images"]
 include.workspace = true
 

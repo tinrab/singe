@@ -1,7 +1,23 @@
-//! Low-level FFI bindings for NPP, the NVIDIA Performance Primitives, generated from `npp.h`.
-//! NPP is split into several libraries, such as `nppc` for core functions, `nppi*` for image processing, and `npps` for signal processing.
-//! [`singe-loader`](singe_loader) loads each library at run time, on the first call or through [`load`], so building links no NVIDIA library.
-//! Most users want the safe `singe-npp` crate.
+//! Low-level FFI bindings for NPP, the NVIDIA Performance Primitives for image and signal processing.
+//!
+//! Most users want the safe crate, `singe-npp`.
+//!
+//! # Bindings
+//!
+//! | Binds                                      | Header  | Module     | Feature    |
+//! | ------------------------------------------ | ------- | ---------- | ---------- |
+//! | NPP image and signal processing primitives | `npp.h` | crate root | `npp_13_2` |
+//!
+//! The `npp_13_2` feature is on by default.
+//! The bindings are generated with bindgen from the NPP 13.2 headers.
+//!
+//! # Loading
+//!
+//! Nothing links at build time.
+//! [`singe_loader`] loads the library on the first call of one of its functions, or up front with [`load`].
+//! When the library or one of its symbols is missing, a function that returns a status returns an error status, and [`take_absence`] reports what was missing.
+//! A function without a status returns zero, null, or nothing instead.
+//! NPP's functions are spread over its core library, `nppc`, and ten libraries by domain, which load together.
 #![allow(
     deprecated,
     dead_code,

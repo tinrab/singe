@@ -1,6 +1,6 @@
 [package]
 name = "singe-nccl-sys"
-description = "Low-level FFI bindings for the NVIDIA Collective Communications Library (NCCL)."
+description = "Low-level FFI bindings for NCCL, the NVIDIA Collective Communications Library."
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ repository.workspace = true
 documentation = "https://docs.rs/singe-nccl-sys"
 license-file.workspace = true
 readme = "README.md"
-keywords = ["cuda", "nvidia", "nccl", "ffi", "bindings"]
+keywords = ["cuda", "nvidia", "nccl", "ffi", "collectives"]
 categories = ["external-ffi-bindings", "hardware-support"]
 include.workspace = true
 
