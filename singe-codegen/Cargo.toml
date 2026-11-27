@@ -1,7 +1,7 @@
 [package]
 name = "singe-codegen"
 description = "Kernel IR, schedules, and code emitters for Singe's generated kernels."
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true

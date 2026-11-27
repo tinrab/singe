@@ -41,7 +41,7 @@ Enable the kernel families you use through Cargo features:
 
 ```toml
 singe-cuda = "0.2"
-singe-kernel = { version = "0.1", features = ["kernel_matmul"] }
+singe-kernel = { version = "0.2", features = ["kernel_matmul"] }
 ```
 
 The same matrix multiplication on the GPU:

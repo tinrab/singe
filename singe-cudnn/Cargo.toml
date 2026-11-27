@@ -1,7 +1,7 @@
 [package]
 name = "singe-cudnn"
 description = "Safe Rust wrappers for NVIDIA cuDNN deep neural network primitives, with a Rust port of the cuDNN Frontend graph API."
-version = "0.1.0"
+version = "0.2.0"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true

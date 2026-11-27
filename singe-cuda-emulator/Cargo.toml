@@ -1,7 +1,7 @@
 [package]
 name = "singe-cuda-emulator"
 description = "Emulated CUDA and NCCL on the CPU."
-version = "0.1.0"
+version = "0.2.0"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
@@ -21,5 +21,5 @@ thiserror.workspace = true
 [dev-dependencies]
 anyhow.workspace = true
 singe-cuda = { workspace = true, features = ["runtime_13_4"] }
-singe-nccl.workspace = true
+singe-nccl = { path = "../singe-nccl" }
 
