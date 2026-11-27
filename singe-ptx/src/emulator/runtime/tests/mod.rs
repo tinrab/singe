@@ -3,7 +3,7 @@ mod observation;
 use std::{
     collections::BTreeSet,
     pin::{self, Pin},
-    sync::{Barrier, atomic, mpsc},
+    sync::{Barrier, mpsc},
     task::{Context, Poll, Wake},
     thread,
     time::{Duration, Instant},
@@ -37,6 +37,7 @@ where
     submit_poll(
         client,
         stream,
+        0,
         CommandKind::Immediate,
         diagnostic,
         size,
@@ -55,7 +56,7 @@ where
 }
 
 fn inspection_launch(
-    device: &Emulator,
+    device: &Device,
     declarations: &str,
 ) -> (Module, Submission<ExecutionReport>, Breakpoint) {
     let parsed = ParsedModule::parse(&format!(
@@ -73,7 +74,7 @@ fn inspection_launch(
             [],
         )
         .unwrap();
-    let breakpoint = device.next_breakpoint().unwrap().wait().unwrap();
+    let breakpoint = device.emulator().next_breakpoint().unwrap().wait().unwrap();
     (module, launch, breakpoint)
 }
 
@@ -86,19 +87,32 @@ fn test_inspection_results_and_abandoned_requests_release_their_reservations() {
             self.0.send(()).unwrap();
         }
     }
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let (_module, launch, breakpoint) = inspection_launch(&device, ".reg .b32 r<128>;");
     let budget = &device.client.shared.execution_budget;
     let baseline = budget.used();
     let (blocked, release) = pause(&device);
-    drop(device.inspect_lane(&breakpoint.id, [0; 3], [0; 3]).unwrap());
+    drop(
+        device
+            .emulator()
+            .inspect_lane(&breakpoint.id, [0; 3], [0; 3])
+            .unwrap(),
+    );
     release.send(()).unwrap();
     blocked.wait().unwrap();
     device.synchronize().unwrap().wait().unwrap();
     assert_eq!(budget.used(), baseline);
 
     let (blocked, release) = pause(&device);
-    let mut inspection = Box::pin(device.inspect_lane(&breakpoint.id, [0; 3], [0; 3]).unwrap());
+    let mut inspection = Box::pin(
+        device
+            .emulator()
+            .inspect_lane(&breakpoint.id, [0; 3], [0; 3])
+            .unwrap(),
+    );
     let (wake_tx, wake_rx) = mpsc::channel();
     let waker = Waker::from(Arc::new(Signal(wake_tx)));
     assert!(
@@ -115,12 +129,13 @@ fn test_inspection_results_and_abandoned_requests_release_their_reservations() {
     device.synchronize().unwrap().wait().unwrap();
     assert_eq!(budget.used(), baseline);
     let snapshot = device
+        .emulator()
         .inspect_lane(&breakpoint.id, [0; 3], [0; 3])
         .unwrap()
         .wait()
         .unwrap();
     assert_eq!(budget.used(), baseline);
-    let shutdown = device.shutdown(ShutdownMode::Cancel);
+    let shutdown = device.emulator().shutdown(ShutdownMode::Cancel);
     assert!(matches!(
         launch.wait().unwrap_err().root_cause(),
         ExecutionError::Cancelled
@@ -132,7 +147,10 @@ fn test_inspection_results_and_abandoned_requests_release_their_reservations() {
 
 #[test]
 fn test_inspection_budget_exhaustion_is_local_and_a_snapshot_can_be_retried() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let (_module, launch, breakpoint) = inspection_launch(&device, ".reg .b32 r<8192>;");
     let budget = &device.client.shared.execution_budget;
     let baseline = budget.used();
@@ -140,12 +158,17 @@ fn test_inspection_budget_exhaustion_is_local_and_a_snapshot_can_be_retried() {
         .reserve(device.client.shared.options.execution_storage_bytes - budget.used())
         .unwrap();
     assert!(matches!(
-        device.inspect_lane(&breakpoint.id, [0; 3], [0; 3]),
+        device
+            .emulator()
+            .inspect_lane(&breakpoint.id, [0; 3], [0; 3]),
         Err(SubmitError::ExecutionStateLimit)
     ));
     drop(full);
     let (blocked, release) = pause(&device);
-    let inspection = device.inspect_lane(&breakpoint.id, [0; 3], [0; 3]).unwrap();
+    let inspection = device
+        .emulator()
+        .inspect_lane(&breakpoint.id, [0; 3], [0; 3])
+        .unwrap();
     // Even releasing every transient request/command charge cannot fit this result.
     assert!(8192 * size_of::<RegisterSnapshot>() > budget.used() - baseline);
     let full = budget
@@ -159,27 +182,43 @@ fn test_inspection_budget_exhaustion_is_local_and_a_snapshot_can_be_retried() {
     ));
     drop(full);
     let snapshot = device
+        .emulator()
         .inspect_lane(&breakpoint.id, [0; 3], [0; 3])
         .unwrap()
         .wait()
         .unwrap();
     assert_eq!(snapshot.frames()[0].registers().len(), 8192);
     assert_eq!(budget.used(), baseline);
-    device.resume(&breakpoint.id).unwrap().wait().unwrap();
+    device
+        .emulator()
+        .resume(&breakpoint.id)
+        .unwrap()
+        .wait()
+        .unwrap();
     launch.wait().unwrap();
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
     assert_eq!(budget.used(), 0);
 }
 
 #[test]
 fn test_inspection_resume_and_cancel_races_resolve_every_accepted_request() {
     for cancelling in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let (_module, launch, breakpoint) = inspection_launch(&device, ".reg .u32 value;");
         let (blocked, release) = pause(&device);
-        let inspection = device.inspect_lane(&breakpoint.id, [0; 3], [0; 3]).unwrap();
+        let inspection = device
+            .emulator()
+            .inspect_lane(&breakpoint.id, [0; 3], [0; 3])
+            .unwrap();
         if cancelling {
-            let shutdown = device.shutdown(ShutdownMode::Cancel);
+            let shutdown = device.emulator().shutdown(ShutdownMode::Cancel);
             release.send(()).unwrap();
             blocked.wait().unwrap();
             assert!(matches!(inspection.wait(), Err(ExecutionError::Cancelled)));
@@ -189,12 +228,21 @@ fn test_inspection_resume_and_cancel_races_resolve_every_accepted_request() {
             ));
             shutdown.wait().unwrap();
         } else {
-            device.resume(&breakpoint.id).unwrap().wait().unwrap();
+            device
+                .emulator()
+                .resume(&breakpoint.id)
+                .unwrap()
+                .wait()
+                .unwrap();
             release.send(()).unwrap();
             blocked.wait().unwrap();
             assert!(matches!(inspection.wait(), Err(ExecutionError::Invalid(_))));
             launch.wait().unwrap();
-            device.shutdown(ShutdownMode::Drain).wait().unwrap();
+            device
+                .emulator()
+                .shutdown(ShutdownMode::Drain)
+                .wait()
+                .unwrap();
         }
         assert_eq!(device.client.shared.execution_budget.used(), 0);
     }
@@ -203,7 +251,10 @@ fn test_inspection_resume_and_cancel_races_resolve_every_accepted_request() {
 #[test]
 fn test_inspection_faults_and_worker_unwind_resolve_pending_observations() {
     for unwind in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let (_module, launch, breakpoint) = inspection_launch(&device, "");
         let fault = device
             .load(
@@ -225,7 +276,10 @@ fn test_inspection_faults_and_worker_unwind_resolve_pending_observations() {
             .launch(LaunchConfig::create([1; 3], [1; 3], 0).unwrap(), [])
             .unwrap();
         started_rx.recv().unwrap();
-        let inspection = device.inspect_lane(&breakpoint.id, [0; 3], [0; 3]).unwrap();
+        let inspection = device
+            .emulator()
+            .inspect_lane(&breakpoint.id, [0; 3], [0; 3])
+            .unwrap();
         release_tx.send(()).unwrap();
         let error = inspection.wait().unwrap_err();
         if unwind {
@@ -235,7 +289,13 @@ fn test_inspection_faults_and_worker_unwind_resolve_pending_observations() {
         }
         assert!(failure.wait().is_err());
         assert!(launch.wait().is_err());
-        assert!(device.shutdown(ShutdownMode::Drain).wait().is_err());
+        assert!(
+            device
+                .emulator()
+                .shutdown(ShutdownMode::Drain)
+                .wait()
+                .is_err()
+        );
         assert_only_fault_storage(&device);
     }
 }
@@ -243,7 +303,7 @@ fn test_inspection_faults_and_worker_unwind_resolve_pending_observations() {
 #[test]
 fn test_inspection_publication_can_reenter_control_admission() {
     struct InspectAgain {
-        device: Emulator,
+        device: Device,
         id: BreakpointId,
         next: Sender<Submission<LaneSnapshot>>,
         unlocked: AtomicBool,
@@ -256,14 +316,27 @@ fn test_inspection_publication_can_reenter_control_admission() {
                 Ordering::Release,
             );
             self.next
-                .send(self.device.inspect_lane(&self.id, [0; 3], [0; 3]).unwrap())
+                .send(
+                    self.device
+                        .emulator()
+                        .inspect_lane(&self.id, [0; 3], [0; 3])
+                        .unwrap(),
+                )
                 .unwrap();
         }
     }
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let (_module, launch, breakpoint) = inspection_launch(&device, ".reg .u32 value;");
     let (blocked, release) = pause(&device);
-    let mut first = Box::pin(device.inspect_lane(&breakpoint.id, [0; 3], [0; 3]).unwrap());
+    let mut first = Box::pin(
+        device
+            .emulator()
+            .inspect_lane(&breakpoint.id, [0; 3], [0; 3])
+            .unwrap(),
+    );
     let (next_tx, next_rx) = mpsc::channel();
     let wake = Arc::new(InspectAgain {
         device: device.clone(),
@@ -284,17 +357,30 @@ fn test_inspection_publication_can_reenter_control_admission() {
     let first = Pin::into_inner(first).wait().unwrap();
     assert_eq!(next.wait().unwrap(), first);
     assert!(wake.unlocked.load(Ordering::Acquire));
-    device.resume(&breakpoint.id).unwrap().wait().unwrap();
+    device
+        .emulator()
+        .resume(&breakpoint.id)
+        .unwrap()
+        .wait()
+        .unwrap();
     launch.wait().unwrap();
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
     assert_eq!(device.client.shared.execution_budget.used(), 0);
 }
 
 #[test]
 fn test_owned_snapshot_does_not_keep_an_orphaned_suspension_or_device_alive() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let (module, launch, breakpoint) = inspection_launch(&device, ".reg .u32 value;");
     let snapshot = device
+        .emulator()
         .inspect_lane(&breakpoint.id, [0; 3], [0; 3])
         .unwrap()
         .wait()
@@ -312,7 +398,7 @@ fn test_owned_snapshot_does_not_keep_an_orphaned_suspension_or_device_alive() {
     assert_eq!(snapshot.frames()[0].registers()[0].value(), None);
 }
 
-fn pause(device: &Emulator) -> (Submission<()>, Sender<()>) {
+fn pause(device: &Device) -> (Submission<()>, Sender<()>) {
     let (started_tx, started_rx) = mpsc::channel();
     let (release_tx, release_rx) = mpsc::channel();
     let submission = submit_to(&device.client, 0, false, 0, |_| {
@@ -331,7 +417,10 @@ fn pause(device: &Emulator) -> (Submission<()>, Sender<()>) {
 fn test_pending_copies_yield_to_other_streams_and_release_storage_on_terminal_paths() {
     for asynchronous in [false, true] {
         for terminal in ["wait", "cancel", "trap", "unwind"] {
-            let device = Emulator::create(EmulatorOptions::default()).unwrap();
+            let device = Emulator::create(EmulatorOptions::default())
+                .unwrap()
+                .device(0)
+                .unwrap();
             let module = device
                 .load(
                     ParsedModule::parse(&format!(
@@ -364,6 +453,7 @@ fn test_pending_copies_yield_to_other_streams_and_release_storage_on_terminal_pa
                 )
                 .unwrap();
             let breakpoint = device
+                .emulator()
                 .next_breakpoint()
                 .unwrap()
                 .observe(asynchronous)
@@ -392,7 +482,7 @@ fn test_pending_copies_yield_to_other_streams_and_release_storage_on_terminal_pa
                 77u32.to_le_bytes()
             );
             if terminal == "cancel" {
-                let shutdown = device.shutdown(ShutdownMode::Cancel);
+                let shutdown = device.emulator().shutdown(ShutdownMode::Cancel);
                 assert!(matches!(
                     launch.observe(asynchronous).unwrap_err().root_cause(),
                     ExecutionError::Cancelled
@@ -405,6 +495,7 @@ fn test_pending_copies_yield_to_other_streams_and_release_storage_on_terminal_pa
                         Some(Box::new(|_| panic!("pending-copy worker unwind")));
                 }
                 device
+                    .emulator()
                     .resume(&breakpoint.id)
                     .unwrap()
                     .observe(asynchronous)
@@ -413,6 +504,7 @@ fn test_pending_copies_yield_to_other_streams_and_release_storage_on_terminal_pa
                 if terminal == "wait" {
                     result.unwrap();
                     device
+                        .emulator()
                         .shutdown(ShutdownMode::Drain)
                         .observe(asynchronous)
                         .unwrap();
@@ -426,6 +518,7 @@ fn test_pending_copies_yield_to_other_streams_and_release_storage_on_terminal_pa
                     }
                     assert!(
                         device
+                            .emulator()
                             .shutdown(ShutdownMode::Drain)
                             .observe(asynchronous)
                             .is_err()
@@ -455,7 +548,10 @@ fn test_partial_matrix_rendezvous_supports_inspection_resumption_and_terminal_cl
         }";
     for asynchronous in [false, true] {
         for terminal in ["resume", "cancel", "unwind"] {
-            let device = Emulator::create(EmulatorOptions::default()).unwrap();
+            let device = Emulator::create(EmulatorOptions::default())
+                .unwrap()
+                .device(0)
+                .unwrap();
             let module = device
                 .load(ParsedModule::parse(text).unwrap())
                 .unwrap()
@@ -472,11 +568,13 @@ fn test_partial_matrix_rendezvous_supports_inspection_resumption_and_terminal_cl
                 )
                 .unwrap();
             let breakpoint = device
+                .emulator()
                 .next_breakpoint()
                 .unwrap()
                 .observe(asynchronous)
                 .unwrap();
             let snapshot = device
+                .emulator()
                 .inspect_lane(&breakpoint.id, [0; 3], [0; 3])
                 .unwrap()
                 .observe(asynchronous)
@@ -497,7 +595,7 @@ fn test_partial_matrix_rendezvous_supports_inspection_resumption_and_terminal_cl
                 [7]
             );
             if terminal == "cancel" {
-                let shutdown = device.shutdown(ShutdownMode::Cancel);
+                let shutdown = device.emulator().shutdown(ShutdownMode::Cancel);
                 assert!(matches!(
                     launch.observe(asynchronous).unwrap_err().root_cause(),
                     ExecutionError::Cancelled
@@ -510,6 +608,7 @@ fn test_partial_matrix_rendezvous_supports_inspection_resumption_and_terminal_cl
                         Some(Box::new(|_| panic!("matrix worker unwind")));
                 }
                 device
+                    .emulator()
                     .resume(&breakpoint.id)
                     .unwrap()
                     .observe(asynchronous)
@@ -525,6 +624,7 @@ fn test_partial_matrix_rendezvous_supports_inspection_resumption_and_terminal_cl
                     let expected: Vec<_> = (0..128).flat_map(|_| 16f32.to_le_bytes()).collect();
                     assert_eq!(output, expected);
                     device
+                        .emulator()
                         .shutdown(ShutdownMode::Drain)
                         .observe(asynchronous)
                         .unwrap();
@@ -536,6 +636,7 @@ fn test_partial_matrix_rendezvous_supports_inspection_resumption_and_terminal_cl
                     ));
                     assert!(
                         device
+                            .emulator()
                             .shutdown(ShutdownMode::Drain)
                             .observe(asynchronous)
                             .is_err()
@@ -560,7 +661,7 @@ fn empty_module() -> ParsedModule {
     ParsedModule::parse(".version 9.3 .target sm_80 .address_size 64 .entry k() {ret;}").unwrap()
 }
 
-fn assert_only_fault_storage(device: &Emulator) {
+fn assert_only_fault_storage(device: &Device) {
     let retained = lock(&device.client.shared.admission)
         .shutdown_result
         .as_ref()
@@ -574,7 +675,10 @@ fn assert_only_fault_storage(device: &Emulator) {
 #[test]
 fn test_retained_reports_release_on_consumption_and_abandonment() {
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let module = device
             .load(empty_module())
             .unwrap()
@@ -602,6 +706,7 @@ fn test_retained_reports_release_on_consumption_and_abandonment() {
         device.synchronize().unwrap().observe(asynchronous).unwrap();
         assert_eq!(device.client.shared.execution_budget.used(), baseline);
         device
+            .emulator()
             .shutdown(ShutdownMode::Drain)
             .observe(asynchronous)
             .unwrap();
@@ -611,7 +716,10 @@ fn test_retained_reports_release_on_consumption_and_abandonment() {
 #[test]
 fn test_retained_fault_reports_share_storage_until_the_closed_device_is_released() {
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let (closed_tx, closed_rx) = mpsc::channel();
         *lock(&device.client.shared.closed_notify) = Some(closed_tx);
         let module = device
@@ -644,6 +752,7 @@ fn test_retained_fault_reports_share_storage_until_the_closed_device_is_released
         let retained = budget.used();
         assert!(retained > 0);
         let shutdown_error = device
+            .emulator()
             .shutdown(ShutdownMode::Drain)
             .observe(asynchronous)
             .unwrap_err();
@@ -675,7 +784,10 @@ fn test_retained_fault_reports_share_storage_until_the_closed_device_is_released
 #[test]
 fn test_completion_metadata_is_retained_only_while_the_emulator_owns_it() {
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let budget = &device.client.shared.execution_budget;
         let (event, observation) = device.default_stream().record_event().unwrap();
         observation.observe(asynchronous).unwrap();
@@ -694,6 +806,7 @@ fn test_completion_metadata_is_retained_only_while_the_emulator_owns_it() {
         drop(completed);
         assert_eq!(budget.used(), 0);
         device
+            .emulator()
             .shutdown(ShutdownMode::Drain)
             .observe(asynchronous)
             .unwrap();
@@ -703,7 +816,10 @@ fn test_completion_metadata_is_retained_only_while_the_emulator_owns_it() {
 #[test]
 fn test_fault_diagnostics_use_precharged_storage_when_the_budget_is_full() {
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let module = device
             .load(
                 ParsedModule::parse(
@@ -748,6 +864,7 @@ fn test_fault_diagnostics_use_precharged_storage_when_the_budget_is_full() {
         );
         assert!(
             device
+                .emulator()
                 .shutdown(ShutdownMode::Drain)
                 .observe(asynchronous)
                 .is_err()
@@ -760,7 +877,10 @@ fn test_fault_diagnostics_use_precharged_storage_when_the_budget_is_full() {
 fn test_cancelled_active_launch_results_release_without_retaining_grid_storage() {
     for asynchronous in [false, true] {
         for abandon in [false, true] {
-            let device = Emulator::create(EmulatorOptions::default()).unwrap();
+            let device = Emulator::create(EmulatorOptions::default())
+                .unwrap()
+                .device(0)
+                .unwrap();
             let module = device
                 .load(empty_module())
                 .unwrap()
@@ -778,7 +898,7 @@ fn test_cancelled_active_launch_results_release_without_retaining_grid_storage()
                 .launch(LaunchConfig::create([1; 3], [1; 3], 0).unwrap(), [])
                 .unwrap();
             started_rx.recv().unwrap();
-            let shutdown = device.shutdown(ShutdownMode::Cancel);
+            let shutdown = device.emulator().shutdown(ShutdownMode::Cancel);
             resume_tx.send(()).unwrap();
             shutdown.observe(asynchronous).unwrap();
             assert!(device.client.shared.execution_budget.used() > 0);
@@ -800,6 +920,8 @@ fn test_queue_capacity_cancel_and_abandoned_work() {
         queued_commands: 1,
         ..Default::default()
     })
+    .unwrap()
+    .device(0)
     .unwrap();
     let (paused, release) = pause(&device);
     let queued = device.upload(&[1u32]).unwrap();
@@ -807,8 +929,8 @@ fn test_queue_capacity_cancel_and_abandoned_work() {
         device.zeroed::<u8>(1),
         Err(SubmitError::QueueFull)
     ));
-    let drain = device.shutdown(ShutdownMode::Drain);
-    let cancel = device.shutdown(ShutdownMode::Cancel);
+    let drain = device.emulator().shutdown(ShutdownMode::Drain);
+    let cancel = device.emulator().shutdown(ShutdownMode::Cancel);
     assert!(matches!(device.zeroed::<u8>(1), Err(SubmitError::Closed)));
     release.send(()).unwrap();
     paused.wait().unwrap();
@@ -824,6 +946,8 @@ fn test_abandoned_resource_results_and_last_owner_drain() {
         device_storage_bytes: 4096,
         ..Default::default()
     })
+    .unwrap()
+    .device(0)
     .unwrap();
     let (paused, release) = pause(&device);
     drop(device.zeroed::<u8>(1200).unwrap());
@@ -843,9 +967,12 @@ fn test_abandoned_resource_results_and_last_owner_drain() {
 
 #[test]
 fn test_worker_unwind_resolves_current_and_queued_submissions() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let (paused, release) = pause(&device);
-    let breakpoint = device.next_breakpoint().unwrap();
+    let breakpoint = device.emulator().next_breakpoint().unwrap();
     let crash = submit_to::<(), _, _>(&device.client, 0, false, 0, |_| {
         |_| panic!("injected worker failure")
     })
@@ -860,7 +987,7 @@ fn test_worker_unwind_resolves_current_and_queued_submissions() {
         Err(ExecutionError::WorkerFailed)
     ));
     assert!(matches!(
-        device.shutdown(ShutdownMode::Drain).wait(),
+        device.emulator().shutdown(ShutdownMode::Drain).wait(),
         Err(ExecutionError::WorkerFailed)
     ));
     assert_eq!(lock(&device.client.shared.admission).staged, 0);
@@ -875,7 +1002,10 @@ fn test_abandoning_a_published_breakpoint_releases_its_result_and_keeps_resume_a
             self.0.send(()).unwrap();
         }
     }
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let module = device
         .load(
             ParsedModule::parse(
@@ -888,7 +1018,7 @@ fn test_abandoning_a_published_breakpoint_releases_its_result_and_keeps_resume_a
         .wait()
         .unwrap();
     let (notified_tx, notified_rx) = mpsc::channel();
-    let mut observation = Box::pin(device.next_breakpoint().unwrap());
+    let mut observation = Box::pin(device.emulator().next_breakpoint().unwrap());
     let waker = Waker::from(Arc::new(Notify(notified_tx)));
     assert!(
         observation
@@ -903,17 +1033,24 @@ fn test_abandoning_a_published_breakpoint_releases_its_result_and_keeps_resume_a
         .unwrap();
     notified_rx.recv().unwrap();
     drop(observation);
-    let ids = device.paused_breakpoints();
+    let ids = device.emulator().paused_breakpoints();
     assert_eq!(ids.len(), 1);
-    device.resume(&ids[0]).unwrap().wait().unwrap();
+    device.emulator().resume(&ids[0]).unwrap().wait().unwrap();
     launch.wait().unwrap();
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
     assert_eq!(device.client.shared.execution_budget.used(), 0);
 }
 
 #[test]
 fn test_queued_resources_do_not_keep_public_ownership() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let buffer = device.upload(&[1u32, 2]).unwrap().wait().unwrap();
     let (paused, release) = pause(&device);
     drop(device.write(&buffer, &[3, 4]).unwrap());
@@ -927,7 +1064,7 @@ fn test_queued_resources_do_not_keep_public_ownership() {
     observer.wait().unwrap();
 }
 
-struct CountWake(atomic::AtomicUsize);
+struct CountWake(AtomicUsize);
 
 impl Wake for CountWake {
     fn wake(self: Arc<Self>) {
@@ -987,9 +1124,12 @@ fn test_shutdown_waker_clone_and_drop_can_reenter_admission() {
     static VTABLE: RawWakerVTable =
         RawWakerVTable::new(clone_waker, drop_waker, wake_by_ref, drop_waker);
 
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let (paused, release) = pause(&device);
-    let mut shutdown = Box::pin(device.shutdown(ShutdownMode::Drain));
+    let mut shutdown = Box::pin(device.emulator().shutdown(ShutdownMode::Drain));
     let probe = Arc::new(Probe {
         shared: Arc::clone(&device.client.shared),
         clones: 0.into(),
@@ -1017,7 +1157,11 @@ fn test_shutdown_waker_clone_and_drop_can_reenter_admission() {
     );
     release.send(()).unwrap();
     paused.wait().unwrap();
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
 }
 
 #[test]
@@ -1025,7 +1169,7 @@ fn test_shutdown_replaces_wakers_and_unregisters_abandoned_observers() {
     struct Notify {
         sender: Sender<u8>,
         id: u8,
-        device: Emulator,
+        device: Device,
     }
 
     impl Wake for Notify {
@@ -1037,10 +1181,13 @@ fn test_shutdown_replaces_wakers_and_unregisters_abandoned_observers() {
             self.sender.send(self.id).unwrap();
         }
     }
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let (paused, release) = pause(&device);
-    let mut first = Box::pin(device.shutdown(ShutdownMode::Drain));
-    let mut second = Box::pin(device.shutdown(ShutdownMode::Drain));
+    let mut first = Box::pin(device.emulator().shutdown(ShutdownMode::Drain));
+    let mut second = Box::pin(device.emulator().shutdown(ShutdownMode::Drain));
     let obsolete = Arc::new(CountWake(0.into()));
     {
         let waker = Waker::from(Arc::clone(&obsolete));
@@ -1077,7 +1224,7 @@ fn test_shutdown_replaces_wakers_and_unregisters_abandoned_observers() {
             .poll(&mut Context::from_waker(&second_waker))
             .is_pending()
     );
-    let mut abandoned = Box::pin(device.shutdown(ShutdownMode::Drain));
+    let mut abandoned = Box::pin(device.emulator().shutdown(ShutdownMode::Drain));
     let abandoned_wake = Arc::new(CountWake(0.into()));
     {
         let waker = Waker::from(Arc::clone(&abandoned_wake));
@@ -1120,10 +1267,13 @@ fn test_shutdown_registration_races_never_lose_a_wakeup() {
         }
     }
     for iteration in 0..30 {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let (blocker, release) = pause(&device);
-        let observer = device.shutdown(ShutdownMode::Drain);
-        let other = device.shutdown(ShutdownMode::Drain);
+        let observer = device.emulator().shutdown(ShutdownMode::Drain);
+        let other = device.emulator().shutdown(ShutdownMode::Drain);
         let start = Arc::new(Barrier::new(2));
         let observer_start = Arc::clone(&start);
         let (wake_tx, wake_rx) = mpsc::channel();
@@ -1140,7 +1290,7 @@ fn test_shutdown_registration_races_never_lose_a_wakeup() {
         });
         start.wait();
         if iteration % 3 == 0 {
-            drop(device.shutdown(ShutdownMode::Cancel));
+            drop(device.emulator().shutdown(ShutdownMode::Cancel));
         }
         release.send(()).unwrap();
         blocker.wait().unwrap();
@@ -1148,7 +1298,7 @@ fn test_shutdown_registration_races_never_lose_a_wakeup() {
         if observer.join().unwrap() {
             wake_rx.recv().unwrap();
         }
-        let mut late = pin::pin!(device.shutdown(ShutdownMode::Drain));
+        let mut late = pin::pin!(device.emulator().shutdown(ShutdownMode::Drain));
         assert!(matches!(
             late.as_mut().poll(&mut Context::from_waker(Waker::noop())),
             Poll::Ready(Ok(()))
@@ -1184,7 +1334,7 @@ fn test_completion_before_poll_and_waker_replacement() {
 #[test]
 fn test_completion_releases_snapshot_capacity_before_a_waker_submits_more_work() {
     struct Resubmit {
-        device: Emulator,
+        device: Device,
         output: Mutex<Option<Result<Submission<Buffer<u8>>, SubmitError>>>,
         ready: Sender<()>,
     }
@@ -1199,10 +1349,13 @@ fn test_completion_releases_snapshot_capacity_before_a_waker_submits_more_work()
         staging_storage_bytes: 16,
         ..Default::default()
     })
+    .unwrap()
+    .device(0)
     .unwrap();
     let (paused, release) = pause(&device);
     let completion = submit_poll::<(), _, _>(
         &device.client,
+        0,
         0,
         CommandKind::Immediate,
         false,
@@ -1240,7 +1393,11 @@ fn test_completion_releases_snapshot_capacity_before_a_waker_submits_more_work()
         .wait()
         .unwrap();
     assert_eq!(device.download(&output).unwrap().wait().unwrap(), [0; 16]);
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
 }
 
 #[test]
@@ -1271,7 +1428,10 @@ fn test_completion_registration_races_never_lose_a_wakeup() {
 #[test]
 fn test_shutdown_and_admission_share_an_ordering_point() {
     for _ in 0..50 {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let other = device.clone();
         let start = Arc::new(Barrier::new(2));
         let second = Arc::clone(&start);
@@ -1280,7 +1440,7 @@ fn test_shutdown_and_admission_share_an_ordering_point() {
             other.upload(&[3u8])
         });
         start.wait();
-        let shutdown = device.shutdown(ShutdownMode::Drain);
+        let shutdown = device.emulator().shutdown(ShutdownMode::Drain);
         match host.join().unwrap() {
             Ok(submission) => {
                 assert_eq!(submission.wait().unwrap().len(), 1);
@@ -1314,6 +1474,8 @@ fn test_queued_stream_commands_wait_for_a_launch_slot() {
                 active_grids: 1,
                 ..Default::default()
             })
+            .unwrap()
+            .device(0)
             .unwrap();
             let module = device
                 .load(
@@ -1332,7 +1494,7 @@ fn test_queued_stream_commands_wait_for_a_launch_slot() {
             let queued = device.create_stream().unwrap();
             let independent = device.create_stream().unwrap();
             let config = LaunchConfig::create([1; 3], [1; 3], 0).unwrap();
-            let notification = device.next_breakpoint().unwrap();
+            let notification = device.emulator().next_breakpoint().unwrap();
             let hold = holding
                 .launch(&module.kernel("hold").unwrap(), config, [])
                 .unwrap();
@@ -1353,7 +1515,7 @@ fn test_queued_stream_commands_wait_for_a_launch_slot() {
             assert!(event.status().is_none());
             assert!(!fence.completion.is_published());
             if cancel {
-                let shutdown = device.shutdown(ShutdownMode::Cancel);
+                let shutdown = device.emulator().shutdown(ShutdownMode::Cancel);
                 for result in [hold.observe(asynchronous), launch.observe(asynchronous)] {
                     assert!(matches!(
                         result.unwrap_err().root_cause(),
@@ -1375,6 +1537,7 @@ fn test_queued_stream_commands_wait_for_a_launch_slot() {
                 shutdown.observe(asynchronous).unwrap();
             } else {
                 device
+                    .emulator()
                     .resume(&breakpoint.id)
                     .unwrap()
                     .observe(asynchronous)
@@ -1385,6 +1548,7 @@ fn test_queued_stream_commands_wait_for_a_launch_slot() {
                 observation.observe(asynchronous).unwrap();
                 fence.observe(asynchronous).unwrap();
                 device
+                    .emulator()
                     .shutdown(ShutdownMode::Drain)
                     .observe(asynchronous)
                     .unwrap();
@@ -1395,7 +1559,10 @@ fn test_queued_stream_commands_wait_for_a_launch_slot() {
 
 #[test]
 fn test_streams_interleave_grids_and_record_events_before_they_signal() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let module = device.load(ParsedModule::parse(
         ".version 9.3 .target sm_80 .address_size 64 .global .u32 flag; .global .u32 output;
         .entry wait() { .shared .u32 scratch; .reg .u32 r; .reg .pred p;
@@ -1436,12 +1603,19 @@ fn test_streams_interleave_grids_and_record_events_before_they_signal() {
     dependency.wait().unwrap();
     assert_eq!(output.wait().unwrap(), 17u32.to_le_bytes());
     assert!(matches!(event.status(), Some(Ok(()))));
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
 }
 
 #[test]
 fn test_stream_dependencies_preserve_snapshots_and_reject_foreign_handles() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let data = device.upload(&[0u32]).unwrap().wait().unwrap();
     let a = device.create_stream().unwrap();
     let b = device.create_stream().unwrap();
@@ -1452,7 +1626,10 @@ fn test_stream_dependencies_preserve_snapshots_and_reject_foreign_handles() {
     let (event, observation) = a.record_event().unwrap();
     let wait = b.wait_event(&event).unwrap();
     let output = b.download(&data).unwrap();
-    let foreign = Emulator::create(EmulatorOptions::default()).unwrap();
+    let foreign = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     assert!(matches!(
         foreign.default_stream().wait_event(&event),
         Err(SubmitError::ForeignResource)
@@ -1467,8 +1644,16 @@ fn test_stream_dependencies_preserve_snapshots_and_reject_foreign_handles() {
     wait.wait().unwrap();
     assert_eq!(output.wait().unwrap(), [41]);
     assert_eq!(input, [99]);
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
-    foreign.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
+    foreign
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
 }
 
 #[test]
@@ -1477,6 +1662,8 @@ fn test_cancellation_reaches_multiple_active_grids_events_and_a_full_queue() {
         queued_commands: 3,
         ..Default::default()
     })
+    .unwrap()
+    .device(0)
     .unwrap();
     let module = device
         .load(
@@ -1521,8 +1708,8 @@ fn test_cancellation_reaches_multiple_active_grids_events_and_a_full_queue() {
         device.zeroed::<u8>(1),
         Err(SubmitError::QueueFull)
     ));
-    let draining = device.shutdown(ShutdownMode::Drain);
-    let cancelling = device.shutdown(ShutdownMode::Cancel);
+    let draining = device.emulator().shutdown(ShutdownMode::Drain);
+    let cancelling = device.emulator().shutdown(ShutdownMode::Cancel);
     resume_tx.send(()).unwrap();
     for (submission, id) in [(first, first_id), (second, second_id)] {
         let error = submission.wait().unwrap_err();
@@ -1546,7 +1733,10 @@ fn test_cancellation_reaches_multiple_active_grids_events_and_a_full_queue() {
 #[test]
 fn test_chunked_upload_snapshots_inputs_and_yields_to_an_independent_grid() {
     use std::sync::atomic::AtomicUsize;
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let module = device.load(empty_module()).unwrap().wait().unwrap();
     let transfer = device.create_stream().unwrap();
     let compute = device.create_stream().unwrap();
@@ -1600,14 +1790,21 @@ fn test_chunked_upload_snapshots_inputs_and_yields_to_an_independent_grid() {
         transfer.download(&buffer).unwrap().wait().unwrap(),
         vec![17; total]
     );
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
     assert_eq!(device.client.shared.execution_budget.used(), 0);
 }
 
 #[test]
 fn test_another_stream_fault_stops_a_transfer_and_preserves_completed_chunks() {
     use std::sync::atomic::AtomicUsize;
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let module = device
         .load(
             ParsedModule::parse(".version 9.3 .target sm_80 .address_size 64 .entry k() {trap;}")
@@ -1654,7 +1851,13 @@ fn test_another_stream_fault_stops_a_transfer_and_preserves_completed_chunks() {
     let bytes = device.download(&buffer).unwrap().wait().unwrap();
     assert!(bytes[..written].iter().all(|byte| *byte == 71));
     assert!(bytes[written..].iter().all(|byte| *byte == 0));
-    assert!(device.shutdown(ShutdownMode::Drain).wait().is_err());
+    assert!(
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .is_err()
+    );
     assert_only_fault_storage(&device);
 }
 
@@ -1664,6 +1867,8 @@ fn test_execution_budget_is_reserved_before_building_a_command_snapshot() {
         execution_storage_bytes: 0,
         ..Default::default()
     })
+    .unwrap()
+    .device(0)
     .unwrap();
     let copied = Arc::new(AtomicBool::new(false));
     let observe_copy = Arc::clone(&copied);
@@ -1673,7 +1878,11 @@ fn test_execution_budget_is_reserved_before_building_a_command_snapshot() {
     });
     assert!(matches!(result, Err(SubmitError::ExecutionStateLimit)));
     assert!(!copied.load(Ordering::Acquire));
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
 }
 
 #[test]
@@ -1682,6 +1891,8 @@ fn test_initial_grid_construction_yields_without_executing_and_cancels_with_a_fu
         queued_commands: 2,
         ..Default::default()
     })
+    .unwrap()
+    .device(0)
     .unwrap();
     let module = device
         .load(
@@ -1723,7 +1934,7 @@ fn test_initial_grid_construction_yields_without_executing_and_cancels_with_a_fu
     let first = compute.synchronize().unwrap();
     let second = compute.synchronize().unwrap();
     assert!(matches!(compute.synchronize(), Err(SubmitError::QueueFull)));
-    let shutdown = device.shutdown(ShutdownMode::Cancel);
+    let shutdown = device.emulator().shutdown(ShutdownMode::Cancel);
     resume_tx.send(()).unwrap();
     let error = launch.wait().unwrap_err();
     assert!(matches!(error, ExecutionError::Cancelled));
@@ -1757,6 +1968,8 @@ fn test_breakpoint_publication_wakes_outside_admission_and_cancel_releases_contr
         queued_commands: 1,
         ..Default::default()
     })
+    .unwrap()
+    .device(0)
     .unwrap();
     let module = device
         .load(
@@ -1770,7 +1983,7 @@ fn test_breakpoint_publication_wakes_outside_admission_and_cancel_releases_contr
         .wait()
         .unwrap();
     let (paused, release) = pause(&device);
-    let mut observation = Box::pin(device.next_breakpoint().unwrap());
+    let mut observation = Box::pin(device.emulator().next_breakpoint().unwrap());
     let (finished_tx, finished_rx) = mpsc::channel();
     let wake = Arc::new(Reenter {
         shared: Arc::downgrade(&device.client.shared),
@@ -1799,8 +2012,8 @@ fn test_breakpoint_publication_wakes_outside_admission_and_cancel_releases_contr
     assert!(wake.unlocked.load(Ordering::Acquire));
     let queued = device.synchronize().unwrap();
     assert!(matches!(device.synchronize(), Err(SubmitError::QueueFull)));
-    let unused = device.next_breakpoint().unwrap();
-    let shutdown = device.shutdown(ShutdownMode::Cancel);
+    let unused = device.emulator().next_breakpoint().unwrap();
+    let shutdown = device.emulator().shutdown(ShutdownMode::Cancel);
     assert!(matches!(
         launch.wait().unwrap_err().root_cause(),
         ExecutionError::Cancelled
@@ -1814,7 +2027,10 @@ fn test_breakpoint_publication_wakes_outside_admission_and_cancel_releases_contr
 
 #[test]
 fn test_owner_drop_racing_with_a_new_breakpoint_does_not_leave_an_orphaned_worker() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let module = device
         .load(
             ParsedModule::parse(
@@ -1850,7 +2066,10 @@ fn test_owner_drop_racing_with_a_new_breakpoint_does_not_leave_an_orphaned_worke
 
 #[test]
 fn test_breakpoint_notification_exhaustion_faults_at_the_issuer_and_preserves_writes() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let module = device
         .load(
             ParsedModule::parse(
@@ -1862,7 +2081,7 @@ fn test_breakpoint_notification_exhaustion_faults_at_the_issuer_and_preserves_wr
         .unwrap()
         .wait()
         .unwrap();
-    let observer = device.next_breakpoint().unwrap();
+    let observer = device.emulator().next_breakpoint().unwrap();
     let (started_tx, started_rx) = mpsc::channel();
     let (release_tx, release_rx) = mpsc::channel();
     let mut turns = 0;
@@ -1907,7 +2126,13 @@ fn test_breakpoint_notification_exhaustion_faults_at_the_issuer_and_preserves_wr
             .unwrap(),
         7u32.to_le_bytes()
     );
-    assert!(device.shutdown(ShutdownMode::Drain).wait().is_err());
+    assert!(
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .is_err()
+    );
     // The closed device retains its shared fault diagnostic, not worker execution storage.
     assert_only_fault_storage(&device);
 }
@@ -1924,9 +2149,13 @@ fn test_breakpoint_resume_and_cancellation_reproduce_through_both_drivers() {
         let options = EmulatorOptions::default();
         let config = LaunchConfig::create([1; 3], [1; 3], 0).unwrap();
         let flag = AtomicBool::new(false);
-        let mut memory = Memory::new(4096, Arc::new(Budget::new(options.execution_storage_bytes)));
+        let mut memory = Memory::new(
+            4096,
+            Topology::default(),
+            Arc::new(Budget::new(options.execution_storage_bytes)),
+        );
         let output = memory
-            .allocate(4, 4, StateSpace::Global, Owner::Device, true, &flag)
+            .allocate(4, 4, StateSpace::Global, Owner::Device(0), true, &flag)
             .unwrap();
         let mut engine =
             Engine::create(&code, &[output], config, &[], &options, &flag, &mut memory).unwrap();
@@ -1947,17 +2176,22 @@ fn test_breakpoint_resume_and_cancellation_reproduce_through_both_drivers() {
             }
         };
         engine.release(&mut memory);
-        let device = Emulator::create(options).unwrap();
+        let device = Emulator::create(options).unwrap().device(0).unwrap();
         let module = device.load(parsed).unwrap().wait().unwrap();
         let launch = module.kernel("k").unwrap().launch(config, []).unwrap();
         for (index, expected) in expected_breakpoints.into_iter().enumerate() {
-            let breakpoint = device.next_breakpoint().unwrap().wait().unwrap();
+            let breakpoint = device.emulator().next_breakpoint().unwrap().wait().unwrap();
             assert_eq!(breakpoint.location, expected);
             if cancel_second && index == 1 {
                 device.client.shared.cancel.store(true, Ordering::Release);
                 device.client.shared.changed.notify_all();
             } else {
-                device.resume(&breakpoint.id).unwrap().wait().unwrap();
+                device
+                    .emulator()
+                    .resume(&breakpoint.id)
+                    .unwrap()
+                    .wait()
+                    .unwrap();
             }
         }
         let actual = launch.wait();
@@ -1972,7 +2206,11 @@ fn test_breakpoint_resume_and_cancellation_reproduce_through_both_drivers() {
                 .unwrap(),
             memory.read(output, 4, 4, None, None).unwrap()
         );
-        device.shutdown(ShutdownMode::Drain).wait().unwrap();
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .unwrap();
         assert_eq!(device.client.shared.execution_budget.used(), 0);
     }
 }
@@ -1984,6 +2222,8 @@ fn test_abandoned_module_initialization_yields_and_releases_unpublished_storage(
         device_storage_bytes: Memory::charge(total).unwrap() + 1024,
         ..Default::default()
     })
+    .unwrap()
+    .device(0)
     .unwrap();
     let runnable = device.load(empty_module()).unwrap().wait().unwrap();
     let compute = device.create_stream().unwrap();
@@ -2031,7 +2271,11 @@ fn test_abandoned_module_initialization_yields_and_releases_unpublished_storage(
     // The abandoned module would exhaust this limit if its private result leaked.
     let buffer = device.zeroed::<u8>(total).unwrap().wait().unwrap();
     assert_eq!(buffer.len(), total);
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
     assert_eq!(device.client.shared.execution_budget.used(), 0);
 }
 
@@ -2041,6 +2285,8 @@ fn test_cancel_an_active_infinite_kernel_with_a_full_queue() {
         queued_commands: 1,
         ..Default::default()
     })
+    .unwrap()
+    .device(0)
     .unwrap();
     let module = device
         .load(
@@ -2069,8 +2315,8 @@ fn test_cancel_an_active_infinite_kernel_with_a_full_queue() {
         .unwrap();
     reached_rx.recv().unwrap();
     let queued = device.upload(&[7u32]).unwrap();
-    let drain = device.shutdown(ShutdownMode::Drain);
-    let cancel = device.shutdown(ShutdownMode::Cancel);
+    let drain = device.emulator().shutdown(ShutdownMode::Drain);
+    let cancel = device.emulator().shutdown(ShutdownMode::Cancel);
     resume_tx.send(()).unwrap();
     assert!(matches!(
         launch.wait().unwrap_err().root_cause(),
@@ -2259,7 +2505,10 @@ fn test_direct_and_worker_drivers_reproduce_values_faults_and_bounded_traces() {
     ];
     for scenario in scenarios {
         for cancel_at in [None, Some(scenario.cancel_at)] {
-            let device = Emulator::create(EmulatorOptions::default()).unwrap();
+            let device = Emulator::create(EmulatorOptions::default())
+                .unwrap()
+                .device(0)
+                .unwrap();
             let parsed = ParsedModule::parse(scenario.source).unwrap();
             let module = device.load(parsed.clone()).unwrap().wait().unwrap();
             let code = parsed.compile("k").unwrap();
@@ -2267,6 +2516,7 @@ fn test_direct_and_worker_drivers_reproduce_values_faults_and_bounded_traces() {
             let flag = AtomicBool::new(false);
             let mut memory = Memory::new(
                 4096,
+                Topology::default(),
                 Arc::new(Budget::new(
                     EmulatorOptions::default().execution_storage_bytes,
                 )),
@@ -2276,7 +2526,7 @@ fn test_direct_and_worker_drivers_reproduce_values_faults_and_bounded_traces() {
                     scenario.bytes,
                     16,
                     StateSpace::Global,
-                    Owner::Device,
+                    Owner::Device(0),
                     true,
                     &flag,
                 )
@@ -2341,11 +2591,11 @@ fn test_direct_and_worker_drivers_reproduce_values_faults_and_bounded_traces() {
             // Reproduce the same allocation/release events through both drivers.
             flag.store(false, Ordering::Release);
             let abandoned = memory
-                .allocate(128, 256, StateSpace::Global, Owner::Device, true, &flag)
+                .allocate(128, 256, StateSpace::Global, Owner::Device(0), true, &flag)
                 .unwrap();
             memory.release(abandoned);
             let retained = memory
-                .allocate(128, 256, StateSpace::Global, Owner::Device, true, &flag)
+                .allocate(128, 256, StateSpace::Global, Owner::Device(0), true, &flag)
                 .unwrap();
             drop(device.zeroed::<u32>(32).unwrap());
             let owned = device.zeroed::<u32>(32).unwrap().wait().unwrap();
@@ -2353,7 +2603,11 @@ fn test_direct_and_worker_drivers_reproduce_values_faults_and_bounded_traces() {
             assert_eq!(memory.read(retained, 128, 1, None, None).unwrap(), [0; 128]);
             memory.release(retained);
             drop(owned);
-            device.shutdown(ShutdownMode::Drain).wait().unwrap();
+            device
+                .emulator()
+                .shutdown(ShutdownMode::Drain)
+                .wait()
+                .unwrap();
         }
     }
 }
@@ -2384,16 +2638,27 @@ fn test_interleaved_grids_reproduce_reports_storage_lifetimes_and_bounded_traces
         let options = EmulatorOptions::default();
         let config = LaunchConfig::create([1, 1, 1], [32, 1, 1], 0).unwrap();
         let cancellation = AtomicBool::new(false);
-        let mut memory = Memory::new(4096, Arc::new(Budget::new(options.execution_storage_bytes)));
+        let mut memory = Memory::new(
+            4096,
+            Topology::default(),
+            Arc::new(Budget::new(options.execution_storage_bytes)),
+        );
         let flag = memory
-            .allocate(4, 4, StateSpace::Global, Owner::Device, true, &cancellation)
+            .allocate(
+                4,
+                4,
+                StateSpace::Global,
+                Owner::Device(0),
+                true,
+                &cancellation,
+            )
             .unwrap();
         let output = memory
             .allocate(
                 256,
                 16,
                 StateSpace::Global,
-                Owner::Device,
+                Owner::Device(0),
                 true,
                 &cancellation,
             )
@@ -2403,7 +2668,7 @@ fn test_interleaved_grids_reproduce_reports_storage_lifetimes_and_bounded_traces
             parsed.compile("producer").unwrap(),
         ];
         let mut builders = [
-            Some(GridBuilder::create(&codes[0], 2, config, &options, &mut memory).unwrap()),
+            Some(GridBuilder::create(&codes[0], 2, config, &options, &mut memory, 0).unwrap()),
             None,
         ];
         let mut engines: [Option<Engine>; 2] = [None, None];
@@ -2415,8 +2680,9 @@ fn test_interleaved_grids_reproduce_reports_storage_lifetimes_and_bounded_traces
         while terminal.iter().any(Option::is_none) {
             // Admission adds B before A's second turn, then rotates B and A.
             if turns == 1 {
-                builders[1] =
-                    Some(GridBuilder::create(&codes[1], 2, config, &options, &mut memory).unwrap());
+                builders[1] = Some(
+                    GridBuilder::create(&codes[1], 2, config, &options, &mut memory, 0).unwrap(),
+                );
             }
             let index = next;
             next = if turns == 0 { 0 } else { 1 - next };
@@ -2471,7 +2737,7 @@ fn test_interleaved_grids_reproduce_reports_storage_lifetimes_and_bounded_traces
         drop(engines);
         drop(memory);
 
-        let device = Emulator::create(options).unwrap();
+        let device = Emulator::create(options).unwrap().device(0).unwrap();
         let module = device.load(parsed).unwrap().wait().unwrap();
         let view = module.global("output").unwrap();
         let a = device.create_stream().unwrap();
@@ -2515,14 +2781,21 @@ fn test_interleaved_grids_reproduce_reports_storage_lifetimes_and_bounded_traces
                 .collect();
             assert_eq!(device.download(&view).unwrap().wait().unwrap(), expected);
         }
-        device.shutdown(ShutdownMode::Drain).wait().unwrap();
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .unwrap();
         assert_eq!(device.client.shared.execution_budget.used(), 0);
     }
 }
 
 #[test]
 fn test_snapshot_reservation_does_not_block_polling_or_shutdown() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let completed = device.upload(&[3u32]).unwrap().wait().unwrap();
     let download = device.download(&completed).unwrap();
     device.load(empty_module()).unwrap().wait().unwrap();
@@ -2544,7 +2817,11 @@ fn test_snapshot_reservation_does_not_block_polling_or_shutdown() {
     assert!(
         matches!(download.as_mut().poll(&mut Context::from_waker(Waker::noop())), Poll::Ready(Ok(values)) if values == [3])
     );
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
     finish_tx.send(()).unwrap();
     assert!(matches!(snapshot.join().unwrap(), Err(SubmitError::Closed)));
     assert_eq!(lock(&device.client.shared.admission).staged, 0);
@@ -2553,7 +2830,10 @@ fn test_snapshot_reservation_does_not_block_polling_or_shutdown() {
 
 #[test]
 fn test_queued_mutations_fail_after_a_fault_but_downloads_observe_prior_writes() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let module = device.load(ParsedModule::parse(".version 9.3 .target sm_80 .address_size 64 .entry k(.param .u64 data) { .reg .u64 a; ld.param.u64 a,[data]; st.global.u32 [a],2; trap; }").unwrap()).unwrap().wait().unwrap();
     let data = device.upload(&[1u32]).unwrap().wait().unwrap();
     let (paused, resume) = pause(&device);
@@ -2572,12 +2852,21 @@ fn test_queued_mutations_fail_after_a_fault_but_downloads_observe_prior_writes()
     assert!(launch.wait().is_err());
     assert!(matches!(mutation.wait(), Err(ExecutionError::Faulted)));
     assert_eq!(inspection.wait().unwrap(), [2]);
-    assert!(device.shutdown(ShutdownMode::Drain).wait().is_err());
+    assert!(
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .is_err()
+    );
 }
 
 #[test]
 fn test_unleased_addresses_are_reclaimed_during_an_active_launch() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let module = device.load(ParsedModule::parse(".version 9.3 .target sm_80 .address_size 64 .global .u64 ptr; .entry save(.param .u64 input) { .reg .u64 a; ld.param.u64 a,[input]; st.global.u64 [ptr],a; ret; } .entry read() { .reg .u64 a; .reg .u32 r; ld.global.u64 a,[ptr]; ld.global.u32 r,[a]; ret; }").unwrap()).unwrap().wait().unwrap();
     let data = device.upload(&[3u32]).unwrap().wait().unwrap();
     let config = LaunchConfig::create([1, 1, 1], [1, 1, 1], 0).unwrap();
@@ -2604,12 +2893,21 @@ fn test_unleased_addresses_are_reclaimed_during_an_active_launch() {
     resume_tx.send(()).unwrap();
     let error = launch.wait().unwrap_err();
     assert!(error.to_string().contains("memory access"), "{error}");
-    assert!(device.shutdown(ShutdownMode::Drain).wait().is_err());
+    assert!(
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .is_err()
+    );
 }
 
 #[test]
 fn test_consumed_submission_reports_an_error_and_preserves_event_status() {
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let stream = device.default_stream();
     let (event, mut submission) = stream.record_event().unwrap();
     stream.synchronize().unwrap().wait().unwrap();
@@ -2627,7 +2925,11 @@ fn test_consumed_submission_reports_an_error_and_preserves_event_status() {
         Err(ExecutionError::ResultConsumed)
     ));
     assert!(matches!(event.status(), Some(Ok(()))));
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
 }
 
 #[test]

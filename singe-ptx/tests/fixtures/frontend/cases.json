@@ -1368,7 +1368,7 @@
     {
       "name": "scalar/reject/26",
       "body": "mov.b32 %r0,{%h};",
-      "error": "two half words"
+      "error": "two or four parts"
     },
     {
       "name": "scalar/reject/27",

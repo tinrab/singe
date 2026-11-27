@@ -262,7 +262,7 @@ pub mod runtime {
     include!("runtime_sys_13040.rs");
 }
 
-pub use singe_loader::{Absence, LoadError, take_absence};
+pub use singe_loader::{Absence, LoadError, Provider, take_absence};
 
 static DRIVER: singe_loader::Library = singe_loader::Library::cuda_driver();
 
@@ -275,6 +275,15 @@ pub fn load_driver() -> Result<(), LoadError> {
     DRIVER.load()
 }
 
+/// Serves the CUDA driver's functions from `provider`, such as an emulator, instead of loading the driver.
+///
+/// # Errors
+///
+/// Returns [`LoadError::AlreadyLoaded`] if a driver function was already called or the driver was already provided.
+pub fn provide_driver(provider: Provider) -> Result<(), LoadError> {
+    DRIVER.provide(provider)
+}
+
 static RUNTIME: singe_loader::Library = singe_loader::Library::cuda_runtime();
 
 /// Loads the CUDA runtime now, instead of on the first call of one of its functions.
@@ -284,6 +293,15 @@ static RUNTIME: singe_loader::Library = singe_loader::Library::cuda_runtime();
 /// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load_runtime() -> Result<(), LoadError> {
     RUNTIME.load()
+}
+
+/// Serves the CUDA runtime's functions from `provider`, such as an emulator, instead of loading the runtime.
+///
+/// # Errors
+///
+/// Returns [`LoadError::AlreadyLoaded`] if a runtime function was already called or the runtime was already provided.
+pub fn provide_runtime(provider: Provider) -> Result<(), LoadError> {
+    RUNTIME.provide(provider)
 }
 
 static NVRTC: singe_loader::Library = singe_loader::Library::nvrtc();

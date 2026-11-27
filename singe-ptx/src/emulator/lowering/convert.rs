@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-/// Lowers `mov`, including the `mov.b32` forms that pack or unpack two half words.
+/// Lowers `mov`, including the forms that pack or unpack a vector of equal parts.
 pub(crate) fn mov(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
@@ -26,28 +26,40 @@ pub(crate) fn mov(
         "unsupported mov type",
     )?;
     let [d, a] = operands(instruction)?;
-    if ty == ScalarType::B32 && head.is_empty() {
+    if matches!(ty, ScalarType::B32 | ScalarType::B64) && head.is_empty() {
         if let Operand::Vector { elements, .. } = a {
-            require(elements.len() == 2, span, "mov.b32 packs two half words")?;
-            let low = compiler.source(&elements[0], ScalarType::B16)?;
-            let high = compiler.source(&elements[1], ScalarType::B16)?;
+            let part = pack_part(ty, elements.len(), span)?;
+            let parts = elements
+                .iter()
+                .map(|element| compiler.source(element, part))
+                .collect::<Result<_>>()?;
             return Ok(Operation::Data(DataOperation::Pack {
+                ty,
+                part,
                 destination: compiler.destination(d, ty)?,
-                low,
-                high,
+                parts,
             }));
         }
         if let Operand::Vector { elements, .. } = d {
-            require(elements.len() == 2, span, "mov.b32 unpacks two half words")?;
-            let low = compiler.destination(&elements[0], ScalarType::B16)?;
-            let high = compiler.destination(&elements[1], ScalarType::B16)?;
+            let part = pack_part(ty, elements.len(), span)?;
+            let destinations: Vec<_> = elements
+                .iter()
+                .map(|element| compiler.destination(element, part))
+                .collect::<Result<_>>()?;
             require(
-                low != ir::Destination::Discard || high != ir::Destination::Discard,
+                destinations
+                    .iter()
+                    .any(|destination| *destination != ir::Destination::Discard),
                 span,
                 "unpack cannot discard every destination",
             )?;
             let source = compiler.source(a, ty)?;
-            return Ok(Operation::Data(DataOperation::Unpack { low, high, source }));
+            return Ok(Operation::Data(DataOperation::Unpack {
+                ty,
+                part,
+                destinations,
+                source,
+            }));
         }
     }
     Ok(Operation::Data(DataOperation::Move {
@@ -55,6 +67,18 @@ pub(crate) fn mov(
         destination: compiler.destination(d, ty)?,
         source: compiler.move_source(a, ty)?,
     }))
+}
+
+/// Returns the type of each of `count` parts that make up a value of `ty`.
+fn pack_part(ty: ScalarType, count: usize, span: Span) -> Result<ScalarType> {
+    match (ty, count) {
+        (ScalarType::B32, 2) | (ScalarType::B64, 4) => Ok(ScalarType::B16),
+        (ScalarType::B64, 2) => Ok(ScalarType::B32),
+        _ => Err(CompileError::instruction(
+            span,
+            "mov packs two or four parts of equal width",
+        )),
+    }
 }
 
 pub(crate) fn convert(
@@ -308,6 +332,37 @@ pub(crate) fn address(
         conversion,
         destination: compiler.destination(d, ty)?,
         source,
+    }))
+}
+
+/// Lowers `isspacep`, which tests whether a generic address points into a state space.
+pub(crate) fn space_test(
+    compiler: &FunctionCompiler<'_, '_>,
+    instruction: &Instruction,
+    head: &mut Head<'_>,
+) -> Result<Operation> {
+    let span = instruction.span;
+    let space = if head.take("param::entry") {
+        Some(StateSpace::Param)
+    } else {
+        head.space()
+    }
+    .ok_or_else(|| {
+        CompileError::instruction(
+            span,
+            "isspacep requires const, global, local, shared, or param space",
+        )
+    })?;
+    let [d, a] = operands(instruction)?;
+    let (ty, address) = match compiler.source(a, ScalarType::U64) {
+        Ok(address) => (ScalarType::U64, address),
+        Err(_) => (ScalarType::U32, compiler.source(a, ScalarType::U32)?),
+    };
+    Ok(Operation::Data(DataOperation::SpaceTest {
+        ty,
+        space,
+        destination: compiler.destination(d, ScalarType::Pred)?,
+        address,
     }))
 }
 

@@ -11,7 +11,7 @@ fn test_stable_softmax_handles_odd_rows_and_partial_warps_through_both_waiting_s
 {
     let parsed = ParsedModule::parse(include_str!("fixtures/execution/softmax.ptx"))?;
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device.load(parsed.clone())?.observe(asynchronous)?;
         let kernel = module.kernel("softmax")?;
         for block in [1u32, 17, 32, 33, 64, 127, 128] {
@@ -74,7 +74,10 @@ fn test_stable_softmax_handles_odd_rows_and_partial_warps_through_both_waiting_s
                 }
             }
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }

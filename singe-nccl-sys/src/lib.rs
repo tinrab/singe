@@ -35,7 +35,7 @@ use singe_cuda_sys::runtime::{cudaEvent_t, cudaStream_t};
 #[cfg(feature = "nccl_2_32")]
 include!("sys_23203.rs");
 
-pub use singe_loader::{Absence, LoadError, take_absence};
+pub use singe_loader::{Absence, LoadError, Provider, take_absence};
 
 static LIBRARY: singe_loader::Library = singe_loader::Library::nccl();
 
@@ -46,6 +46,15 @@ static LIBRARY: singe_loader::Library = singe_loader::Library::nccl();
 /// Returns an error if the library has no files on this platform or one of its files would not load.
 pub fn load() -> Result<(), LoadError> {
     LIBRARY.load()
+}
+
+/// Serves NCCL's functions from `provider`, such as an emulator, instead of loading the library.
+///
+/// # Errors
+///
+/// Returns [`LoadError::AlreadyLoaded`] if an NCCL function was already called or NCCL was already provided.
+pub fn provide(provider: Provider) -> Result<(), LoadError> {
+    LIBRARY.provide(provider)
 }
 
 #[cfg(feature = "nccl_2_32")]

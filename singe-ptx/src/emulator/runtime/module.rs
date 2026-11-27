@@ -11,7 +11,7 @@ use crate::{
             Client, CommandKind, Lease,
             buffer::{AllocationRef, Argument, BufferView, KernelArg, foreign},
             completion::{Retained, Submission},
-            device::Stream,
+            device::{Device, Stream},
             options::{ExecutionReport, LaunchConfig},
             submit::submit_retained,
             worker::{LaunchWork, Worker},
@@ -24,9 +24,10 @@ pub(crate) struct Loaded {
     pub(crate) layout: ModuleLayout,
     pub(crate) addresses: Vec<u64>,
     pub(crate) lease: Arc<Lease>,
+    pub(crate) device: usize,
 }
 
-/// A module loaded on an emulator, with its own global and constant variables.
+/// A module loaded on one device, with its own global and constant variables.
 #[derive(Debug, Clone)]
 pub struct Module {
     pub(crate) client: Arc<Client>,
@@ -35,6 +36,12 @@ pub struct Module {
 }
 
 impl Module {
+    /// Returns the index of the device the module is loaded on.
+    #[must_use]
+    pub fn device(&self) -> usize {
+        self.loaded.device
+    }
+
     /// Compiles the `name` kernel, or reuses a cached compilation, and binds it to this module.
     ///
     /// # Errors
@@ -91,6 +98,7 @@ impl Module {
             allocation: AllocationRef {
                 _lease: Arc::clone(&self.loaded.lease),
                 address: self.loaded.addresses[id],
+                device: self.loaded.device,
                 writable: variable.space != StateSpace::Const,
                 space: variable.space,
             },
@@ -110,7 +118,25 @@ pub struct Kernel {
 }
 
 impl Kernel {
-    /// Launches the kernel on the default stream with `arguments` in parameter order.
+    /// Returns the kernel's name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        self.code.name()
+    }
+
+    /// Returns the kernel's parameters in argument order.
+    #[must_use]
+    pub fn parameters(&self) -> &[ParameterLayout] {
+        self.code.parameters()
+    }
+
+    /// Returns the module the kernel belongs to.
+    #[must_use]
+    pub fn module(&self) -> &Module {
+        &self.module
+    }
+
+    /// Launches the kernel on its device's default stream with `arguments` in parameter order.
     ///
     /// See [`launch_on`](Self::launch_on).
     ///
@@ -123,14 +149,11 @@ impl Kernel {
         config: LaunchConfig,
         arguments: impl IntoIterator<Item = KernelArg>,
     ) -> Result<Submission<ExecutionReport>, SubmitError> {
-        self.launch_on(
-            &Stream {
-                client: Arc::clone(&self.module.client),
-                id: 0,
-            },
-            config,
-            arguments,
-        )
+        let device = Device {
+            client: Arc::clone(&self.module.client),
+            index: self.module.loaded.device,
+        };
+        self.launch_on(&device.default_stream(), config, arguments)
     }
 
     /// Launches the kernel on `stream` with `arguments` in parameter order.
@@ -140,7 +163,7 @@ impl Kernel {
     ///
     /// # Errors
     ///
-    /// Returns an error if `stream` or a buffer belongs to another emulator, `config` does not meet the kernel's block requirements, an argument does not match its parameter, staging storage cannot hold the arguments, or the command is not admitted.
+    /// Returns an error if `stream` or a buffer belongs to another emulator, `stream` orders another device than the module's, `config` does not meet the kernel's block requirements, an argument does not match its parameter, staging storage cannot hold the arguments, or the command is not admitted.
     /// Execution faults are reported through the submission.
     pub fn launch_on(
         &self,
@@ -149,6 +172,10 @@ impl Kernel {
         arguments: impl IntoIterator<Item = KernelArg>,
     ) -> Result<Submission<ExecutionReport>, SubmitError> {
         foreign(&self.module.client, &stream.client)?;
+        if stream.device != self.module.loaded.device {
+            return Err(SubmitError::ForeignResource);
+        }
+
         self.code
             .launch_requirements()
             .validate_block(config.block)?;
@@ -186,6 +213,7 @@ impl Kernel {
         submit_retained(
             &self.module.client,
             stream.id,
+            stream.device,
             CommandKind::Launch,
             false,
             staged,
@@ -280,6 +308,7 @@ impl Kernel {
             {
                 bytes
             }
+            Argument::Raw(bytes) if bytes.len() as u64 == parameter.layout.byte_len() => bytes,
             _ => {
                 return Err(SubmitError::InvalidArgument(format!(
                     "representation of `{}`",

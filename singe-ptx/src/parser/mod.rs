@@ -1469,7 +1469,7 @@ $L__BB0_2:
     fn test_integer_literals_use_one_radix_grammar_in_every_context() {
         let src = ".version 9.4 .target sm_80
             .section .debug_info { .b32 010, 0x10, 0b10, 10, -010, 0xffffffffffffffff }
-            .entry k() { .reg .u64 %a; ld.u64 %a,[%a+0x10]; ld.u64 %a,[%a-010]; ret; }";
+            .entry k() { .reg .u64 %a; ld.u64 %a,[%a+0x10]; ld.u64 %a,[%a-010]; ld.u64 %a,[%a+-4]; ret; }";
         let module = parse_module(src).unwrap();
         let TopLevelItem::Section(section) = &module.items[0] else {
             panic!("expected section");
@@ -1502,12 +1502,12 @@ $L__BB0_2:
                 _ => None,
             })
             .collect();
-        assert_eq!(offsets, [16, -8]);
+        assert_eq!(offsets, [16, -8, -4]);
     }
 
     #[test]
     fn test_address_displacements_reject_repeated_signs() {
-        for address in ["[a+-4]", "[a--4]", "[a+ +4]", "[a+0o4]"] {
+        for address in ["[a--4]", "[a-+4]", "[a+ +4]", "[a+0o4]"] {
             let src = format!(
                 ".version 9.4 .target sm_80 .entry k() {{ .reg .u64 a; ld.u64 a,{address}; ret; }}"
             );

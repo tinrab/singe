@@ -76,6 +76,7 @@ opcodes! {
     Fence = "fence",
     Fma = "fma",
     Fns = "fns",
+    Isspacep = "isspacep",
     Ld = "ld",
     Ldmatrix = "ldmatrix",
     Lop3 = "lop3",
@@ -90,6 +91,8 @@ opcodes! {
     Mov = "mov",
     Mul = "mul",
     Mul24 = "mul24",
+    Multimem = "multimem",
+    Nanosleep = "nanosleep",
     Neg = "neg",
     Not = "not",
     Or = "or",
@@ -351,6 +354,9 @@ pub(crate) fn lower(
         Opcode::Mov => convert::mov(compiler, instruction, head)?,
         Opcode::Cvt => convert::convert(compiler, instruction, head)?,
         Opcode::Cvta => convert::address(compiler, instruction, head)?,
+        Opcode::Isspacep => convert::space_test(compiler, instruction, head)?,
+        Opcode::Multimem => memory::multimem(compiler, instruction, head)?,
+        Opcode::Nanosleep => control::sleep(compiler, instruction, head)?,
         Opcode::Ld | Opcode::St => {
             memory::access(compiler, instruction, head, opcode == Opcode::St)?
         }
@@ -396,7 +402,7 @@ fn validate(
     }
 
     let unpack = opcode == Opcode::Mov
-        && head.parts == ["b32"]
+        && matches!(head.parts[..], ["b32" | "b64"])
         && matches!(instruction.operands.first(), Some(Operand::Vector { .. }));
     let lop3_predicate =
         opcode == Opcode::Lop3 && matches!(head.parts.first(), Some(&"and" | &"or"));

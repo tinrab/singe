@@ -143,18 +143,26 @@ impl GridBuilder {
         config: LaunchConfig,
         options: &EmulatorOptions,
         memory: &mut Memory,
+        device: usize,
     ) -> Result<Self> {
         let storage = storage_plan(code, config)?;
         let grid = memory.begin_grid()?;
-        let engine =
-            match Engine::reserve_grid(code, global_count, config, options, memory, grid, &storage)
-            {
-                Ok(engine) => engine,
-                Err(error) => {
-                    memory.release_grid(grid);
-                    return Err(error);
-                }
-            };
+        let engine = match Engine::reserve_grid(
+            code,
+            global_count,
+            config,
+            options,
+            memory,
+            device,
+            grid,
+            &storage,
+        ) {
+            Ok(engine) => engine,
+            Err(error) => {
+                memory.release_grid(grid);
+                return Err(error);
+            }
+        };
         Ok(Self {
             engine,
             storage,
@@ -570,7 +578,7 @@ mod tests {
     use std::sync::{Arc, atomic::Ordering};
 
     use super::*;
-    use crate::emulator::{ParsedModule, budget::Budget};
+    use crate::emulator::{ParsedModule, budget::Budget, runtime::Topology};
 
     #[test]
     fn test_dynamic_shared_aliases_charge_one_aligned_region_per_cta() {
@@ -590,9 +598,9 @@ mod tests {
             assert_eq!(storage.dynamic_alignment, Some(64));
             let options = EmulatorOptions::default();
             let budget = Arc::new(Budget::new(options.execution_storage_bytes));
-            let mut memory = Memory::new(0, Arc::clone(&budget));
+            let mut memory = Memory::new(0, Topology::default(), Arc::clone(&budget));
             let flag = AtomicBool::new(false);
-            let builder = GridBuilder::create(&code, 2, config, &options, &mut memory).unwrap();
+            let builder = GridBuilder::create(&code, 2, config, &options, &mut memory, 0).unwrap();
             let reserved = budget.used();
             builder.release(&mut memory);
             assert_eq!(budget.used(), 0);
@@ -619,9 +627,9 @@ mod tests {
             assert_eq!(budget.used(), 0);
 
             let limited = Arc::new(Budget::new(reserved - 1));
-            let mut memory = Memory::new(0, Arc::clone(&limited));
+            let mut memory = Memory::new(0, Topology::default(), Arc::clone(&limited));
             assert!(matches!(
-                GridBuilder::create(&code, 2, config, &options, &mut memory),
+                GridBuilder::create(&code, 2, config, &options, &mut memory, 0),
                 Err(ExecutionError::ExecutionStateLimit)
             ));
             assert_eq!(limited.used(), 0);
@@ -657,13 +665,17 @@ mod tests {
         let code = parsed.compile("k").unwrap();
         let options = EmulatorOptions::default();
         let cancellation = AtomicBool::new(false);
-        let mut memory = Memory::new(4096, Arc::new(Budget::new(options.execution_storage_bytes)));
+        let mut memory = Memory::new(
+            4096,
+            Topology::default(),
+            Arc::new(Budget::new(options.execution_storage_bytes)),
+        );
         let address = memory
             .allocate(
                 24,
                 8,
                 StateSpace::Global,
-                Owner::Device,
+                Owner::Device(0),
                 true,
                 &cancellation,
             )
@@ -708,9 +720,10 @@ mod tests {
         let mut checkpoints = 0;
         loop {
             let budget = Arc::new(Budget::new(options.execution_storage_bytes));
-            let mut memory = Memory::new(0, Arc::clone(&budget));
+            let mut memory = Memory::new(0, Topology::default(), Arc::clone(&budget));
             let cancellation = AtomicBool::new(false);
-            let mut builder = GridBuilder::create(&code, 1, config, &options, &mut memory).unwrap();
+            let mut builder =
+                GridBuilder::create(&code, 1, config, &options, &mut memory, 0).unwrap();
             let reserved = budget.used();
             let mut complete = false;
             for _ in 0..checkpoints {

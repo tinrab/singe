@@ -8,7 +8,10 @@ fn run_cta(body: &str, threads: u32) -> Vec<u32> {
     let source = format!(
         ".version 9.3 .target sm_80 .address_size 64 .global .u32 output[{threads}]; .entry k() {{ .reg .u32 t; .reg .u32 r; .reg .u32 b; .reg .u64 a; .reg .u64 base; .reg .pred p; .reg .pred q; mov.u32 t,%tid.x; {body} mul.wide.u32 a,t,4; mov.u64 base,output; add.u64 a,a,base; st.global.u32 [a],r; ret; }}"
     );
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let module = device
         .load(ParsedModule::parse(&source).unwrap())
         .unwrap()
@@ -29,7 +32,11 @@ fn run_cta(body: &str, threads: u32) -> Vec<u32> {
         .unwrap()
         .wait()
         .unwrap();
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
     output
         .as_chunks::<4>()
         .0
@@ -130,7 +137,10 @@ fn test_cta_barrier_counts_remain_diagnostic() {
             false,
         ),
     ] {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let source = format!(
             ".version 9.3 .target sm_80 .address_size 64 .entry k() {{ .reg .u32 t; .reg .u32 n; .reg .pred p; {body} ret; }}"
         );
@@ -153,7 +163,13 @@ fn test_cta_barrier_counts_remain_diagnostic() {
         } else {
             assert!(matches!(error.root_cause(), ExecutionError::Stall(_)));
         }
-        assert!(device.shutdown(ShutdownMode::Drain).wait().is_err());
+        assert!(
+            device
+                .emulator()
+                .shutdown(ShutdownMode::Drain)
+                .wait()
+                .is_err()
+        );
     }
 }
 
@@ -161,16 +177,19 @@ fn test_cta_barrier_counts_remain_diagnostic() {
 fn test_cancellation_releases_a_launch_with_cta_waiters() {
     use singe_ptx::emulator::ExecutionError;
 
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let module = device.load(ParsedModule::parse(".version 9.3 .target sm_80 .address_size 64 .entry k() { .reg .u32 t; .reg .pred p; mov.u32 t,%tid.x; setp.lt.u32 p,t,32; @p bra waiting; brkpt; ret; waiting: bar.sync 0; ret; }").unwrap()).unwrap().wait().unwrap();
     let launch = module
         .kernel("k")
         .unwrap()
         .launch(LaunchConfig::create([1; 3], [64, 1, 1], 0).unwrap(), [])
         .unwrap();
-    let breakpoint = device.next_breakpoint().unwrap().wait().unwrap();
+    let breakpoint = device.emulator().next_breakpoint().unwrap().wait().unwrap();
     assert_eq!(breakpoint.location.lane[0], 32);
-    let shutdown = device.shutdown(ShutdownMode::Cancel);
+    let shutdown = device.emulator().shutdown(ShutdownMode::Cancel);
     assert!(matches!(
         launch.wait().unwrap_err().root_cause(),
         ExecutionError::Cancelled

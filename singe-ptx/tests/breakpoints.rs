@@ -22,14 +22,15 @@ fn test_breakpoints_preserve_frames_and_writes_while_other_streams_progress() ->
         let device = Emulator::create(EmulatorOptions {
             queued_commands: 1,
             ..Default::default()
-        })?;
+        })?
+        .device(0)?;
         let module = device
             .load(ParsedModule::parse(SOURCE)?)?
             .observe(asynchronous)?;
         let compute = device.create_stream()?;
         let diagnostic = device.create_stream()?;
         let config = LaunchConfig::create([1; 3], [1; 3], 0)?;
-        let first = device.next_breakpoint()?;
+        let first = device.emulator().next_breakpoint()?;
         let launch = compute.launch(&module.kernel("k")?, config, [])?;
         let id = launch.launch_id().unwrap();
         let first = first.observe(asynchronous)?;
@@ -53,24 +54,28 @@ fn test_breakpoints_preserve_frames_and_writes_while_other_streams_progress() ->
         );
         let fence = compute.synchronize()?;
         assert!(matches!(compute.synchronize(), Err(SubmitError::QueueFull)));
-        let second = device.next_breakpoint()?;
-        device.resume(&first.id)?.observe(asynchronous)?;
+        let second = device.emulator().next_breakpoint()?;
+        device.emulator().resume(&first.id)?.observe(asynchronous)?;
         let second = second.observe(asynchronous)?;
         assert_ne!(first.id, second.id);
         assert_eq!(second.location.function, "k");
         assert!(matches!(
-            device.resume(&first.id),
+            device.emulator().resume(&first.id),
             Err(SubmitError::InvalidArgument(_))
         ));
-        let foreign = Emulator::create(EmulatorOptions::default())?;
+        let foreign = Emulator::create(EmulatorOptions::default())?.device(0)?;
         assert!(matches!(
-            foreign.resume(&second.id),
+            foreign.emulator().resume(&second.id),
             Err(SubmitError::ForeignResource)
         ));
         foreign
+            .emulator()
             .shutdown(ShutdownMode::Drain)
             .observe(asynchronous)?;
-        device.resume(&second.id)?.observe(asynchronous)?;
+        device
+            .emulator()
+            .resume(&second.id)?
+            .observe(asynchronous)?;
         let report = launch.observe(asynchronous)?;
         assert_eq!(report.completed_lanes, 1);
         fence.observe(asynchronous)?;
@@ -80,7 +85,10 @@ fn test_breakpoints_preserve_frames_and_writes_while_other_streams_progress() ->
                 .observe(asynchronous)?,
             3u32.to_le_bytes()
         );
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -88,22 +96,22 @@ fn test_breakpoints_preserve_frames_and_writes_while_other_streams_progress() ->
 #[test]
 fn test_drain_keeps_breakpoints_resumable_and_cancel_terminates_observers() -> Result<()> {
     for mode in [ShutdownMode::Drain, ShutdownMode::Cancel] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(
                 ".version 9.3 .target sm_80 .address_size 64
             .entry k() {brkpt;ret;}",
             )?)?
             .wait()?;
-        let breakpoint = device.next_breakpoint()?;
+        let breakpoint = device.emulator().next_breakpoint()?;
         let launch = module
             .kernel("k")?
             .launch(LaunchConfig::create([1; 3], [1; 3], 0)?, [])?;
         let breakpoint = breakpoint.wait()?;
-        let unused = device.next_breakpoint()?;
-        let shutdown = device.shutdown(mode);
+        let unused = device.emulator().next_breakpoint()?;
+        let shutdown = device.emulator().shutdown(mode);
         if mode == ShutdownMode::Drain {
-            device.resume(&breakpoint.id)?.wait()?;
+            device.emulator().resume(&breakpoint.id)?.wait()?;
             launch.wait()?;
         } else {
             assert!(matches!(
@@ -113,37 +121,37 @@ fn test_drain_keeps_breakpoints_resumable_and_cancel_terminates_observers() -> R
         }
         assert!(matches!(unused.wait(), Err(ExecutionError::Cancelled)));
         shutdown.wait()?;
-        assert!(device.paused_breakpoints().is_empty());
+        assert!(device.emulator().paused_breakpoints().is_empty());
     }
     Ok(())
 }
 
 #[test]
 fn test_abandoned_notifications_leave_a_recoverable_suspension() -> Result<()> {
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device
         .load(ParsedModule::parse(
             ".version 9.3 .target sm_80 .address_size 64
         .entry k() {brkpt;ret;}",
         )?)?
         .wait()?;
-    drop(device.next_breakpoint()?);
+    drop(device.emulator().next_breakpoint()?);
     let launch = module
         .kernel("k")?
         .launch(LaunchConfig::create([1; 3], [32, 1, 1], 0)?, [])?;
-    let breakpoint = device.next_breakpoint()?.wait()?;
+    let breakpoint = device.emulator().next_breakpoint()?.wait()?;
     let id = breakpoint.id.clone();
     drop(breakpoint);
-    assert_eq!(device.paused_breakpoints(), slice::from_ref(&id));
-    device.resume(&id)?.wait()?;
+    assert_eq!(device.emulator().paused_breakpoints(), slice::from_ref(&id));
+    device.emulator().resume(&id)?.wait()?;
     assert_eq!(launch.wait()?.completed_lanes, 32);
-    device.shutdown(ShutdownMode::Drain).wait()?;
+    device.emulator().shutdown(ShutdownMode::Drain).wait()?;
     Ok(())
 }
 
 #[test]
 fn test_last_public_owner_cancels_a_paused_launch() -> Result<()> {
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device
         .load(ParsedModule::parse(
             ".version 9.3 .target sm_80 .address_size 64
@@ -153,8 +161,8 @@ fn test_last_public_owner_cancels_a_paused_launch() -> Result<()> {
     let launch = module
         .kernel("k")?
         .launch(LaunchConfig::create([1; 3], [1; 3], 0)?, [])?;
-    let breakpoint = device.next_breakpoint()?.wait()?;
-    let shutdown = device.shutdown(ShutdownMode::Drain);
+    let breakpoint = device.emulator().next_breakpoint()?.wait()?;
+    let shutdown = device.emulator().shutdown(ShutdownMode::Drain);
     drop(launch);
     drop(module);
     drop(device);
@@ -165,7 +173,7 @@ fn test_last_public_owner_cancels_a_paused_launch() -> Result<()> {
 
 #[test]
 fn test_another_grid_fault_terminates_paused_launches_and_debug_observers() -> Result<()> {
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device
         .load(ParsedModule::parse(
             ".version 9.3 .target sm_80 .address_size 64
@@ -177,8 +185,8 @@ fn test_another_grid_fault_terminates_paused_launches_and_debug_observers() -> R
     let stream = device.create_stream()?;
     let config = LaunchConfig::create([1; 3], [1; 3], 0)?;
     let paused = module.kernel("paused")?.launch(config, [])?;
-    let breakpoint = device.next_breakpoint()?.wait()?;
-    let observer = device.next_breakpoint()?;
+    let breakpoint = device.emulator().next_breakpoint()?.wait()?;
+    let observer = device.emulator().next_breakpoint()?;
     let fault = stream
         .launch(&module.kernel("fault")?, config, [])?
         .wait()
@@ -190,17 +198,23 @@ fn test_another_grid_fault_terminates_paused_launches_and_debug_observers() -> R
     ));
     assert!(matches!(observer.wait(), Err(ExecutionError::Faulted)));
     assert!(matches!(
-        device.resume(&breakpoint.id),
+        device.emulator().resume(&breakpoint.id),
         Err(SubmitError::Faulted)
     ));
     assert!(matches!(
-        device.next_breakpoint(),
+        device.emulator().next_breakpoint(),
         Err(SubmitError::Faulted)
     ));
     assert_eq!(
         device.download(&module.global("value")?)?.wait()?,
         13u32.to_le_bytes()
     );
-    assert!(device.shutdown(ShutdownMode::Drain).wait().is_err());
+    assert!(
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .is_err()
+    );
     Ok(())
 }

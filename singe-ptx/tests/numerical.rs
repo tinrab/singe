@@ -4,7 +4,10 @@ fn execute(body: &str) -> u64 {
     let source = format!(
         ".version 9.3 .target sm_80 .address_size 64 .global .u64 output; .entry k() {{ .reg .b32 r; .reg .b64 d; .reg .pred p; {body} ret; }}"
     );
-    let device = Emulator::create(EmulatorOptions::default()).unwrap();
+    let device = Emulator::create(EmulatorOptions::default())
+        .unwrap()
+        .device(0)
+        .unwrap();
     let module = device
         .load(ParsedModule::parse(&source).unwrap())
         .unwrap()
@@ -22,7 +25,11 @@ fn execute(body: &str) -> u64 {
         .unwrap()
         .wait()
         .unwrap();
-    device.shutdown(ShutdownMode::Drain).wait().unwrap();
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .wait()
+        .unwrap();
     u64::from_le_bytes(bytes.try_into().unwrap())
 }
 

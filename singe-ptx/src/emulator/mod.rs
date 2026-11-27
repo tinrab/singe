@@ -1,7 +1,7 @@
-//! CPU emulator for `sm_80` PTX kernels.
+//! CPU emulator for `sm_80` and `sm_90` PTX kernels.
 //!
 //! [`ParsedModule::compile`] validates a kernel without creating an emulator.
-//! An [`Emulator`] runs loaded modules on a worker thread.
+//! An [`Emulator`] is a machine of one or more [`Device`]s whose loaded modules run on one worker thread.
 //! Each operation returns a [`Submission`] that can be waited on or awaited.
 
 mod budget;
@@ -35,9 +35,9 @@ pub use crate::emulator::{
     execution_error::{ExecutionError, FaultLocation, StalledLane, SubmitError},
     layout::{ModuleLayout, ModuleVariable, ParameterLayout, StorageLayout},
     runtime::{
-        Breakpoint, BreakpointId, Buffer, BufferView, Emulator, EmulatorOptions, Event,
-        ExecutionReport, Kernel, KernelArg, LaunchConfig, Module, PtxScalar, Shutdown,
-        ShutdownMode, Stream, Submission,
+        Agent, Breakpoint, BreakpointId, Buffer, BufferView, Device, Emulator, EmulatorOptions,
+        Event, ExecutionReport, HostMemory, Kernel, KernelArg, LaunchConfig, Module, PtxScalar,
+        Shutdown, ShutdownMode, Stream, Submission, Topology,
     },
     snapshot::{FrameSnapshot, LaneSnapshot, RegisterSnapshot},
 };

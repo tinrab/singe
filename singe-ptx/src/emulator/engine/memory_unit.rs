@@ -6,8 +6,8 @@ use crate::{
         engine::{Engine, Result},
         execution_error::ExecutionError,
         integer,
-        ir::{self, AddressConversion, Atomic, MemoryOperation},
-        memory::{Memory, WINDOW_BYTES, Window, canonical_address, generic_address},
+        ir::{self, AddressConversion, Atomic, MemoryOperation, MulticastAccess},
+        memory::{Memory, Target, WINDOW_BYTES, Window, canonical_address, generic_address},
         numeric::{self, mask},
     },
 };
@@ -74,15 +74,15 @@ impl Engine {
                     base.checked_add(value)
                         .filter(|v| *v < base + WINDOW_BYTES)
                         .map(generic_address)
+                        .filter(|v| u128::from(*v) <= mask(ty.bit_width()))
+                        .ok_or_else(|| {
+                            ExecutionError::Memory("address outside state-space window".into())
+                        })?
                 } else {
-                    canonical_address(value)
-                        .checked_sub(base)
-                        .filter(|v| *v < WINDOW_BYTES)
-                }
-                .filter(|v| u128::from(*v) <= mask(ty.bit_width()))
-                .ok_or_else(|| {
-                    ExecutionError::Memory("address outside state-space window".into())
-                })?;
+                    // PTX leaves converting an address of another space undefined, and compilers convert before testing the space with `isspacep`, so only an access through the result faults.
+                    let converted = canonical_address(value).wrapping_sub(base);
+                    (u128::from(converted) & mask(ty.bit_width())) as u64
+                };
                 self.write(lane, *destination, u128::from(value), *ty);
             }
             MemoryOperation::Atomic {
@@ -115,6 +115,63 @@ impl Engine {
                     *space,
                 )?;
                 self.write(lane, *destination, old, *ty);
+            }
+            MemoryOperation::Multicast {
+                access,
+                ty,
+                space,
+                address,
+                destinations,
+                sources,
+            } => {
+                let address = self.address(lane, *address, *space)?;
+                let bytes = (ty.bit_width() / 8) as usize;
+                let count = destinations.len().max(sources.len());
+                let targets = global.multicast_targets(
+                    address,
+                    bytes * count,
+                    bytes * count,
+                    Some(self.actor(lane)),
+                )?;
+                let element = |target: &Target, index: usize| Target {
+                    base: target.base,
+                    offset: target.offset + index * bytes,
+                };
+                let read = |global: &Memory, location: &Target| -> Result<u128> {
+                    let mut value = [0; 16];
+                    value[..bytes].copy_from_slice(global.read_target(location, bytes)?);
+                    Ok(u128::from_le_bytes(value))
+                };
+                if let MulticastAccess::LoadReduce(op) = access {
+                    for (index, destination) in destinations.iter().enumerate() {
+                        let mut combined = None;
+                        for target in &targets {
+                            let value = read(global, &element(target, index))?;
+                            combined = Some(
+                                combined
+                                    .map_or(value, |old| atomic_update(op, *ty, old, value, None)),
+                            );
+                        }
+
+                        self.write(lane, *destination, combined.unwrap_or(0), *ty);
+                    }
+                } else {
+                    let values = sources
+                        .iter()
+                        .map(|source| self.source(lane, source, *ty))
+                        .collect::<Result<Vec<_>>>()?;
+                    for target in &targets {
+                        for (index, value) in values.iter().enumerate() {
+                            let location = element(target, index);
+                            let new = if let MulticastAccess::Reduce(op) = access {
+                                atomic_update(op, *ty, read(global, &location)?, *value, None)
+                            } else {
+                                *value
+                            };
+                            global.write_target(&location, &new.to_le_bytes()[..bytes]);
+                        }
+                    }
+                }
             }
             MemoryOperation::Fence => {}
         }

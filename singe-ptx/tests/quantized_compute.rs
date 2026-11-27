@@ -54,7 +54,7 @@ fn test_dot_products_cover_signed_boundaries_and_packed_positions() -> Result {
         }))
         .unzip();
     let count = a.len();
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let input_a = device.upload(&a)?.wait()?;
     let input_b = device.upload(&b)?.wait()?;
     let output = device.zeroed::<u32>(count)?.wait()?;
@@ -122,14 +122,14 @@ fn test_dot_products_cover_signed_boundaries_and_packed_positions() -> Result {
             }
         }
     }
-    device.shutdown(ShutdownMode::Drain).wait()?;
+    device.emulator().shutdown(ShutdownMode::Drain).wait()?;
     Ok(())
 }
 
 #[test]
 fn test_int8_matrix_multiplication_handles_odd_reductions_and_multiple_ctas() -> Result {
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let mixed = include_str!("fixtures/execution/quantized.ptx");
         for signed_b in [false, true] {
             let source = if signed_b {
@@ -224,7 +224,10 @@ fn test_int8_matrix_multiplication_handles_odd_reductions_and_multiple_ctas() ->
                 }
             }
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -232,7 +235,7 @@ fn test_int8_matrix_multiplication_handles_odd_reductions_and_multiple_ctas() ->
 #[test]
 fn test_requantization_packs_signed_and_unsigned_subbyte_byte_and_halfword_results() -> Result {
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         for bits in [2u32, 4, 8, 16] {
             for signed in [false, true] {
                 let kind = if signed { "s" } else { "u" };
@@ -324,7 +327,10 @@ fn test_requantization_packs_signed_and_unsigned_subbyte_byte_and_halfword_resul
                 }
             }
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -347,7 +353,7 @@ fn test_fp16_masks_and_predicates_handle_nan_ftz_and_independent_packed_lanes() 
  setp.gt{flag}.f16x2 p0|p1,value,zero;selp.u32 low,1,0,p0;selp.u32 high,1,0,p1;shl.b32 high,high,16;or.b32 low,low,high;st.global.b32 [pred],low;ret;
 }}"
             );
-            let device = Emulator::create(EmulatorOptions::default())?;
+            let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
             let module = device
                 .load(ParsedModule::parse(&source)?)?
                 .observe(asynchronous)?;
@@ -405,7 +411,10 @@ fn test_fp16_masks_and_predicates_handle_nan_ftz_and_independent_packed_lanes() 
                         .collect::<Vec<_>>()
                 );
             }
-            device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+            device
+                .emulator()
+                .shutdown(ShutdownMode::Drain)
+                .observe(asynchronous)?;
         }
     }
     Ok(())
@@ -467,7 +476,7 @@ fn test_new_operations_preserve_carry_and_skip_indeterminate_operands_when_predi
                 "{PRELUDE} .global .u32 output; .entry k() {{.reg .b32 r<4>;.reg .b64 d<4>;.reg .b16 h<3>;.reg .pred p<4>;{setup}mov.pred p3,{};add.cc.u32 r0,0xffffffff,1;@p3 {body};addc.u32 r0,0,0;st.global.u32 [output],r0;ret;}}",
                 u8::from(enabled)
             );
-            let device = Emulator::create(EmulatorOptions::default())?;
+            let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
             let module = device.load(ParsedModule::parse(&source)?)?.wait()?;
             module
                 .kernel("k")?
@@ -478,7 +487,7 @@ fn test_new_operations_preserve_carry_and_skip_indeterminate_operands_when_predi
                 1u32.to_le_bytes(),
                 "{body}, enabled={enabled}"
             );
-            device.shutdown(ShutdownMode::Drain).wait()?;
+            device.emulator().shutdown(ShutdownMode::Drain).wait()?;
         }
     }
     Ok(())
@@ -504,7 +513,7 @@ fn test_comparisons_use_source_precision_and_selection_preserves_payload_bits() 
  mov.b32 s,0;copysign.f32 r,s,0fFFC12345;st.global.b32 [output+28],r;ret;
 }}"
     );
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device.load(ParsedModule::parse(&source)?)?.wait()?;
     module
         .kernel("k")?
@@ -528,13 +537,13 @@ fn test_comparisons_use_source_precision_and_selection_preserves_payload_bits() 
         device.download(&module.global("output")?)?.wait()?,
         expected
     );
-    device.shutdown(ShutdownMode::Drain).wait()?;
+    device.emulator().shutdown(ShutdownMode::Drain).wait()?;
     Ok(())
 }
 
 #[test]
 fn test_out_of_range_fns_fault_keeps_completed_quantized_writes_inspectable() -> Result {
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let source = format!(
         "{PRELUDE} .global .u32 output;.entry k() {{.reg .b32 r;dp4a.s32.u32 r,0x01010101,0x02020202,0;st.global.u32 [output],r;fns.b32 r,0xffffffff,32,1;ret;}}"
     );
@@ -548,6 +557,12 @@ fn test_out_of_range_fns_fault_keeps_completed_quantized_writes_inspectable() ->
     let output = module.global("output")?;
     assert_eq!(device.download(&output)?.wait()?, 8u32.to_le_bytes());
     assert!(device.write(&output, &[0u8; 4]).is_err());
-    assert!(device.shutdown(ShutdownMode::Drain).wait().is_err());
+    assert!(
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .is_err()
+    );
     Ok(())
 }

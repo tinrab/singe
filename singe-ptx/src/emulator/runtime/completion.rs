@@ -98,6 +98,7 @@ impl<T> Completion<T> {
             state.cell = Cell::Discarded;
             let storage = self.release_storage(&mut state);
             drop(state);
+            self.ready.notify_all();
             drop((retained, storage));
             return;
         }
@@ -193,6 +194,18 @@ impl<T> Completion<T> {
 
     pub(crate) fn status(&self) -> Option<Result<(), ExecutionError>> {
         lock(&self.state).terminal.clone()
+    }
+
+    /// Blocks until a completion that retains its status is published, then returns the status.
+    pub(crate) fn wait_status(&self) -> Result<(), ExecutionError> {
+        let mut state = lock(&self.state);
+        loop {
+            if let Some(status) = state.terminal.clone() {
+                return status;
+            }
+
+            state = wait(&self.ready, state);
+        }
     }
 
     pub(crate) fn is_abandoned(&self) -> bool {

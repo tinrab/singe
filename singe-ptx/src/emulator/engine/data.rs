@@ -5,6 +5,7 @@ use crate::{
     emulator::{
         engine::{Engine, Result, combine_predicate},
         ir::DataOperation,
+        memory::{WINDOW_BYTES, Window, canonical_address},
         numeric::{self, mask},
     },
 };
@@ -17,19 +18,42 @@ impl Engine {
                 destination,
                 source,
             } => self.write(lane, *destination, self.source(lane, source, *ty)?, *ty),
-            DataOperation::Pack {
+            DataOperation::SpaceTest {
+                ty,
+                space,
                 destination,
-                low,
-                high,
+                address,
             } => {
-                let value = self.source(lane, low, ScalarType::B16)?
-                    | (self.source(lane, high, ScalarType::B16)? << 16);
-                self.write(lane, *destination, value, ScalarType::B32);
+                let address = canonical_address(numeric::low_u64(self.source(lane, address, *ty)?));
+                let inside = address & !(WINDOW_BYTES - 1) == Window::of(*space).base();
+                self.write(lane, *destination, u128::from(inside), ScalarType::Pred);
             }
-            DataOperation::Unpack { low, high, source } => {
-                let value = self.source(lane, source, ScalarType::B32)?;
-                self.write(lane, *low, value & 65535, ScalarType::B16);
-                self.write(lane, *high, value >> 16, ScalarType::B16);
+            DataOperation::Pack {
+                ty,
+                part,
+                destination,
+                parts,
+            } => {
+                let width = part.bit_width();
+                let mut value = 0;
+                for (index, source) in parts.iter().enumerate() {
+                    value |= self.source(lane, source, *part)? << (index as u32 * width);
+                }
+
+                self.write(lane, *destination, value, *ty);
+            }
+            DataOperation::Unpack {
+                ty,
+                part,
+                destinations,
+                source,
+            } => {
+                let width = part.bit_width();
+                let value = self.source(lane, source, *ty)?;
+                for (index, destination) in destinations.iter().enumerate() {
+                    let bits = (value >> (index as u32 * width)) & mask(width);
+                    self.write(lane, *destination, bits, *part);
+                }
             }
             DataOperation::Convert {
                 from,

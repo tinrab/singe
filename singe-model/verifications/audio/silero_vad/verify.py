@@ -33,7 +33,11 @@ def voice_activity(snapshot, dtype):
                 feed = numpy.concatenate([context, window])[None, :]
                 probability, state = session.run(
                     None,
-                    {"input": feed, "state": state, "sr": numpy.array(16000, dtype=numpy.int64)},
+                    {
+                        "input": feed,
+                        "state": state,
+                        "sr": numpy.array(16000, dtype=numpy.int64),
+                    },
                 )
                 context = window[-CONTEXT:]
                 probabilities.append(float(probability[0, 0]))

@@ -6,13 +6,14 @@
 [![Documentation](https://docs.rs/singe-ptx/badge.svg)](https://docs.rs/singe-ptx)
 ![License](https://img.shields.io/crates/l/singe-ptx.svg)
 
-A PTX parser, and a CPU emulator that runs `sm_80` PTX kernels without an NVIDIA GPU or CUDA installation.
+A PTX parser, and a CPU emulator that runs PTX kernels without an NVIDIA GPU or CUDA installation.
 
 This crate provides:
 
 - **Parser:** `parser::parse_module` builds an owned syntax tree (`ast`) that keeps the source span of every node, and its `ParseError` names the offending bytes.
 - **Kernel inspection:** `emulator::ParsedModule` gives the syntax tree and compiles an entry point into a `CompiledKernel`, which reports each parameter's name, size, and offset and checks a block shape, without starting an emulator.
-- **Emulator:** `emulator::Emulator` runs kernels on a worker thread, with buffers, streams, events, and submissions that can be waited on or awaited.
+- **Emulator:** `emulator::Emulator` runs kernels for one or more emulated devices on a worker thread, with buffers, streams, events, and submissions that can be waited on or awaited.
+  Devices reach each other's memory through peer access, mapped ranges, and multicast objects.
 - **Debugging:** errors name the faulting instruction and lane, `brkpt` breakpoints let you read a lane's registers, and `diagnostic` prints an error with the source line it points at.
 
 ## Example
@@ -66,7 +67,7 @@ fn main() -> anyhow::Result<()> {
     }
     compiled.launch_requirements().validate_block([32, 1, 1])?;
 
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device.load(parsed)?.wait()?;
     let kernel = module.kernel("add")?;
 
@@ -82,7 +83,7 @@ fn main() -> anyhow::Result<()> {
         .wait()?;
 
     assert_eq!(device.download(&out)?.wait()?, [11, 22, 33, 44]);
-    device.shutdown(ShutdownMode::Drain).wait()?;
+    device.emulator().shutdown(ShutdownMode::Drain).wait()?;
     Ok(())
 }
 ```
@@ -93,3 +94,4 @@ Each emulator command returns a submission; `wait()` blocks until it finishes, a
 
 - [Vector addition](./examples/vector_add.rs): run a PTX kernel on the CPU emulator and check its output.
 - [CPU emulator tour](./examples/cpu_emulator.rs): parameter inspection, streams and events, `async` submissions, and debugging a kernel that faults.
+- [Multiple devices](./examples/multi_device.rs): peer access, a range mapped across two devices, a multicast reduction, and a fault that stops only one device.

@@ -222,6 +222,8 @@ pub(crate) struct Engine {
     code: Arc<ir::Executable>,
     config: LaunchConfig,
     options: EmulatorOptions,
+    // TODO: type?
+    device: usize,
     grid: GridId,
     globals: Vec<Vec<u64>>,
     generations: Vec<[u64; NAMED_BARRIERS]>,
@@ -495,7 +497,7 @@ impl Engine {
         cancellation: &AtomicBool,
         memory: &mut Memory,
     ) -> Result<Self> {
-        let mut builder = GridBuilder::create(code, globals.len(), config, options, memory)?;
+        let mut builder = GridBuilder::create(code, globals.len(), config, options, memory, 0)?;
         loop {
             match builder.advance(globals, args, cancellation, memory) {
                 Ok(true) => return Ok(builder.finish()),
@@ -514,6 +516,7 @@ impl Engine {
         config: LaunchConfig,
         options: &EmulatorOptions,
         memory: &mut Memory,
+        device: usize,
         grid: GridId,
         storage: &initialization::StoragePlan,
     ) -> Result<Self> {
@@ -552,6 +555,7 @@ impl Engine {
             code: Arc::clone(&code.artifact.executable),
             config,
             options: options.clone(),
+            device,
             grid,
             globals: Vec::new(),
             generations: Vec::new(),
@@ -562,6 +566,7 @@ impl Engine {
             next_warp: 0,
             report: ExecutionReport {
                 launch_id: grid.sequence(),
+                device,
                 ..Default::default()
             },
             result_charge,
@@ -645,6 +650,7 @@ impl Engine {
                     address,
                     size,
                     Actor {
+                        device: self.device,
                         grid: self.grid,
                         cta,
                         lane,
@@ -669,6 +675,7 @@ impl Engine {
 
     fn actor(&self, lane: usize) -> Actor {
         Actor {
+            device: self.device,
             grid: self.grid,
             cta: self.lanes[lane].cta,
             lane,
@@ -703,6 +710,10 @@ impl Engine {
 
     fn register(&self, lane: usize, id: ir::RegisterId, bits: u32) -> Result<u128> {
         let Some(value) = self.current(lane).registers[id.0].value() else {
+            if self.options.zero_uninitialized_registers {
+                return Ok(0);
+            }
+
             let name = &self.function(lane).registers[id.0].name;
             return Err(ExecutionError::Indeterminate(format!("register `{name}`")));
         };
@@ -868,6 +879,7 @@ impl Engine {
         FaultLocation {
             launch_id: self.report.launch_id,
             stream_id: self.report.stream_id,
+            device: self.device,
             span: function.instructions[pc].span,
             function: function.name.clone(),
             cta: coordinates(self.lanes[lane].cta, self.config.grid),
@@ -981,6 +993,7 @@ impl Engine {
                     .iter()
                     .filter(|l| l.waiting.is_some())
                     .map(|l| StalledLane {
+                        device: self.device,
                         cta: coordinates(l.cta, self.config.grid),
                         lane: coordinates(l.thread, self.config.block),
                     })

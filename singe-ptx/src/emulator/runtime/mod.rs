@@ -1,11 +1,12 @@
 //! Public emulator handles, command admission, and the command queue served by the worker thread.
 //!
-//! - `options`: emulator limits, launch shapes, and execution reports.
+//! - `options`: emulator limits, device topology, launch shapes, and execution reports.
 //! - `scalar`: the sealed host scalar types accepted by transfers and arguments.
 //! - `completion`: single-consumer submission results and shutdown observation.
-//! - `device`: emulators, streams, and events.
+//! - `device`: emulators, devices, streams, and events.
 //! - `buffer`: buffers, buffer views, and kernel arguments.
 //! - `module`: loaded modules and kernel launches.
+//! - `host`: host tasks and agents, which the worker runs with access to the memory of every device.
 //! - `submit`: command admission and result publication.
 //! - `worker`: the worker loop, module loading, and grid execution.
 //! - `debug`: breakpoint control that bypasses user queues.
@@ -17,6 +18,7 @@ mod debug;
 mod device;
 #[cfg(test)]
 mod hooks;
+mod host;
 mod module;
 mod options;
 mod scalar;
@@ -30,7 +32,7 @@ use std::{
     fmt::{self, Debug, Formatter},
     sync::{
         Arc, Condvar, Mutex, MutexGuard, PoisonError, Weak,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     task::Waker,
 };
@@ -41,9 +43,10 @@ pub use crate::emulator::runtime::{
     buffer::{Buffer, BufferView, KernelArg},
     completion::{Shutdown, Submission},
     debug::{Breakpoint, BreakpointId},
-    device::{Emulator, Event, Stream},
+    device::{Device, Emulator, Event, Stream},
+    host::{Agent, HostMemory},
     module::{Kernel, Module},
-    options::{EmulatorOptions, ExecutionReport, LaunchConfig, ShutdownMode},
+    options::{EmulatorOptions, ExecutionReport, LaunchConfig, ShutdownMode, Topology},
     scalar::PtxScalar,
 };
 use crate::emulator::{
@@ -69,7 +72,6 @@ pub(crate) fn wait<'a, T>(condvar: &Condvar, guard: MutexGuard<'a, T>) -> MutexG
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Phase {
     Running,
-    Faulted,
     Draining,
     Cancelling,
     Closed,
@@ -100,6 +102,7 @@ impl CommandControl {
 
 pub(crate) struct Command {
     stream: u64,
+    device: usize,
     kind: CommandKind,
     poll: CommandBody,
     control: Arc<CommandControl>,
@@ -117,9 +120,24 @@ pub(crate) struct Admission {
     reclaim: Vec<u64>,
     shutdown_result: Option<Result<(), RetainedFailure>>,
     shutdown_wakers: BTreeMap<usize, Waker>,
+    /// The failure that faulted each faulted device, in the order the devices faulted.
+    faults: Vec<(usize, ExecutionError)>,
 }
 
 impl Admission {
+    /// Returns whether a fault stopped `device`.
+    fn is_faulted(&self, device: usize) -> bool {
+        self.faults.iter().any(|(faulted, _)| *faulted == device)
+    }
+
+    fn allocate_stream_id(&mut self) -> Result<u64, SubmitError> {
+        let id = self.next_stream;
+        self.next_stream = id
+            .checked_add(1)
+            .ok_or_else(|| SubmitError::InvalidArgument("stream identifiers exhausted".into()))?;
+        Ok(id)
+    }
+
     /// Returns the next launch identifier.
     fn allocate_launch_id(&mut self) -> Result<u64, SubmitError> {
         let id = self.next_launch;
@@ -144,6 +162,9 @@ pub(crate) struct Shared {
     changed: Condvar,
     cancel: AtomicBool,
     options: EmulatorOptions,
+    agents: Mutex<Vec<host::AgentEntry>>,
+    agent_count: AtomicUsize,
+    next_agent: AtomicUsize,
     // Declared last so test observers see every other shared field released first.
     #[cfg(test)]
     closed_notify: Mutex<Option<Sender<()>>>,
@@ -190,7 +211,7 @@ impl Shared {
         if mode == ShutdownMode::Cancel {
             self.cancel.store(true, Ordering::Release);
             state.phase = Phase::Cancelling;
-        } else if matches!(state.phase, Phase::Running | Phase::Faulted) {
+        } else if state.phase == Phase::Running {
             state.phase = Phase::Draining;
         }
 
@@ -212,12 +233,19 @@ impl Drop for QueueReservation {
     }
 }
 
-pub(crate) fn admission(phase: Phase, diagnostic: bool) -> Result<(), SubmitError> {
-    match phase {
-        Phase::Running => Ok(()),
-        Phase::Faulted if diagnostic => Ok(()),
-        Phase::Faulted => Err(SubmitError::Faulted),
-        _ => Err(SubmitError::Closed),
+/// Admits a command on `device`, or on no device, unless the emulator is stopping or the device faulted.
+/// A diagnostic command is admitted on a faulted device.
+pub(crate) fn admission(
+    state: &Admission,
+    device: Option<usize>,
+    diagnostic: bool,
+) -> Result<(), SubmitError> {
+    if state.phase != Phase::Running {
+        Err(SubmitError::Closed)
+    } else if !diagnostic && device.is_some_and(|device| state.is_faulted(device)) {
+        Err(SubmitError::Faulted)
+    } else {
+        Ok(())
     }
 }
 

@@ -63,7 +63,7 @@ fn test_redux_snapshots_wrapping_sums_and_matches_live_participants_across_posit
         ),
     ];
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         for (body, expected) in &cases {
             let parsed = ParsedModule::parse(&collective_source(body))?;
             let module = device.load(parsed)?.observe(asynchronous)?;
@@ -80,7 +80,10 @@ fn test_redux_snapshots_wrapping_sums_and_matches_live_participants_across_posit
                 .collect();
             assert_eq!(actual, expected, "{body}, async={asynchronous}");
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -107,7 +110,7 @@ fn test_invalid_redux_membership_and_incompatible_rendezvous_preserve_prior_writ
                 "mul.wide.u32 a,t,4; mov.u64 base,output; add.u64 a,a,base;
                  st.global.u32 [a],42; {body}"
             );
-            let device = Emulator::create(EmulatorOptions::default())?;
+            let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
             let module = device
                 .load(ParsedModule::parse(&collective_source(&body))?)?
                 .observe(asynchronous)?;
@@ -134,6 +137,7 @@ fn test_invalid_redux_membership_and_incompatible_rendezvous_preserve_prior_writ
             assert_eq!(&actual[..4], &42u32.to_le_bytes());
             assert!(
                 device
+                    .emulator()
                     .shutdown(ShutdownMode::Drain)
                     .observe(asynchronous)
                     .is_err()
@@ -146,7 +150,7 @@ fn test_invalid_redux_membership_and_incompatible_rendezvous_preserve_prior_writ
 #[test]
 fn test_global_float_atomic_add_rounds_flushes_and_returns_original_bits() -> Result<()> {
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         for (initial, addend, expected) in [
             (0x3f80_0000_u32, 0x4000_0000_u32, Some(0x4040_0000_u32)),
             (0x3f80_0000, 0x3380_0000, Some(0x3f80_0000)),
@@ -198,7 +202,10 @@ fn test_global_float_atomic_add_rounds_flushes_and_returns_original_bits() -> Re
                 assert!(f32::from_le_bytes(bytes).is_nan());
             }
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -222,7 +229,7 @@ fn test_contended_float_atomics_return_each_preceding_sum_and_skip_predicated_in
             ret;
         }";
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(source)?)?
             .observe(asynchronous)?;
@@ -248,7 +255,10 @@ fn test_contended_float_atomics_return_each_preceding_sum_and_skip_predicated_in
                 .observe(asynchronous)?,
             32f32.to_bits().to_le_bytes()
         );
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -268,7 +278,7 @@ fn test_reduction_wraps_and_atomic_address_faults_preserve_completed_updates() -
                      ret;
                  }}"
             );
-            let device = Emulator::create(EmulatorOptions::default())?;
+            let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
             let module = device
                 .load(ParsedModule::parse(&source)?)?
                 .observe(asynchronous)?;
@@ -295,6 +305,7 @@ fn test_reduction_wraps_and_atomic_address_faults_preserve_completed_updates() -
             );
             assert!(
                 device
+                    .emulator()
                     .shutdown(ShutdownMode::Drain)
                     .observe(asynchronous)
                     .is_err()
@@ -308,7 +319,7 @@ fn test_reduction_wraps_and_atomic_address_faults_preserve_completed_updates() -
 fn test_weighted_reduction_counts_partial_warps_and_sums_contended_weights() -> Result<()> {
     let parsed = ParsedModule::parse(include_str!("fixtures/execution/weighted_reduce.ptx"))?;
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device.load(parsed.clone())?.observe(asynchronous)?;
         let kernel = module.kernel("weighted_reduce")?;
         let count_output = module.global("total_count")?;
@@ -349,7 +360,10 @@ fn test_weighted_reduction_counts_partial_warps_and_sums_contended_weights() -> 
                 );
             }
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }

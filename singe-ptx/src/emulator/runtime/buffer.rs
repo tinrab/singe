@@ -9,6 +9,7 @@ use crate::{
     ast::{ScalarType, StateSpace},
     emulator::{
         execution_error::SubmitError,
+        memory::generic_address,
         runtime::{Client, Lease, scalar::PtxScalar},
     },
 };
@@ -38,6 +39,7 @@ pub(crate) fn foreign(a: &Arc<Client>, b: &Arc<Client>) -> Result<(), SubmitErro
 pub(crate) struct AllocationRef {
     pub(crate) _lease: Arc<Lease>,
     pub(crate) address: u64,
+    pub(crate) device: usize,
     pub(crate) writable: bool,
     pub(crate) space: StateSpace,
 }
@@ -106,9 +108,21 @@ impl<T: PtxScalar> BufferView<T> {
     pub(crate) fn address(&self) -> u64 {
         self.allocation.address + self.offset as u64
     }
+
+    /// Returns the generic address of the view's first element, as a kernel sees it.
+    #[must_use]
+    pub fn device_address(&self) -> u64 {
+        generic_address(self.address())
+    }
+
+    /// Returns the index of the device that owns the storage.
+    #[must_use]
+    pub fn device(&self) -> usize {
+        self.allocation.device
+    }
 }
 
-/// A kernel argument: a scalar, a pointer to a buffer, or aggregate bytes.
+/// A kernel argument: a scalar, a pointer to a buffer, aggregate bytes, or raw parameter bytes.
 ///
 /// Scalars convert with `From`, as in `5u32.into()`, and pointers from `&Buffer` or `&BufferView`.
 #[derive(Debug, Clone)]
@@ -128,6 +142,7 @@ pub(crate) enum Argument {
         bytes: Vec<u8>,
         alignment: u32,
     },
+    Raw(Vec<u8>),
 }
 
 impl Debug for Argument {
@@ -151,6 +166,16 @@ impl KernelArg {
         Ok(Self {
             value: Argument::Aggregate { bytes, alignment },
         })
+    }
+
+    /// Creates an argument from the bytes a CUDA launch passes for it, checked only against the parameter's size.
+    ///
+    /// A pointer passed this way is a generic address and holds no buffer alive, so the kernel faults if its storage is freed first.
+    #[must_use]
+    pub fn raw(bytes: Vec<u8>) -> Self {
+        Self {
+            value: Argument::Raw(bytes),
+        }
     }
 }
 

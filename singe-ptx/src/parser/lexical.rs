@@ -208,10 +208,15 @@ pub(crate) fn unsigned_literal(input: Input<'_>) -> PResult<'_, u64> {
 /// Parses an address displacement written as `+ literal` or `- literal`.
 pub(crate) fn displacement(input: Input<'_>) -> PResult<'_, i64> {
     let start = input;
-    let (input, (sign, magnitude)) =
-        (lexeme(one_of("+-")), lexeme(unsigned_literal)).parse(input)?;
+    // nvcc writes a negative offset as `+-4`.
+    let (input, negative) = alt((
+        value(true, (lexeme(char('+')), lexeme(char('-')))),
+        map(lexeme(one_of("+-")), |sign| sign == '-'),
+    ))
+    .parse(input)?;
+    let (input, magnitude) = lexeme(unsigned_literal).parse(input)?;
     let magnitude = i128::from(magnitude);
-    i64::try_from(if sign == '-' { -magnitude } else { magnitude })
+    i64::try_from(if negative { -magnitude } else { magnitude })
         .map(|value| (input, value))
         .map_err(|_| SyntaxError::failure(start, SyntaxErrorKind::Unexpected))
 }

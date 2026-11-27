@@ -568,7 +568,7 @@ fn test_target_version_and_address_size_are_independent() {
     for header in [
         ".version 10.0 .target sm_80 .address_size 64",
         ".version 9.5 .target sm_80 .address_size 64",
-        ".version 9.3 .target sm_90 .address_size 64",
+        ".version 9.3 .target sm_75 .address_size 64",
     ] {
         let parsed = ParsedModule::parse(&format!("{header} .entry kernel() {{ ret; }}")).unwrap();
         assert!(matches!(

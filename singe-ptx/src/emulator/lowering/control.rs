@@ -23,6 +23,23 @@ pub(crate) fn branch(
     }))
 }
 
+/// Lowers `nanosleep`.
+pub(crate) fn sleep(
+    compiler: &FunctionCompiler<'_, '_>,
+    instruction: &Instruction,
+    head: &mut Head<'_>,
+) -> Result<Operation> {
+    require(
+        head.next()? == "u32",
+        instruction.span,
+        "nanosleep requires u32",
+    )?;
+    let [duration] = operands(instruction)?;
+    Ok(Operation::Control(ControlOperation::Sleep {
+        duration: compiler.source(duration, ScalarType::U32)?,
+    }))
+}
+
 /// Lowers a direct `call` with optional return and argument tuples.
 pub(crate) fn call(
     compiler: &mut FunctionCompiler<'_, '_>,

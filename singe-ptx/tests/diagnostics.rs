@@ -53,7 +53,7 @@ fn test_compiler_and_runtime_errors_render_their_real_source_spans() -> Result<(
     assert!(diagnostic.ends_with("^^^^^^^^^^^^"), "{diagnostic}");
 
     let source = ".version 9.4\n.target sm_80\n.entry k() { /* λ */ trap; }";
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let parsed = ParsedModule::parse(source)?;
     let module = device.load(parsed)?.wait()?;
     let error = module
@@ -67,7 +67,13 @@ fn test_compiler_and_runtime_errors_render_their_real_source_spans() -> Result<(
         "{diagnostic}"
     );
     assert!(diagnostic.ends_with("^^^^^"), "{diagnostic}");
-    assert!(device.shutdown(ShutdownMode::Drain).wait().is_err());
+    assert!(
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .is_err()
+    );
     Ok(())
 }
 

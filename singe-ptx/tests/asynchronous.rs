@@ -33,7 +33,7 @@ fn source(body: &str) -> String {
 }
 
 fn run(body: &str, asynchronous: bool) -> Result<Vec<u32>> {
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device
         .load(ParsedModule::parse(&source(body))?)?
         .observe(asynchronous)?;
@@ -44,7 +44,10 @@ fn run(body: &str, asynchronous: bool) -> Result<Vec<u32>> {
     let bytes = device
         .download(&module.global("output")?)?
         .observe(asynchronous)?;
-    device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .observe(asynchronous)?;
     Ok(bytes
         .as_chunks::<4>()
         .0
@@ -90,7 +93,7 @@ fn test_copy_groups_defer_visibility_and_wait_only_for_the_selected_groups() -> 
 fn test_tiled_transforms_match_independent_host_references() -> Result<()> {
     let parsed = ParsedModule::parse(include_str!("fixtures/execution/async_tile.ptx"))?;
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device.load(parsed.clone())?.observe(asynchronous)?;
         for block in [1u32, 17, 32, 33, 64, 127, 128] {
             for n in [0usize, 1, 17, 31, 32, 33, 127, 128, 129, 385, 1151] {
@@ -148,7 +151,10 @@ fn test_tiled_transforms_match_independent_host_references() -> Result<()> {
                 );
             }
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -280,7 +286,7 @@ fn test_barrier_phases_tokens_invalidation_and_partial_producers() -> Result<()>
                 if noinc { 20 } else { 17 },
                 if noinc { ".noinc" } else { "" }
             ));
-            let device = Emulator::create(EmulatorOptions::default())?;
+            let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
             let module = device
                 .load(ParsedModule::parse(&body)?)?
                 .observe(asynchronous)?;
@@ -298,7 +304,10 @@ fn test_barrier_phases_tokens_invalidation_and_partial_producers() -> Result<()>
                     .flat_map(u32::to_le_bytes)
                     .collect::<Vec<_>>()
             );
-            device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+            device
+                .emulator()
+                .shutdown(ShutdownMode::Drain)
+                .observe(asynchronous)?;
         }
     }
     Ok(())
@@ -349,7 +358,7 @@ fn test_deferred_faults_retain_the_issuing_function_after_its_lane_exits() -> Re
         }
         .entry k() {call helper; ret;}";
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(text)?)?
             .observe(asynchronous)?;
@@ -374,6 +383,7 @@ fn test_deferred_faults_retain_the_issuing_function_after_its_lane_exits() -> Re
         assert_eq!(report.completed_lanes, 1);
         assert!(
             device
+                .emulator()
                 .shutdown(ShutdownMode::Drain)
                 .observe(asynchronous)
                 .is_err()
@@ -467,7 +477,7 @@ fn test_invalid_async_protocols_and_addresses_preserve_prior_writes() -> Result<
                 "overwritten",
             ),
         ] {
-            let device = Emulator::create(EmulatorOptions::default())?;
+            let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
             let body = source(&format!("st.global.u32 [output],99; {body}"));
             let module = device
                 .load(ParsedModule::parse(&body)?)?
@@ -494,6 +504,7 @@ fn test_invalid_async_protocols_and_addresses_preserve_prior_writes() -> Result<
             assert_eq!(&output[..4], &99u32.to_le_bytes());
             assert!(
                 device
+                    .emulator()
                     .shutdown(ShutdownMode::Drain)
                     .observe(asynchronous)
                     .is_err()

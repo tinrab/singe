@@ -7,7 +7,7 @@
 //! - **[`functions!`]:** turns the declarations of a bindgen `extern "C"` block into functions of the same names and signatures that look up their symbol on first call.
 //! - **[`Missing`]:** what a function returns when it cannot be called: zero for integers, null for pointers, and nothing for [`()`](prim@unit), with [`missing_status!`] and [`missing_value!`] to implement it for a library's own types.
 //! - **[`take_absence`]:** returns and clears the [`Absence`] that the last status-returning call on the current thread recorded, so a safe wrapper can turn that status into a load error.
-//! - **[`LoadError`]:** a library with no files on this platform, a library that would not load, with each [`Attempt`] the loader made, or a missing symbol.
+//! - **[`Provider`]:** an in-process implementation of a library, installed with [`Library::provide`] before its first call, such as an emulator.
 //!
 //! # Example
 //!
@@ -50,7 +50,7 @@ use std::{
     cell::Cell,
     env,
     ffi::{CStr, OsString},
-    fmt,
+    fmt, mem,
     path::{Path, PathBuf},
     ptr,
     sync::OnceLock,
@@ -63,7 +63,17 @@ use std::{
 pub struct Library {
     name: &'static str,
     files: &'static [&'static str],
-    loaded: OnceLock<Result<Vec<File>, LoadError>>,
+    loaded: OnceLock<Result<Source, LoadError>>,
+}
+
+/// Returns the address of the function a library exports as `name`, or `None` if it has none.
+///
+/// The address must be a function with the signature the library's header declares for `name`.
+pub type Provider = fn(name: &CStr) -> Option<*const ()>;
+
+enum Source {
+    Files(Vec<File>),
+    Provided(Provider),
 }
 
 // A file of a library, loaded, and where the loader found it.
@@ -95,7 +105,7 @@ impl Library {
     ///
     /// Returns an error if the library has no files on this platform or a file would not load.
     pub fn load(&self) -> Result<(), LoadError> {
-        self.files().map(|_| ())
+        self.source().map(|_| ())
     }
 
     /// Returns where each file loaded from, in order, loading them if they are not yet.
@@ -103,11 +113,26 @@ impl Library {
     /// # Errors
     ///
     /// Returns an error if the library would not load.
+    /// A provided library has no files.
     pub fn paths(&self) -> Result<Vec<PathBuf>, LoadError> {
-        Ok(self.files()?.iter().map(|file| file.path.clone()).collect())
+        Ok(match self.source()? {
+            Source::Files(files) => files.iter().map(|file| file.path.clone()).collect(),
+            Source::Provided(_) => Vec::new(),
+        })
     }
 
-    fn files(&self) -> Result<&[File], LoadError> {
+    /// Serves every function of the library from `provider` instead of its files, for the life of the process.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LoadError::AlreadyLoaded`] if the library already loaded or was provided, since functions may have cached its symbols.
+    pub fn provide(&self, provider: Provider) -> Result<(), LoadError> {
+        self.loaded
+            .set(Ok(Source::Provided(provider)))
+            .map_err(|_| LoadError::AlreadyLoaded { library: self.name })
+    }
+
+    fn source(&self) -> Result<&Source, LoadError> {
         self.loaded
             .get_or_init(|| {
                 if self.files.is_empty() {
@@ -117,9 +142,10 @@ impl Library {
                 self.files
                     .iter()
                     .map(|file| open(self.name, file))
-                    .collect()
+                    .collect::<Result<_, _>>()
+                    .map(Source::Files)
             })
-            .as_deref()
+            .as_ref()
             .map_err(Clone::clone)
     }
 
@@ -133,20 +159,30 @@ impl Library {
     #[doc(hidden)]
     #[must_use]
     pub unsafe fn symbol<F: Copy>(&self, name: &CStr) -> Option<F> {
-        let files = self.files().ok()?;
-        files.iter().find_map(|file| {
-            // SAFETY: the caller guarantees `F` is the symbol's type, and `files` keeps the library loaded.
-            unsafe { file.library.get::<F>(name) }
-                .ok()
-                .map(|symbol| *symbol)
-        })
+        match self.source().ok()? {
+            Source::Files(files) => files.iter().find_map(|file| {
+                // SAFETY: the caller guarantees `F` is the symbol's type, and `files` keeps the library loaded.
+                unsafe { file.library.get::<F>(name) }
+                    .ok()
+                    .map(|symbol| *symbol)
+            }),
+            Source::Provided(provider) => {
+                if size_of::<F>() != size_of::<*const ()>() {
+                    return None;
+                }
+
+                let address = provider(name)?;
+                // SAFETY: `F` has the size of an address, and the caller guarantees it is the symbol's type, which the provider's function has.
+                Some(unsafe { mem::transmute_copy::<*const (), F>(&address) })
+            }
+        }
     }
 
     /// Returns why the function `symbol` of this library is missing: its library, or only its symbol.
     #[doc(hidden)]
     #[must_use]
     pub fn absence(&'static self, symbol: &'static str) -> Absence {
-        if self.files().is_ok() {
+        if self.source().is_ok() {
             Absence::Symbol {
                 library: self,
                 name: symbol,
@@ -304,6 +340,12 @@ pub enum LoadError {
         library: &'static str,
         /// Name of the missing symbol.
         symbol: &'static str,
+    },
+    /// A provider came after the library loaded or after another provider.
+    #[error("{library} is already loaded")]
+    AlreadyLoaded {
+        /// Name of the library.
+        library: &'static str,
     },
 }
 

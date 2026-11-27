@@ -58,7 +58,7 @@ fn test_exponential_preserves_carry_and_predication_and_diagnoses_uninitialized_
          }",
     )?;
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device.load(parsed.clone())?.observe(asynchronous)?;
         let config = LaunchConfig::create([1; 3], [1; 3], 0)?;
         module
@@ -89,6 +89,7 @@ fn test_exponential_preserves_carry_and_predication_and_diagnoses_uninitialized_
         );
         assert!(
             device
+                .emulator()
                 .shutdown(ShutdownMode::Drain)
                 .observe(asynchronous)
                 .is_err()
@@ -103,7 +104,7 @@ fn test_scalar_math_matches_independent_oracles_through_both_waiting_styles()
     let oracles: Vec<Oracle> =
         serde_json::from_str(include_str!("fixtures/execution/math-oracles.json"))?;
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         for oracle in &oracles {
             let head = &oracle.head;
             let bits = oracle.bits;
@@ -174,7 +175,7 @@ fn test_scalar_math_matches_independent_oracles_through_both_waiting_styles()
                 }
             }
         }
-        device.shutdown(ShutdownMode::Drain).wait()?;
+        device.emulator().shutdown(ShutdownMode::Drain).wait()?;
     }
     Ok(())
 }

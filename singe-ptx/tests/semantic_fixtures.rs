@@ -31,7 +31,7 @@ fn test_initialized_instruction_fixtures() -> Result<()> {
     for case in &cases {
         ensure!(names.insert(&case.name), "duplicate case {}", case.name);
         let run = || -> Result<()> {
-            let device = Emulator::create(EmulatorOptions::default())?;
+            let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
             let module = device.load(ParsedModule::parse(&case.source)?)?.wait()?;
             let result = module
                 .kernel("kernel")?
@@ -56,7 +56,7 @@ fn test_initialized_instruction_fixtures() -> Result<()> {
                 "output {output:?}, expected {:?} followed by zeros",
                 case.expected
             );
-            let shutdown = device.shutdown(ShutdownMode::Drain).wait();
+            let shutdown = device.emulator().shutdown(ShutdownMode::Drain).wait();
             if case.error.is_none() {
                 shutdown?;
             } else {

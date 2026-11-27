@@ -1,0 +1,25 @@
+[package]
+name = "singe-cuda-emulator"
+description = "Emulated CUDA and NCCL on the CPU."
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/singe-cuda-emulator"
+license-file.workspace = true
+readme = "README.md"
+keywords = ["cuda", "nccl", "emulator", "ptx"]
+categories = ["emulators", "development-tools::testing"]
+include.workspace = true
+
+[dependencies]
+singe-ptx.workspace = true
+singe-cuda-sys = { workspace = true, features = ["driver_13_4", "runtime_13_4"] }
+singe-nccl-sys = { workspace = true, features = ["nccl_2_32"] }
+thiserror.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+singe-cuda = { workspace = true, features = ["runtime_13_4"] }
+singe-nccl.workspace = true
+

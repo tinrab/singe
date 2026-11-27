@@ -43,3 +43,4 @@ Raw bindings and safe Rust wrapper crates for NVIDIA libraries.
 - [singe-cli](./singe-cli): the `singe` command line tool.
 - [singe-onnx](./singe-onnx): ONNX model format utilities.
 - [singe-ptx](./singe-ptx): PTX parser and emulator.
+- [singe-cuda-emulator](./singe-cuda-emulator): Emulated CUDA and NCCL on the CPU.

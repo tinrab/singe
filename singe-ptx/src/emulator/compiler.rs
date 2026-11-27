@@ -15,7 +15,7 @@ use crate::{
         },
         layout::{self, ModuleLayout, ParameterLayout, StorageLayout},
         lowering,
-        target::{self, MAX_FUNCTION_REGISTERS, PtxVersion},
+        target::{self, Architecture, MAX_FUNCTION_REGISTERS, PtxVersion},
     },
 };
 
@@ -118,13 +118,19 @@ pub(crate) fn compile(
         .ids
         .insert(entry_function.name.as_str(), FunctionId(0));
     linker.pending.push(entry_function);
+    let architecture = Architecture::of(module).unwrap_or(Architecture::Sm80);
     let mut functions = Vec::new();
     while functions.len() < linker.pending.len() {
         let function = linker.pending[functions.len()];
         requirements(function)?;
-        let compiled =
-            FunctionCompiler::create(function, &layout, &mut linker, PtxVersion::of(module))?
-                .compile()?;
+        let compiled = FunctionCompiler::create(
+            function,
+            &layout,
+            &mut linker,
+            PtxVersion::of(module),
+            architecture,
+        )?
+        .compile()?;
         functions.push(compiled);
     }
     Ok((
@@ -309,6 +315,7 @@ pub(crate) struct FunctionCompiler<'a, 'b> {
     parameters: Vec<ParameterLayout>,
     returns: Vec<ParameterLayout>,
     version: PtxVersion,
+    architecture: Architecture,
     scope: usize,
 }
 
@@ -318,6 +325,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
         module: &'b ModuleLayout,
         linker: &'b mut Linker<'a>,
         version: PtxVersion,
+        architecture: Architecture,
     ) -> Result<Self> {
         for parameter in function.params.iter().chain(&function.return_params) {
             layout::validate_type_version(parameter.ty, version, parameter.span)?;
@@ -339,6 +347,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
             parameters,
             returns,
             version,
+            architecture,
             scope: 0,
         };
         let input_role = if function.entry {
@@ -910,7 +919,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
             Symbol::Register(id) => {
                 let ty = self.registers[id.0].ty;
                 let valid = match space {
-                    Some(StateSpace::Param) => false,
+                    Some(StateSpace::Param) if write => false,
                     Some(StateSpace::Shared | StateSpace::Local) => matches!(
                         ty,
                         ScalarType::B32
@@ -1077,6 +1086,16 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
                 Ok(object)
             })
             .collect()
+    }
+
+    pub(crate) fn require_architecture(&self, minimum: Architecture, span: Span) -> Result<()> {
+        if self.architecture < minimum {
+            return Err(CompileError::unsupported(
+                span,
+                format!("instruction requires target {minimum}"),
+            ));
+        }
+        Ok(())
     }
 
     pub(crate) fn require_version(&self, minimum: PtxVersion, span: Span) -> Result<()> {

@@ -45,7 +45,8 @@ fn test_nested_lane_snapshots_survive_resume_and_shutdown_and_bypass_a_full_queu
         let device = Emulator::create(EmulatorOptions {
             queued_commands: 1,
             ..Default::default()
-        })?;
+        })?
+        .device(0)?;
         let module = device
             .load(ParsedModule::parse(NESTED)?)?
             .observe(asynchronous)?;
@@ -55,10 +56,11 @@ fn test_nested_lane_snapshots_survive_resume_and_shutdown_and_bypass_a_full_queu
             LaunchConfig::create([1; 3], [2, 1, 1], 0)?,
             [],
         )?;
-        let breakpoint = device.next_breakpoint()?.observe(asynchronous)?;
+        let breakpoint = device.emulator().next_breakpoint()?.observe(asynchronous)?;
         let queued = compute.synchronize()?;
         assert!(matches!(compute.synchronize(), Err(SubmitError::QueueFull)));
         let first = device
+            .emulator()
             .inspect_lane(&breakpoint.id, [0; 3], [1, 0, 0])?
             .observe(asynchronous)?;
         assert_eq!(first.cta(), [0; 3]);
@@ -93,27 +95,37 @@ fn test_nested_lane_snapshots_survive_resume_and_shutdown_and_bypass_a_full_queu
         let span = first.frames()[1].span().unwrap();
         assert!(NESTED[span.start..span.end].contains("add.u32 value"));
         let error = device
+            .emulator()
             .inspect_lane(&breakpoint.id, [1, 0, 0], [0; 3])?
             .observe(asynchronous)
             .unwrap_err();
         assert!(matches!(error, ExecutionError::Invalid(_)));
-        let foreign = Emulator::create(EmulatorOptions::default())?;
+        let foreign = Emulator::create(EmulatorOptions::default())?.device(0)?;
         assert!(matches!(
-            foreign.inspect_lane(&breakpoint.id, [0; 3], [0; 3]),
+            foreign
+                .emulator()
+                .inspect_lane(&breakpoint.id, [0; 3], [0; 3]),
             Err(SubmitError::ForeignResource)
         ));
         foreign
+            .emulator()
             .shutdown(ShutdownMode::Drain)
             .observe(asynchronous)?;
-        let shutdown = device.shutdown(ShutdownMode::Drain);
+        let shutdown = device.emulator().shutdown(ShutdownMode::Drain);
         let second = device
+            .emulator()
             .inspect_lane(&breakpoint.id, [0; 3], [0; 3])?
             .observe(asynchronous)?;
         assert_eq!(register(&second, "helper", "value").value(), Some(11));
-        device.resume(&breakpoint.id)?.observe(asynchronous)?;
+        device
+            .emulator()
+            .resume(&breakpoint.id)?
+            .observe(asynchronous)?;
         // The draining shutdown may close the device as soon as the launch resumes.
         assert!(matches!(
-            device.inspect_lane(&breakpoint.id, [0; 3], [0; 3]),
+            device
+                .emulator()
+                .inspect_lane(&breakpoint.id, [0; 3], [0; 3]),
             Err(SubmitError::InvalidArgument(_) | SubmitError::Closed)
         ));
         assert_eq!(launch.observe(asynchronous)?.completed_lanes, 2);
@@ -141,13 +153,13 @@ fn test_inspection_selects_multidimensional_coordinates_and_rejects_invalid_lane
          }",
     )?;
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device.load(parsed.clone())?.observe(asynchronous)?;
         let launch = module
             .kernel("k")?
             .launch(LaunchConfig::create([2, 2, 1], [2, 2, 1], 0)?, [])?;
         for pause in 0..4 {
-            let breakpoint = device.next_breakpoint()?.observe(asynchronous)?;
+            let breakpoint = device.emulator().next_breakpoint()?.observe(asynchronous)?;
             if pause == 0 {
                 for (cta, lane, expected) in [
                     ([0, 0, 0], [1, 0, 0], 1),
@@ -155,6 +167,7 @@ fn test_inspection_selects_multidimensional_coordinates_and_rejects_invalid_lane
                     ([0, 1, 0], [0, 1, 0], 10),
                 ] {
                     let snapshot = device
+                        .emulator()
                         .inspect_lane(&breakpoint.id, cta, lane)?
                         .observe(asynchronous)?;
                     assert_eq!(snapshot.cta(), cta);
@@ -162,15 +175,22 @@ fn test_inspection_selects_multidimensional_coordinates_and_rejects_invalid_lane
                     assert_eq!(register(&snapshot, "k", "value").value(), Some(expected));
                 }
                 let error = device
+                    .emulator()
                     .inspect_lane(&breakpoint.id, [0; 3], [0, 2, 0])?
                     .observe(asynchronous)
                     .unwrap_err();
                 assert!(matches!(error, ExecutionError::Invalid(_)));
             }
-            device.resume(&breakpoint.id)?.observe(asynchronous)?;
+            device
+                .emulator()
+                .resume(&breakpoint.id)?
+                .observe(asynchronous)?;
         }
         assert_eq!(launch.observe(asynchronous)?.completed_lanes, 16);
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -182,26 +202,28 @@ fn test_exited_lanes_have_no_retained_frames() -> Result<()> {
          .entry k() { .reg .u32 t; .reg .pred p; mov.u32 t,%tid.x;
          setp.eq.u32 p,t,0; @p ret; brkpt; ret; }",
     )?;
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device.load(parsed)?.wait()?;
     let launch = module
         .kernel("k")?
         .launch(LaunchConfig::create([1; 3], [2, 1, 1], 0)?, [])?;
-    let breakpoint = device.next_breakpoint()?.wait()?;
+    let breakpoint = device.emulator().next_breakpoint()?.wait()?;
     assert!(
         device
+            .emulator()
             .inspect_lane(&breakpoint.id, [0; 3], [0; 3])?
             .wait()?
             .is_exited()
     );
     assert!(
         !device
+            .emulator()
             .inspect_lane(&breakpoint.id, [0; 3], [1, 0, 0])?
             .wait()?
             .is_exited()
     );
-    device.resume(&breakpoint.id)?.wait()?;
+    device.emulator().resume(&breakpoint.id)?.wait()?;
     launch.wait()?;
-    device.shutdown(ShutdownMode::Drain).wait()?;
+    device.emulator().shutdown(ShutdownMode::Drain).wait()?;
     Ok(())
 }

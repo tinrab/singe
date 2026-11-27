@@ -27,7 +27,7 @@ fn test_half_boundary_values_widen_and_roundtrip() -> Result {
  cvt.rn.{format}.f32 h,f; st.global.b16 [b],h; ret;
 }}"
         );
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device.load(ParsedModule::parse(&source)?)?.wait()?;
         let magnitudes: &[u16] = if format == "f16" {
             &[
@@ -75,7 +75,7 @@ fn test_half_boundary_values_widen_and_roundtrip() -> Result {
                 assert_eq!(narrow, input, "{format} {input:04x}");
             }
         }
-        device.shutdown(ShutdownMode::Drain).wait()?;
+        device.emulator().shutdown(ShutdownMode::Drain).wait()?;
     }
     Ok(())
 }
@@ -109,7 +109,7 @@ fn test_typed_half_transfers_scalar_arguments_and_packed_kernels() -> Result {
  fma.rn.{format}x2 h,h,scale,zero; st.global.b32 [b],h; ret;
 }}"
             );
-            let device = Emulator::create(EmulatorOptions::default())?;
+            let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
             let module = device
                 .load(ParsedModule::parse(&source)?)?
                 .observe(asynchronous)?;
@@ -199,7 +199,10 @@ fn test_typed_half_transfers_scalar_arguments_and_packed_kernels() -> Result {
                     .observe(asynchronous)?;
                 assert_eq!(device.download(&output)?.observe(asynchronous)?, expected);
             }
-            device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+            device
+                .emulator()
+                .shutdown(ShutdownMode::Drain)
+                .observe(asynchronous)?;
         }
     }
     Ok(())
@@ -225,7 +228,7 @@ fn test_carry_predication_and_call_clobbering() -> Result {
         let source = format!(
             "{PRELUDE} .global .u32 output; .func helper() {{.reg .u32 r;add.cc.u32 r,0xffffffff,1;ret;}} .entry k() {{.reg .u32 r;.reg .pred p;{body} st.global.u32 [output],r;ret;}}"
         );
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device.load(ParsedModule::parse(&source)?)?.wait()?;
         let result = module
             .kernel("k")?
@@ -240,7 +243,7 @@ fn test_carry_predication_and_call_clobbering() -> Result {
                 expected.to_le_bytes()
             );
         }
-        let shutdown = device.shutdown(ShutdownMode::Drain).wait();
+        let shutdown = device.emulator().shutdown(ShutdownMode::Drain).wait();
         if error {
             assert!(shutdown.is_err());
         } else {
@@ -253,7 +256,7 @@ fn test_carry_predication_and_call_clobbering() -> Result {
 #[test]
 fn test_fp64_vector_add_saxpy_and_reduction_and_multiword_arithmetic() -> Result {
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(include_str!(
                 "fixtures/execution/scalar.ptx"
@@ -378,7 +381,10 @@ fn test_fp64_vector_add_saxpy_and_reduction_and_multiword_arithmetic() -> Result
                 .collect();
             assert_eq!(device.download(&output)?.observe(asynchronous)?, expected);
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -483,7 +489,7 @@ fn test_floating_special_values_nan_selection_and_signed_zero() -> Result {
             let source = format!(
                 "{PRELUDE} .global .u64 output;.entry k() {{.reg .b{width} {reg}<3>;mov.b{width} {reg}1,{a};mov.b{width} {reg}2,{b};{instruction}st.global.b{width} [output],{reg}0;ret;}}"
             );
-            let device = Emulator::create(EmulatorOptions::default())?;
+            let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
             let module = device.load(ParsedModule::parse(&source)?)?.wait()?;
             module
                 .kernel("k")?
@@ -501,7 +507,7 @@ fn test_floating_special_values_nan_selection_and_signed_zero() -> Result {
             } else {
                 assert!(is_nan(bits), "{instruction}: {bits:x}");
             }
-            device.shutdown(ShutdownMode::Drain).wait()?;
+            device.emulator().shutdown(ShutdownMode::Drain).wait()?;
         }
     }
     Ok(())
@@ -534,7 +540,7 @@ fn test_calls_do_not_pass_carry_to_the_callee_and_faults_remain_inspectable() ->
     let source = format!(
         "{PRELUDE} .global .u32 output; .func helper() {{.reg .u32 r;addc.u32 r,0,0;ret;}} .entry k() {{.reg .u32 r;st.global.u32 [output],33;add.cc.u32 r,0xffffffff,1;call helper,();ret;}}"
     );
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device.load(ParsedModule::parse(&source)?)?.wait()?;
     let error = module
         .kernel("k")?
@@ -547,6 +553,12 @@ fn test_calls_do_not_pass_carry_to_the_callee_and_faults_remain_inspectable() ->
         device.download(&module.global("output")?)?.wait()?,
         33u32.to_le_bytes()
     );
-    assert!(device.shutdown(ShutdownMode::Drain).wait().is_err());
+    assert!(
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .is_err()
+    );
     Ok(())
 }

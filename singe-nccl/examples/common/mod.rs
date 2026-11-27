@@ -1,13 +1,26 @@
 #![allow(dead_code)]
 
-use std::io;
+use std::{env, io};
 
 use anyhow::Result;
 use singe_cuda::device::Device;
+use singe_ptx::emulator::{EmulatorOptions, Topology};
 
 use singe_nccl::local::LocalCommunicatorGroup;
 
+fn install_emulator() -> Result<()> {
+    let Ok(devices) = env::var("SINGE_EMULATOR") else {
+        return Ok(());
+    };
+    singe_cuda_emulator::install(EmulatorOptions {
+        topology: Topology::node(devices.parse()?),
+        ..Default::default()
+    })?;
+    Ok(())
+}
+
 pub(crate) fn create_rank_contexts(min_rank_count: usize) -> Result<LocalCommunicatorGroup> {
+    install_emulator()?;
     let count = usize::try_from(Device::count()?)?;
     if count < min_rank_count {
         return Err(io::Error::other(format!(
@@ -21,6 +34,7 @@ pub(crate) fn create_rank_contexts(min_rank_count: usize) -> Result<LocalCommuni
 pub(crate) fn create_power_of_two_rank_contexts(
     min_rank_count: usize,
 ) -> Result<LocalCommunicatorGroup> {
+    install_emulator()?;
     let count = usize::try_from(Device::count()?)?;
     if count < min_rank_count {
         return Err(io::Error::other(format!(
@@ -34,6 +48,7 @@ pub(crate) fn create_power_of_two_rank_contexts(
 }
 
 pub(crate) fn first_devices(count: usize) -> Result<Vec<Device>> {
+    install_emulator()?;
     (0..count)
         .map(|id| -> Result<Device> { Ok(Device::new(i32::try_from(id)?)) })
         .collect()

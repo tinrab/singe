@@ -1,4 +1,6 @@
-//! Architectural limits and PTX language versions of the emulated `sm_80` target.
+//! Architectural limits and PTX language versions of the emulated targets.
+//!
+//! The emulator runs `sm_80` and `sm_90` modules with `sm_80` limits; instructions that need `sm_90` check the module's target.
 
 use std::fmt::{self, Display, Formatter};
 
@@ -30,6 +32,32 @@ pub(crate) const NAMED_BARRIERS: usize = 16;
 
 /// Register slots one function may declare; a frontend limit, not an architectural one.
 pub(crate) const MAX_FUNCTION_REGISTERS: usize = 65_536;
+
+/// GPU architecture a module targets, ordered from oldest to newest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Architecture {
+    Sm80,
+    Sm90,
+}
+
+impl Architecture {
+    pub(crate) fn of(module: &Module) -> Option<Self> {
+        match module.target.specifiers.as_slice() {
+            [target] if target == "sm_80" => Some(Self::Sm80),
+            [target] if target == "sm_90" || target == "sm_90a" => Some(Self::Sm90),
+            _ => None,
+        }
+    }
+}
+
+impl Display for Architecture {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Sm80 => "sm_80",
+            Self::Sm90 => "sm_90",
+        })
+    }
+}
 
 /// PTX language version, ordered by major and then minor version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -68,7 +96,7 @@ pub(crate) fn validate_module(module: &Module) -> Result<()> {
         ));
     }
 
-    if module.target.specifiers != ["sm_80"] {
+    if Architecture::of(module).is_none() {
         return Err(CompileError::unsupported(
             module.target.span,
             format!("target {}", module.target.specifiers.join(", ")),

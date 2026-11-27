@@ -2,15 +2,68 @@ use std::fmt::Debug;
 
 use crate::emulator::{execution_error::SubmitError, target};
 
+/// The devices of an emulated machine: `nodes` nodes of `devices_per_node` devices each.
+///
+/// Devices are numbered node by node.
+/// Peer access and multicast work only between devices of one node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Topology {
+    /// Number of nodes.
+    pub nodes: usize,
+    /// Number of devices in each node.
+    pub devices_per_node: usize,
+}
+
+impl Topology {
+    /// Returns a topology of one node with `devices` devices.
+    #[must_use]
+    pub fn node(devices: usize) -> Self {
+        Self {
+            nodes: 1,
+            devices_per_node: devices,
+        }
+    }
+
+    /// Returns the number of devices across all nodes.
+    #[must_use]
+    pub fn device_count(&self) -> usize {
+        self.nodes.saturating_mul(self.devices_per_node)
+    }
+
+    /// Returns the node of `device`.
+    #[must_use]
+    pub fn node_of(&self, device: usize) -> usize {
+        device / self.devices_per_node.max(1)
+    }
+
+    /// Returns whether `a` and `b` are distinct devices of one node.
+    #[must_use]
+    pub fn are_peers(&self, a: usize, b: usize) -> bool {
+        a != b
+            && a < self.device_count()
+            && b < self.device_count()
+            && self.node_of(a) == self.node_of(b)
+    }
+}
+
+impl Default for Topology {
+    fn default() -> Self {
+        Self::node(1)
+    }
+}
+
 /// Limits for one emulator.
 ///
 /// The storage limits count memory the emulator manages, not the whole process.
 #[derive(Debug, Clone)]
 pub struct EmulatorOptions {
+    /// The emulated devices.
+    /// Defaults to one node of one device.
+    pub topology: Topology,
     /// Maximum number of accepted commands that have not started.
     /// Defaults to 256.
     pub queued_commands: usize,
-    /// Bytes available for allocations, including initialization tracking.
+    /// Bytes available for allocations on each device, including initialization tracking.
     /// Defaults to 1 GiB.
     pub device_storage_bytes: usize,
     /// Bytes available for command state, lane frames, shared variables, and fault reports.
@@ -28,11 +81,16 @@ pub struct EmulatorOptions {
     /// Maximum number of launches executing at once.
     /// Must be nonzero; defaults to 32.
     pub active_grids: usize,
+    /// Whether reading a register no instruction has written yields zero instead of faulting.
+    /// Hardware yields whatever the register held; NCCL's device code relies on that when it sets flag bits in uninitialized descriptors.
+    /// Defaults to `false`.
+    pub zero_uninitialized_registers: bool,
 }
 
 impl Default for EmulatorOptions {
     fn default() -> Self {
         Self {
+            topology: Topology::default(),
             queued_commands: 256,
             device_storage_bytes: 1 << 30,
             execution_storage_bytes: 512 << 20,
@@ -40,6 +98,7 @@ impl Default for EmulatorOptions {
             launch_instructions: 100_000_000,
             call_depth: 64,
             active_grids: 32,
+            zero_uninitialized_registers: false,
         }
     }
 }
@@ -116,6 +175,8 @@ pub struct ExecutionReport {
     pub launch_id: u64,
     /// Stream the launch ran on.
     pub stream_id: u64,
+    /// Device the launch ran on.
+    pub device: usize,
     /// Number of instructions lanes executed, not counting those whose predicate was false.
     pub instructions: u64,
     /// Number of lanes that exited.

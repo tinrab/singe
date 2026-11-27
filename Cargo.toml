@@ -12,6 +12,7 @@ members = [
     "singe-cuda-macros",
     "singe-cuda-find",
     "singe-cuda-sys",
+    "singe-cuda-emulator",
     "singe-cufile",
     "singe-cufile-sys",
     "singe-curand",
@@ -73,6 +74,7 @@ singe-cuda = { path = "singe-cuda", version = "0.1.0", default-features = false 
 singe-cuda-macros = { path = "singe-cuda-macros", version = "0.1.0" }
 singe-cuda-find = { path = "singe-cuda-find", version = "0.1.0" }
 singe-cuda-sys = { path = "singe-cuda-sys", version = "0.1.0", default-features = false }
+singe-cuda-emulator = { path = "singe-cuda-emulator", version = "0.1.0" }
 singe-cufile = { path = "singe-cufile", version = "0.1.0" }
 singe-cufile-sys = { path = "singe-cufile-sys", version = "0.1.0", default-features = false }
 singe-curand = { path = "singe-curand", version = "0.1.0" }

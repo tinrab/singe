@@ -20,8 +20,8 @@ type Result = StdResult<(), Box<dyn Error>>;
 fn test_compiled_kernel_binds_to_independent_emulators_and_module_globals() -> Result {
     let source = ParsedModule::parse(SOURCE)?;
     let compiled = source.compile("increment")?;
-    let first = Emulator::create(EmulatorOptions::default())?;
-    let second = Emulator::create(EmulatorOptions::default())?;
+    let first = Emulator::create(EmulatorOptions::default())?.device(0)?;
+    let second = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let a = first.load(source.clone())?.wait()?;
     let b = second.load(source.clone())?.wait()?;
     let c = first.load(source)?.wait()?;
@@ -36,15 +36,15 @@ fn test_compiled_kernel_binds_to_independent_emulators_and_module_globals() -> R
         [2, 0, 0, 0]
     );
     assert_eq!(first.download(&c.global("counter")?)?.wait()?, [0; 4]);
-    first.shutdown(ShutdownMode::Drain).wait()?;
-    second.shutdown(ShutdownMode::Drain).wait()?;
+    first.emulator().shutdown(ShutdownMode::Drain).wait()?;
+    second.emulator().shutdown(ShutdownMode::Drain).wait()?;
     Ok(())
 }
 
 #[test]
 fn test_separately_parsed_identical_sources_cannot_bind() -> Result {
     let compiled = ParsedModule::parse(SOURCE)?.compile("increment")?;
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device.load(ParsedModule::parse(SOURCE)?)?.wait()?;
     let error = module.bind(&compiled).unwrap_err();
     assert_eq!(error.kind, CompileErrorKind::ModuleMismatch);
@@ -53,6 +53,6 @@ fn test_separately_parsed_identical_sources_cannot_bind() -> Result {
         SOURCE
     );
     module.kernel("increment")?;
-    device.shutdown(ShutdownMode::Drain).wait()?;
+    device.emulator().shutdown(ShutdownMode::Drain).wait()?;
     Ok(())
 }

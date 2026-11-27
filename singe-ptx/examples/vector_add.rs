@@ -34,7 +34,7 @@ done:
 ";
 
 fn main() -> anyhow::Result<()> {
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device.load(ParsedModule::parse(PTX)?)?.wait()?;
     let kernel = module.kernel("add")?;
 
@@ -52,6 +52,6 @@ fn main() -> anyhow::Result<()> {
     let result = device.download(&out)?.wait()?;
     assert_eq!(result, [11, 22, 33, 44]);
     println!("{result:?}");
-    device.shutdown(ShutdownMode::Drain).wait()?;
+    device.emulator().shutdown(ShutdownMode::Drain).wait()?;
     Ok(())
 }

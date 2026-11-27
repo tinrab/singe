@@ -2,11 +2,14 @@
 
 use std::sync::atomic::AtomicBool;
 
-use crate::emulator::{
-    engine::{Engine, PausedAt, Result, Step, frame_charge},
-    execution_error::ExecutionError,
-    ir::{ControlOperation, FrameRole},
-    memory::Memory,
+use crate::{
+    ast::ScalarType,
+    emulator::{
+        engine::{Engine, PausedAt, Result, Step, frame_charge},
+        execution_error::ExecutionError,
+        ir::{ControlOperation, FrameRole},
+        memory::Memory,
+    },
 };
 
 impl Engine {
@@ -102,6 +105,9 @@ impl Engine {
                 return Ok(Step::Hold);
             }
             ControlOperation::Trap => return Err(ExecutionError::Trap),
+            ControlOperation::Sleep { duration } => {
+                self.source(lane, duration, ScalarType::U32)?;
+            }
             ControlOperation::Breakpoint => {
                 if self.breakpoint.is_none() {
                     self.breakpoint = Some(PausedAt {

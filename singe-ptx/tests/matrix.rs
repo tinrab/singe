@@ -36,7 +36,7 @@ fn test_tiled_half_matrix_multiplication_matches_exact_and_bounded_references() 
     ];
     let mut comparisons = Vec::new();
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device.load(parsed.clone())?.observe(asynchronous)?;
         for (m, n, k) in shapes {
             for exact in [true, false] {
@@ -127,7 +127,10 @@ fn test_tiled_half_matrix_multiplication_matches_exact_and_bounded_references() 
                 }
             }
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     if let Some(path) = env::var_os("SINGE_PTX_MATRIX_RESULTS") {
         fs::write(path, serde_json::to_vec(&comparisons)?)?;
@@ -164,7 +167,7 @@ fn store_accumulators() -> &'static str {
 }
 
 fn run(body: &str, block: u32, asynchronous: bool) -> Result<Vec<u32>> {
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device
         .load(ParsedModule::parse(&source(body))?)?
         .observe(asynchronous)?;
@@ -175,7 +178,10 @@ fn run(body: &str, block: u32, asynchronous: bool) -> Result<Vec<u32>> {
     let bytes = device
         .download(&module.global("output")?)?
         .observe(asynchronous)?;
-    device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+    device
+        .emulator()
+        .shutdown(ShutdownMode::Drain)
+        .observe(asynchronous)?;
     Ok(bytes
         .as_chunks::<4>()
         .0
@@ -495,7 +501,7 @@ fn test_invalid_matrix_participants_and_memory_produce_located_faults() -> Resul
     for asynchronous in [false, true] {
         for (body, block, expected) in &cases {
             let text = source(&format!("st.global.u32 [output],77; {body}"));
-            let device = Emulator::create(EmulatorOptions::default())?;
+            let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
             let module = device
                 .load(ParsedModule::parse(&text)?)?
                 .observe(asynchronous)?;
@@ -522,6 +528,7 @@ fn test_invalid_matrix_participants_and_memory_produce_located_faults() -> Resul
             assert_eq!(&output[..4], &77u32.to_le_bytes());
             assert!(
                 device
+                    .emulator()
                     .shutdown(ShutdownMode::Drain)
                     .observe(asynchronous)
                     .is_err()
@@ -537,7 +544,7 @@ fn test_matrix_compilation_limits_shapes_layouts_types_and_targets() -> Result<(
     ParsedModule::parse(&text.replace(".version 9.4", ".version 7.0"))?.compile("matrix")?;
     for text in [
         text.replace(".target sm_80", ".target sm_75"),
-        text.replace(".target sm_80", ".target sm_90"),
+        text.replace(".target sm_80", ".target sm_100"),
     ] {
         assert!(ParsedModule::parse(&text)?.compile("matrix").is_err());
     }
@@ -587,7 +594,7 @@ fn test_matrix_rendezvous_uses_instruction_identity_across_call_paths() -> Resul
         store_accumulators()
     );
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(&text)?)?
             .observe(asynchronous)?;
@@ -604,7 +611,10 @@ fn test_matrix_rendezvous_uses_instruction_identity_across_call_paths() -> Resul
                 .flat_map(|_| 16f32.to_le_bytes())
                 .collect::<Vec<_>>()
         );
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -623,7 +633,7 @@ fn test_matrix_membership_uses_linear_lanes_in_multidimensional_blocks() -> Resu
         store_accumulators()
     );
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(&source(&body))?)?
             .observe(asynchronous)?;
@@ -641,7 +651,10 @@ fn test_matrix_membership_uses_linear_lanes_in_multidimensional_blocks() -> Resu
                 .collect();
             assert_eq!(&output[..expected.len()], expected);
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }

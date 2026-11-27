@@ -13,7 +13,7 @@ const KERNELS: &str = include_str!("fixtures/frontend/kernels.ptx");
 fn test_nvcc_block_reverse_uses_dynamic_shared_storage_and_partial_blocks() -> Result {
     let source = include_str!("fixtures/execution/block_reverse.ptx");
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(source)?)?
             .observe(asynchronous)?;
@@ -48,7 +48,10 @@ fn test_nvcc_block_reverse_uses_dynamic_shared_storage_and_partial_blocks() -> R
                 "count={count}, async={asynchronous}"
             );
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -77,7 +80,7 @@ fn test_dynamic_shared_aliases_span_module_entry_and_callee_declarations() -> Re
             cvt.u32.u64 r,offset; st.global.u32 [address+12],r; ret;
         }";
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(source)?)?
             .observe(asynchronous)?;
@@ -95,7 +98,10 @@ fn test_dynamic_shared_aliases_span_module_entry_and_callee_declarations() -> Re
             .map(|v| u32::from_le_bytes(*v))
             .collect();
         assert_eq!(actual, [42, 42, 17, 0, 43, 43, 18, 0]);
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -105,7 +111,7 @@ fn test_ptx_94_vector_add_with_both_waiting_styles() -> Result {
     let source = KERNELS.replace(".version 9.3", ".version 9.4");
     assert!(source.contains(".version 9.4"));
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(&source)?)?
             .observe(asynchronous)?;
@@ -125,7 +131,10 @@ fn test_ptx_94_vector_add_with_both_waiting_styles() -> Result {
             device.download(&out)?.observe(asynchronous)?,
             [3, 1, i32::MIN]
         );
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -133,7 +142,7 @@ fn test_ptx_94_vector_add_with_both_waiting_styles() -> Result {
 #[test]
 fn test_nvcc_vector_add_and_saxpy() -> Result {
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(KERNELS)?)?
             .observe(asynchronous)?;
@@ -186,7 +195,10 @@ fn test_nvcc_vector_add_and_saxpy() -> Result {
                     .collect::<Vec<_>>()
             );
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -194,7 +206,7 @@ fn test_nvcc_vector_add_and_saxpy() -> Result {
 #[test]
 fn test_nvcc_reduction_and_tiled_matrix() -> Result {
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(KERNELS)?)?
             .observe(asynchronous)?;
@@ -261,7 +273,10 @@ fn test_nvcc_reduction_and_tiled_matrix() -> Result {
                 }
             }
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -269,7 +284,7 @@ fn test_nvcc_reduction_and_tiled_matrix() -> Result {
 #[test]
 fn test_transpose_across_tile_boundaries() -> Result {
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(include_str!(
                 "fixtures/execution/transpose.ptx"
@@ -305,7 +320,10 @@ fn test_transpose_across_tile_boundaries() -> Result {
                 }
             }
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }

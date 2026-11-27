@@ -610,7 +610,7 @@ mod tests {
             engine::Engine,
             execution_error::ExecutionError,
             memory::{Memory, Owner},
-            runtime::{EmulatorOptions, LaunchConfig},
+            runtime::{EmulatorOptions, LaunchConfig, Topology},
         },
     };
 
@@ -624,10 +624,10 @@ mod tests {
         .unwrap();
         let options = EmulatorOptions::default();
         let budget = Arc::new(Budget::new(options.execution_storage_bytes));
-        let mut memory = Memory::new(4096, Arc::clone(&budget));
+        let mut memory = Memory::new(4096, Topology::default(), Arc::clone(&budget));
         let flag = AtomicBool::new(false);
         let data = memory
-            .allocate(4, 4, StateSpace::Global, Owner::Device, true, &flag)
+            .allocate(4, 4, StateSpace::Global, Owner::Device(0), true, &flag)
             .unwrap();
         memory
             .write(

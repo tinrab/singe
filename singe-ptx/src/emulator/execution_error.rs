@@ -16,11 +16,11 @@ use crate::{
 #[non_exhaustive]
 pub enum SubmitError {
     /// The emulator is shutting down or closed.
-    #[error("device is closed")]
+    #[error("emulator is closed")]
     Closed,
-    /// An earlier fault stopped the emulator.
+    /// An earlier fault on any device stopped the emulator.
     /// Downloads are still accepted.
-    #[error("device is faulted")]
+    #[error("emulator is faulted")]
     Faulted,
     /// [`EmulatorOptions::queued_commands`](crate::emulator::EmulatorOptions::queued_commands) commands are already waiting.
     #[error("command queue is full")]
@@ -31,9 +31,12 @@ pub enum SubmitError {
     /// The command needs more execution storage than remains.
     #[error("execution-state storage limit exceeded")]
     ExecutionStateLimit,
-    /// A buffer, stream, event, or kernel belongs to another emulator.
-    #[error("resource belongs to another emulator")]
+    /// A buffer, stream, event, or kernel belongs to another emulator, or a module belongs to a device other than its stream's.
+    #[error("resource belongs to another emulator or device")]
     ForeignResource,
+    /// No device has this index.
+    #[error("no device {0}")]
+    UnknownDevice(usize),
     /// An argument is invalid, such as a launch argument that does not match its parameter.
     #[error("invalid argument: {0}")]
     InvalidArgument(String),
@@ -49,6 +52,8 @@ pub struct FaultLocation {
     pub launch_id: u64,
     /// Stream the launch ran on.
     pub stream_id: u64,
+    /// Device the launch ran on.
+    pub device: usize,
     /// Source byte range of the instruction.
     pub span: Span,
     /// Name of the function containing the instruction.
@@ -69,8 +74,8 @@ impl Display for FaultLocation {
         let [lx, ly, lz] = self.lane;
         write!(
             f,
-            "`{}` instruction {} (bytes {}..{}), cta ({cx}, {cy}, {cz}), lane ({lx}, {ly}, {lz})",
-            self.function, self.instruction, self.span.start, self.span.end
+            "`{}` instruction {} (bytes {}..{}), device {}, cta ({cx}, {cy}, {cz}), lane ({lx}, {ly}, {lz})",
+            self.function, self.instruction, self.span.start, self.span.end, self.device
         )
     }
 }
@@ -78,6 +83,8 @@ impl Display for FaultLocation {
 /// A lane that was waiting when no lane could make progress.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StalledLane {
+    /// Device of the launch.
+    pub device: usize,
     /// CTA coordinates in the grid.
     pub cta: [u32; 3],
     /// Thread coordinates in the CTA.
@@ -107,7 +114,7 @@ pub enum ExecutionError {
     #[error("worker failed")]
     WorkerFailed,
     /// An earlier fault stopped the emulator before this command ran.
-    #[error("device is faulted")]
+    #[error("emulator is faulted")]
     Faulted,
     /// The allocation exceeds the device storage limit, or host memory could not be reserved.
     #[error("memory limit exceeded")]

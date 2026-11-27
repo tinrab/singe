@@ -13,6 +13,7 @@ use crate::{
     emulator::{
         budget::{Budget, Reservation, allocation},
         execution_error::ExecutionError,
+        runtime::Topology,
     },
 };
 
@@ -34,6 +35,9 @@ const GLOBAL_WIDE_START: u64 = 5 * COMPACT_WINDOW;
 
 /// First offset handed out in every window, so that null is never a valid address.
 const FIRST_OFFSET: u64 = 65536;
+
+/// Reserved virtual ranges start here in the global window, far above any allocation.
+const RANGE_START: u64 = 1 << 56;
 
 pub(crate) const CHUNK_BYTES: usize = 65536;
 
@@ -146,6 +150,7 @@ pub(crate) fn validate_address_size(
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Actor {
+    pub(crate) device: usize,
     pub(crate) grid: GridId,
     pub(crate) cta: usize,
     pub(crate) lane: usize,
@@ -162,7 +167,7 @@ impl GridId {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Owner {
-    Device,
+    Device(usize),
     Cta(GridId, usize),
     Lane(GridId, usize),
 }
@@ -170,7 +175,7 @@ pub(crate) enum Owner {
 impl Owner {
     fn grid(self) -> Option<GridId> {
         match self {
-            Self::Device => None,
+            Self::Device(_) => None,
             Self::Cta(grid, _) | Self::Lane(grid, _) => Some(grid),
         }
     }
@@ -245,14 +250,62 @@ pub(crate) struct Allocation {
     owner: Owner,
     charge: usize,
     size: usize,
+    /// Physical memory is reachable only through a mapping, never at its own address.
+    physical: bool,
+}
+
+/// Physical memory mapped into a reserved range, with the devices allowed to access it.
+struct Mapping {
+    size: u64,
+    physical: u64,
+    offset: u64,
+    access: Vec<bool>,
+}
+
+enum RangeKind {
+    Reserved(BTreeMap<u64, Mapping>),
+    Multicast(u64),
+}
+
+struct VirtualRange {
+    size: u64,
+    kind: RangeKind,
+}
+
+/// A multicast object: one address range backed by physical memory bound on each participating device.
+struct Multicast {
+    size: u64,
+    devices: Vec<usize>,
+    bindings: Vec<Binding>,
+}
+
+/// A device's physical memory bound to `size` bytes of a multicast object, from `start`.
+struct Binding {
+    device: usize,
+    start: u64,
+    size: u64,
+    physical: u64,
+    offset: u64,
+}
+
+/// One location a multicast access reaches: an allocation and the offset in it.
+pub(crate) struct Target {
+    pub(crate) base: u64,
+    pub(crate) offset: usize,
 }
 
 pub(crate) struct Memory {
     allocations: BTreeMap<u64, Allocation>,
     /// Next free offset of each window.
     windows: [u64; 5],
-    used: usize,
+    used: Vec<usize>,
     limit: usize,
+    topology: Topology,
+    peers: Vec<bool>,
+    ranges: BTreeMap<u64, VirtualRange>,
+    next_range: u64,
+    multicasts: BTreeMap<u64, Multicast>,
+    next_multicast: u64,
     next_grid: u64,
     grids: BTreeMap<GridId, GridStorage>,
     execution_budget: Arc<Budget>,
@@ -266,12 +319,19 @@ struct GridStorage {
 }
 
 impl Memory {
-    pub(crate) fn new(limit: usize, execution_budget: Arc<Budget>) -> Self {
+    pub(crate) fn new(limit: usize, topology: Topology, execution_budget: Arc<Budget>) -> Self {
+        let devices = topology.device_count();
         Self {
             allocations: BTreeMap::new(),
             windows: [FIRST_OFFSET; 5],
-            used: 0,
+            used: vec![0; devices],
             limit,
+            topology,
+            peers: vec![false; devices * devices],
+            ranges: BTreeMap::new(),
+            next_range: RANGE_START,
+            multicasts: BTreeMap::new(),
+            next_multicast: 1,
             next_grid: 0,
             grids: BTreeMap::new(),
             execution_budget,
@@ -434,22 +494,27 @@ impl Memory {
         owner: Owner,
     ) -> Result<u64> {
         let charge = Self::charge(size).ok_or(ExecutionError::MemoryLimit)?;
-        let reservation = if let Some(grid) = owner.grid() {
-            let storage = self
-                .grids
-                .get(&grid)
-                .ok_or_else(|| ExecutionError::Memory("retired grid".into()))?;
-            if storage.allocation_credit >= charge {
+        let reservation = match owner {
+            Owner::Device(device) => {
+                self.used
+                    .get(device)
+                    .ok_or_else(|| ExecutionError::Memory(format!("no device {device}")))?
+                    .checked_add(charge)
+                    .filter(|value| *value <= self.limit)
+                    .ok_or(ExecutionError::MemoryLimit)?;
                 None
-            } else {
-                Some(self.execution_budget.reserve(charge)?)
             }
-        } else {
-            self.used
-                .checked_add(charge)
-                .filter(|value| *value <= self.limit)
-                .ok_or(ExecutionError::MemoryLimit)?;
-            None
+            Owner::Cta(grid, _) | Owner::Lane(grid, _) => {
+                let storage = self
+                    .grids
+                    .get(&grid)
+                    .ok_or_else(|| ExecutionError::Memory("retired grid".into()))?;
+                if storage.allocation_credit >= charge {
+                    None
+                } else {
+                    Some(self.execution_budget.reserve(charge)?)
+                }
+            }
         };
         let window = Window::of(space);
         let (offset, end) = self.next_range(window, size, alignment)?;
@@ -476,8 +541,8 @@ impl Memory {
             }
 
             current.allocations.insert(address);
-        } else {
-            self.used += charge;
+        } else if let Owner::Device(device) = owner {
+            self.used[device] += charge;
         }
 
         self.allocations.insert(
@@ -490,6 +555,7 @@ impl Memory {
                 owner,
                 charge,
                 size,
+                physical: false,
             },
         );
         self.windows[window.index()] = end;
@@ -529,8 +595,8 @@ impl Memory {
                 .allocations
                 .remove(&address);
             self.release_execution(grid, allocation.charge);
-        } else {
-            self.used -= allocation.charge;
+        } else if let Owner::Device(device) = allocation.owner {
+            self.used[device] -= allocation.charge;
         }
     }
 
@@ -544,6 +610,10 @@ impl Memory {
     ) -> Result<(u64, usize)> {
         if !address.is_multiple_of(alignment as u64) {
             return Err(ExecutionError::Memory("misaligned address".into()));
+        }
+
+        if address >= RANGE_START && specific(address) == address {
+            return self.locate_mapped(address, size, space, actor);
         }
 
         let (&base, allocation) = self
@@ -570,9 +640,23 @@ impl Memory {
             return Err(ExecutionError::Memory("wrong address space".into()));
         }
 
+        if allocation.physical {
+            return Err(ExecutionError::Memory(
+                "physical memory is reachable only through a mapping".into(),
+            ));
+        }
+
         if let Some(actor) = actor {
             let visible = match allocation.owner {
-                Owner::Device => true,
+                Owner::Device(owner) => {
+                    if owner != actor.device && !self.has_peer_access(actor.device, owner) {
+                        return Err(ExecutionError::Memory(format!(
+                            "device {} cannot access memory of device {owner} without peer access",
+                            actor.device
+                        )));
+                    }
+                    true
+                }
                 Owner::Cta(grid, id) => grid == actor.grid && id == actor.cta,
                 Owner::Lane(grid, id) => grid == actor.grid && id == actor.lane,
             };
@@ -583,6 +667,510 @@ impl Memory {
             }
         }
         Ok((base, offset))
+    }
+
+    fn has_peer_access(&self, accessor: usize, owner: usize) -> bool {
+        let devices = self.topology.device_count();
+        accessor < devices && owner < devices && self.peers[accessor * devices + owner]
+    }
+
+    /// Lets kernels on `accessor` access memory allocated on `owner`.
+    pub(crate) fn enable_peer_access(&mut self, accessor: usize, owner: usize) -> Result<()> {
+        if !self.topology.are_peers(accessor, owner) {
+            return Err(ExecutionError::Memory(format!(
+                "devices {accessor} and {owner} are not peers in one node"
+            )));
+        }
+
+        let devices = self.topology.device_count();
+        self.peers[accessor * devices + owner] = true;
+        Ok(())
+    }
+
+    /// Stops kernels on `accessor` from accessing memory allocated on `owner`.
+    pub(crate) fn disable_peer_access(&mut self, accessor: usize, owner: usize) {
+        if self.topology.are_peers(accessor, owner) {
+            let devices = self.topology.device_count();
+            self.peers[accessor * devices + owner] = false;
+        }
+    }
+
+    /// Returns whether a mapping or multicast binding still refers to the physical memory at `physical`.
+    pub(crate) fn is_mapped(&self, physical: u64) -> bool {
+        self.ranges.values().any(|range| match &range.kind {
+            RangeKind::Reserved(mappings) => mappings
+                .values()
+                .any(|mapping| mapping.physical == physical),
+            RangeKind::Multicast(_) => false,
+        }) || self.multicasts.values().any(|object| {
+            object
+                .bindings
+                .iter()
+                .any(|binding| binding.physical == physical)
+        })
+    }
+
+    /// Returns whether `device` may access the mapping that contains `address`.
+    pub(crate) fn has_access(&self, address: u64, device: usize) -> Result<bool> {
+        let (start, range) = self
+            .range_at(address)
+            .ok_or_else(|| ExecutionError::Memory("address is not in a reserved range".into()))?;
+        let RangeKind::Reserved(mappings) = &range.kind else {
+            return Ok(true);
+        };
+        let (_, mapping) = Self::mapping_at(mappings, address - start)
+            .ok_or_else(|| ExecutionError::Memory("nothing is mapped at this address".into()))?;
+        Ok(mapping.access.get(device).copied().unwrap_or(false))
+    }
+
+    fn range_at(&self, address: u64) -> Option<(u64, &VirtualRange)> {
+        self.ranges
+            .range(..=address)
+            .next_back()
+            .filter(|(start, range)| address - **start < range.size)
+            .map(|(&start, range)| (start, range))
+    }
+
+    fn mapping_at(mappings: &BTreeMap<u64, Mapping>, offset: u64) -> Option<(u64, &Mapping)> {
+        mappings
+            .range(..=offset)
+            .next_back()
+            .filter(|(start, mapping)| offset - **start < mapping.size)
+            .map(|(&start, mapping)| (start, mapping))
+    }
+
+    /// Returns whether an allocation starts exactly at `address`.
+    pub(crate) fn is_allocation_start(&self, address: u64) -> bool {
+        self.allocations.contains_key(&address)
+    }
+
+    /// Returns the device that owns the device allocation containing `address`, if any.
+    pub(crate) fn device_of(&self, address: u64) -> Option<usize> {
+        let (&base, allocation) = self.allocations.range(..=address).next_back()?;
+        if address - base >= (allocation.size as u64).max(1) {
+            return None;
+        }
+        match allocation.owner {
+            Owner::Device(device) => Some(device),
+            Owner::Cta(..) | Owner::Lane(..) => None,
+        }
+    }
+
+    /// Allocates zeroed device storage on `device`, or physical memory for mappings when `physical` is set.
+    pub(crate) fn allocate_device(
+        &mut self,
+        device: usize,
+        size: usize,
+        alignment: u32,
+        physical: bool,
+    ) -> Result<u64> {
+        let address = self.reserve(size, alignment, StateSpace::Global, Owner::Device(device))?;
+        while !self.initialize_chunk(address, true)? {}
+        if let Some(allocation) = self.allocations.get_mut(&address) {
+            allocation.physical = physical;
+        }
+        Ok(address)
+    }
+
+    /// Reserves `size` bytes of virtual addresses, aligned to `alignment`, with nothing mapped.
+    pub(crate) fn reserve_range(&mut self, size: u64, alignment: u64) -> Result<u64> {
+        let alignment = alignment.max(1);
+        if !alignment.is_power_of_two() || size == 0 {
+            return Err(ExecutionError::Memory("range size or alignment".into()));
+        }
+
+        let start = self
+            .next_range
+            .checked_add(alignment - 1)
+            .map(|value| value & !(alignment - 1))
+            .ok_or(ExecutionError::AddressSpaceExhausted("global"))?;
+        let end = start
+            .checked_add(size)
+            .filter(|end| *end < WINDOW_BYTES)
+            .ok_or(ExecutionError::AddressSpaceExhausted("global"))?;
+        self.ranges.insert(
+            start,
+            VirtualRange {
+                size,
+                kind: RangeKind::Reserved(BTreeMap::new()),
+            },
+        );
+        // Leave a gap so that running off the end of one range never lands in the next.
+        self.next_range = end.saturating_add(1 << 32);
+        Ok(start)
+    }
+
+    /// Frees a reserved range and its mappings, or a multicast mapping.
+    pub(crate) fn free_range(&mut self, address: u64) -> Result<()> {
+        self.ranges
+            .remove(&address)
+            .map(|_| ())
+            .ok_or_else(|| ExecutionError::Memory("no reserved range at this address".into()))
+    }
+
+    fn range_mut(&mut self, address: u64, size: u64) -> Result<(u64, &mut BTreeMap<u64, Mapping>)> {
+        let (&start, range) = self
+            .ranges
+            .range_mut(..=address)
+            .next_back()
+            .ok_or_else(|| ExecutionError::Memory("address is not in a reserved range".into()))?;
+        let offset = address - start;
+        if offset.checked_add(size).is_none_or(|end| end > range.size) {
+            return Err(ExecutionError::Memory(
+                "mapping exceeds its reserved range".into(),
+            ));
+        }
+        match &mut range.kind {
+            RangeKind::Reserved(mappings) => Ok((offset, mappings)),
+            RangeKind::Multicast(_) => Err(ExecutionError::Memory(
+                "address is in a multicast mapping".into(),
+            )),
+        }
+    }
+
+    /// Maps `size` bytes of the physical memory at `physical`, from `offset`, at `address` in a reserved range.
+    pub(crate) fn map(
+        &mut self,
+        address: u64,
+        size: u64,
+        physical: u64,
+        offset: u64,
+    ) -> Result<()> {
+        let allocation = self
+            .allocations
+            .get(&physical)
+            .filter(|allocation| allocation.physical)
+            .ok_or_else(|| ExecutionError::Memory("no physical memory at this handle".into()))?;
+        if offset
+            .checked_add(size)
+            .is_none_or(|end| end > allocation.size as u64)
+        {
+            return Err(ExecutionError::Memory(
+                "mapping exceeds its physical memory".into(),
+            ));
+        }
+
+        let devices = self.topology.device_count();
+        let (start, mappings) = self.range_mut(address, size)?;
+        let overlaps = mappings
+            .range(..start + size)
+            .next_back()
+            .is_some_and(|(&other, mapping)| other + mapping.size > start);
+        if overlaps {
+            return Err(ExecutionError::Memory("address is already mapped".into()));
+        }
+
+        mappings.insert(
+            start,
+            Mapping {
+                size,
+                physical,
+                offset,
+                access: vec![false; devices],
+            },
+        );
+        Ok(())
+    }
+
+    /// Unmaps every mapping that starts in `address..address + size`.
+    pub(crate) fn unmap(&mut self, address: u64, size: u64) -> Result<()> {
+        let (start, mappings) = self.range_mut(address, size)?;
+        let starts: Vec<u64> = mappings
+            .range(start..start + size)
+            .map(|(&key, _)| key)
+            .collect();
+        for key in starts {
+            mappings.remove(&key);
+        }
+        Ok(())
+    }
+
+    /// Sets whether `device` may access the mappings that start in `address..address + size`.
+    pub(crate) fn set_access(
+        &mut self,
+        address: u64,
+        size: u64,
+        device: usize,
+        allowed: bool,
+    ) -> Result<()> {
+        if device >= self.topology.device_count() {
+            return Err(ExecutionError::Memory(format!("no device {device}")));
+        }
+
+        let (start, mappings) = self.range_mut(address, size)?;
+        for (_, mapping) in mappings.range_mut(start..start + size) {
+            mapping.access[device] = allowed;
+        }
+        Ok(())
+    }
+
+    fn locate_mapped(
+        &self,
+        address: u64,
+        size: usize,
+        space: Option<StateSpace>,
+        actor: Option<Actor>,
+    ) -> Result<(u64, usize)> {
+        if space.is_some_and(|space| space != StateSpace::Global) {
+            return Err(ExecutionError::Memory("wrong address space".into()));
+        }
+
+        let (start, range) = self
+            .range_at(address)
+            .ok_or_else(|| ExecutionError::Memory("unmapped address".into()))?;
+        let RangeKind::Reserved(mappings) = &range.kind else {
+            return Err(ExecutionError::Memory(
+                "multicast addresses are accessed only by multimem instructions".into(),
+            ));
+        };
+        let offset = address - start;
+        let (mapped, mapping) = Self::mapping_at(mappings, offset).ok_or_else(|| {
+            ExecutionError::Memory("address is reserved but nothing is mapped there".into())
+        })?;
+        if (offset - mapped)
+            .checked_add(size as u64)
+            .is_none_or(|end| end > mapping.size)
+        {
+            return Err(ExecutionError::Memory(
+                "access crosses the end of a mapping".into(),
+            ));
+        }
+
+        if let Some(actor) = actor
+            && !mapping.access.get(actor.device).copied().unwrap_or(false)
+        {
+            return Err(ExecutionError::Memory(format!(
+                "device {} has no access to this mapping",
+                actor.device
+            )));
+        }
+
+        let physical = mapping.offset + offset - mapped;
+        let offset = usize::try_from(physical)
+            .map_err(|_| ExecutionError::Memory("address overflow".into()))?;
+        Ok((mapping.physical, offset))
+    }
+
+    /// Creates a multicast object of `size` bytes for `devices`, which must share a node.
+    pub(crate) fn create_multicast(&mut self, devices: &[usize], size: u64) -> Result<u64> {
+        let Some(&first) = devices.first() else {
+            return Err(ExecutionError::Memory("multicast needs a device".into()));
+        };
+        if devices
+            .iter()
+            .any(|&device| device != first && !self.topology.are_peers(first, device))
+        {
+            return Err(ExecutionError::Memory(
+                "multicast devices must share a node".into(),
+            ));
+        }
+
+        let id = self.next_multicast;
+        self.next_multicast += 1;
+        self.multicasts.insert(
+            id,
+            Multicast {
+                size,
+                devices: devices.to_vec(),
+                bindings: Vec::new(),
+            },
+        );
+        Ok(id)
+    }
+
+    /// Binds `size` bytes of `device`'s physical memory at `physical`, from `offset`, to a multicast object from `start`.
+    pub(crate) fn bind_multicast(
+        &mut self,
+        multicast: u64,
+        start: u64,
+        device: usize,
+        physical: u64,
+        offset: u64,
+        size: u64,
+    ) -> Result<()> {
+        let allocation = self
+            .allocations
+            .get(&physical)
+            .filter(|allocation| allocation.physical)
+            .ok_or_else(|| ExecutionError::Memory("no physical memory at this handle".into()))?;
+        if allocation.owner != Owner::Device(device) {
+            return Err(ExecutionError::Memory(
+                "physical memory belongs to another device".into(),
+            ));
+        }
+
+        let available = allocation.size as u64;
+        let object = self
+            .multicasts
+            .get_mut(&multicast)
+            .ok_or_else(|| ExecutionError::Memory("no such multicast object".into()))?;
+        if !object.devices.contains(&device) {
+            return Err(ExecutionError::Memory(
+                "device does not take part in this multicast object".into(),
+            ));
+        }
+
+        if offset.checked_add(size).is_none_or(|end| end > available)
+            || start.checked_add(size).is_none_or(|end| end > object.size)
+        {
+            return Err(ExecutionError::Memory(
+                "multicast binding exceeds its physical memory or the object".into(),
+            ));
+        }
+
+        let overlaps = object.bindings.iter().any(|binding| {
+            binding.device == device
+                && binding.start < start + size
+                && start < binding.start + binding.size
+        });
+        if overlaps {
+            return Err(ExecutionError::Memory(
+                "device is already bound at this part of the multicast object".into(),
+            ));
+        }
+
+        object.bindings.push(Binding {
+            device,
+            start,
+            size,
+            physical,
+            offset,
+        });
+        Ok(())
+    }
+
+    /// Removes `device`'s binding that starts at byte `start` of a multicast object.
+    pub(crate) fn unbind_multicast(
+        &mut self,
+        multicast: u64,
+        start: u64,
+        device: usize,
+    ) -> Result<()> {
+        let object = self
+            .multicasts
+            .get_mut(&multicast)
+            .ok_or_else(|| ExecutionError::Memory("no such multicast object".into()))?;
+        let before = object.bindings.len();
+        object
+            .bindings
+            .retain(|binding| binding.device != device || binding.start != start);
+        if object.bindings.len() == before {
+            return Err(ExecutionError::Memory(
+                "device has no binding at this part of the multicast object".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Maps a multicast object into a new range and returns its address.
+    pub(crate) fn map_multicast(&mut self, multicast: u64) -> Result<u64> {
+        let size = self
+            .multicasts
+            .get(&multicast)
+            .ok_or_else(|| ExecutionError::Memory("no such multicast object".into()))?
+            .size;
+        let address = self.reserve_range(size, 1 << 21)?;
+        if let Some(range) = self.ranges.get_mut(&address) {
+            range.kind = RangeKind::Multicast(multicast);
+        }
+        Ok(address)
+    }
+
+    /// Destroys a multicast object; mappings of it fault afterwards.
+    pub(crate) fn destroy_multicast(&mut self, multicast: u64) {
+        self.multicasts.remove(&multicast);
+    }
+
+    /// Returns every location a `multimem` access of `size` bytes at `address` reaches, one per bound device.
+    pub(crate) fn multicast_targets(
+        &self,
+        address: u64,
+        size: usize,
+        alignment: usize,
+        actor: Option<Actor>,
+    ) -> Result<Vec<Target>> {
+        if !address.is_multiple_of(alignment as u64) {
+            return Err(ExecutionError::Memory("misaligned address".into()));
+        }
+
+        let (start, range) = self
+            .range_at(address)
+            .ok_or_else(|| ExecutionError::Memory("unmapped multicast address".into()))?;
+        let RangeKind::Multicast(id) = range.kind else {
+            return Err(ExecutionError::Memory(
+                "multimem instructions need a multicast address".into(),
+            ));
+        };
+        let object = self
+            .multicasts
+            .get(&id)
+            .ok_or_else(|| ExecutionError::Memory("multicast object was destroyed".into()))?;
+        let offset = address - start;
+        if offset
+            .checked_add(size as u64)
+            .is_none_or(|end| end > object.size)
+        {
+            return Err(ExecutionError::Memory(
+                "multicast access exceeds the object".into(),
+            ));
+        }
+
+        if let Some(actor) = actor
+            && !object.devices.contains(&actor.device)
+        {
+            return Err(ExecutionError::Memory(format!(
+                "device {} does not take part in this multicast object",
+                actor.device
+            )));
+        }
+        object
+            .devices
+            .iter()
+            .map(|&device| {
+                let binding = object
+                    .bindings
+                    .iter()
+                    .find(|binding| {
+                        binding.device == device
+                            && binding.start <= offset
+                            && offset + size as u64 <= binding.start + binding.size
+                    })
+                    .ok_or_else(|| {
+                        ExecutionError::Memory(format!(
+                            "device {device} has no memory bound at this multicast address"
+                        ))
+                    })?;
+                Ok(Target {
+                    base: binding.physical,
+                    offset: usize::try_from(binding.offset + offset - binding.start)
+                        .map_err(|_| ExecutionError::Memory("address overflow".into()))?,
+                })
+            })
+            .collect()
+    }
+
+    /// Reads `size` bytes of one multicast target.
+    pub(crate) fn read_target(&self, target: &Target, size: usize) -> Result<&[u8]> {
+        let allocation = &self.allocations[&target.base];
+        if !allocation
+            .initialized
+            .all(target.offset..target.offset + size)
+        {
+            return Err(ExecutionError::Indeterminate("memory bytes".into()));
+        }
+        Ok(&allocation.bytes[target.offset..target.offset + size])
+    }
+
+    /// Writes `bytes` into one multicast target.
+    pub(crate) fn write_target(&mut self, target: &Target, bytes: &[u8]) {
+        let allocation = self
+            .allocations
+            .get_mut(&target.base)
+            .expect("multicast targets name live allocations");
+        allocation.bytes[target.offset..target.offset + bytes.len()].copy_from_slice(bytes);
+        allocation
+            .initialized
+            .fill(target.offset..target.offset + bytes.len(), true);
     }
 
     pub(crate) fn read(
@@ -711,16 +1299,23 @@ mod tests {
     fn test_grid_retirement_preserves_other_grids_and_persistent_buffers_after_early_releases() {
         for order in [[1, 2, 0], [0, 1, 2], [2, 0, 1]] {
             let budget = Arc::new(Budget::new(1 << 20));
-            let mut memory = Memory::new(1 << 20, Arc::clone(&budget));
+            let mut memory = Memory::new(1 << 20, Topology::default(), Arc::clone(&budget));
             let cancellation = AtomicBool::new(false);
             let persistent: Vec<_> = (0..128)
                 .map(|_| {
                     memory
-                        .allocate(4, 4, StateSpace::Global, Owner::Device, true, &cancellation)
+                        .allocate(
+                            4,
+                            4,
+                            StateSpace::Global,
+                            Owner::Device(0),
+                            true,
+                            &cancellation,
+                        )
                         .unwrap()
                 })
                 .collect();
-            let device_charge = memory.used;
+            let device_charge = memory.used.clone();
             let first = memory.begin_grid().unwrap();
             let second = memory.begin_grid().unwrap();
             let other = memory
@@ -788,7 +1383,7 @@ mod tests {
     #[test]
     fn test_failed_grid_reservations_leave_ownership_and_precharged_storage_unchanged() {
         let budget = Arc::new(Budget::new(4096));
-        let mut memory = Memory::new(4096, Arc::clone(&budget));
+        let mut memory = Memory::new(4096, Topology::default(), Arc::clone(&budget));
         let grid = memory.begin_grid().unwrap();
         let first = memory
             .reserve(4, 4, StateSpace::Local, Owner::Lane(grid, 0))
@@ -816,9 +1411,10 @@ mod tests {
                 initialized: DefinedBytes::default(),
                 writable: true,
                 space: StateSpace::Local,
-                owner: Owner::Device,
+                owner: Owner::Device(0),
                 charge: 0,
                 size: usize::try_from((1 << 32) - specific(blocker)).unwrap(),
+                physical: false,
             },
         );
         let next = memory.windows[3];
@@ -846,7 +1442,7 @@ mod tests {
     #[test]
     fn test_failed_initialization_and_cancellation_release_partial_grid_ownership() {
         let budget = Arc::new(Budget::new(1 << 20));
-        let mut memory = Memory::new(4096, Arc::clone(&budget));
+        let mut memory = Memory::new(4096, Topology::default(), Arc::clone(&budget));
         let grid = memory.begin_grid().unwrap();
         let size = CHUNK_BYTES + 1;
         let address = memory
@@ -889,7 +1485,8 @@ mod tests {
         ] {
             for size in [0, 1, 2, 4] {
                 for alignment in [1, 16] {
-                    let mut memory = Memory::new(4096, Arc::new(Budget::new(4096)));
+                    let mut memory =
+                        Memory::new(4096, Topology::default(), Arc::new(Budget::new(4096)));
                     let slot = Window::of(space).index();
                     memory.windows[slot] = (1 << 28) - 2;
                     let address = memory
@@ -897,7 +1494,7 @@ mod tests {
                             size,
                             alignment,
                             space,
-                            Owner::Device,
+                            Owner::Device(0),
                             true,
                             &AtomicBool::new(false),
                         )
@@ -926,7 +1523,7 @@ mod tests {
                             0,
                             alignment,
                             space,
-                            Owner::Device,
+                            Owner::Device(0),
                             true,
                             &AtomicBool::new(false),
                         )
@@ -954,11 +1551,11 @@ mod tests {
             let code = parsed.compile("k").unwrap();
             let options = EmulatorOptions::default();
             let budget = Arc::new(Budget::new(options.execution_storage_bytes));
-            let mut memory = Memory::new(4096, Arc::clone(&budget));
+            let mut memory = Memory::new(4096, Topology::default(), Arc::clone(&budget));
             memory.windows[3] = (1 << 28) - 2;
             let flag = AtomicBool::new(false);
             let output = memory
-                .allocate(4, 4, StateSpace::Global, Owner::Device, true, &flag)
+                .allocate(4, 4, StateSpace::Global, Owner::Device(0), true, &flag)
                 .unwrap();
             let config = LaunchConfig::create([1; 3], [1; 3], 0).unwrap();
             match Engine::create(&code, &[output], config, &[], &options, &flag, &mut memory) {
@@ -984,11 +1581,18 @@ mod tests {
 
     #[test]
     fn test_global_ranges_skip_compact_generic_windows() {
-        let mut memory = Memory::new(4096, Arc::new(Budget::new(4096)));
+        let mut memory = Memory::new(4096, Topology::default(), Arc::new(Budget::new(4096)));
         memory.windows[0] = (1 << 28) - 2;
         let cancellation = AtomicBool::new(false);
         let address = memory
-            .allocate(4, 1, StateSpace::Global, Owner::Device, true, &cancellation)
+            .allocate(
+                4,
+                1,
+                StateSpace::Global,
+                Owner::Device(0),
+                true,
+                &cancellation,
+            )
             .unwrap();
         assert_eq!(address, 5 << 28);
         assert_eq!(canonical_address(address), address);
@@ -1006,7 +1610,7 @@ mod tests {
 
     #[test]
     fn test_live_grid_addresses_and_ownership_are_distinct() {
-        let mut memory = Memory::new(4096, Arc::new(Budget::new(4096)));
+        let mut memory = Memory::new(4096, Topology::default(), Arc::new(Budget::new(4096)));
         let flag = AtomicBool::new(false);
         let first = memory.begin_grid().unwrap();
         let second = memory.begin_grid().unwrap();
@@ -1018,6 +1622,7 @@ mod tests {
             .unwrap();
         assert_ne!(a, b);
         let other = Actor {
+            device: 0,
             grid: second,
             cta: 0,
             lane: 0,
@@ -1038,7 +1643,7 @@ mod tests {
 
     #[test]
     fn test_execution_storage_is_aggregate_and_released_with_the_grid() {
-        let mut memory = Memory::new(4096, Arc::new(Budget::new(1024)));
+        let mut memory = Memory::new(4096, Topology::default(), Arc::new(Budget::new(1024)));
         let flag = AtomicBool::new(false);
         let a = memory.begin_grid().unwrap();
         let b = memory.begin_grid().unwrap();
@@ -1062,14 +1667,15 @@ mod tests {
     fn test_pending_storage_reserves_capacity_and_rejects_access_until_initialized() {
         let mut memory = Memory::new(
             Memory::charge(CHUNK_BYTES + 1).unwrap(),
+            Topology::default(),
             Arc::new(Budget::new(4096)),
         );
         let address = memory
-            .reserve(CHUNK_BYTES + 1, 4, StateSpace::Global, Owner::Device)
+            .reserve(CHUNK_BYTES + 1, 4, StateSpace::Global, Owner::Device(0))
             .unwrap();
         assert!(
             memory
-                .reserve(1, 1, StateSpace::Global, Owner::Device)
+                .reserve(1, 1, StateSpace::Global, Owner::Device(0))
                 .is_err()
         );
         assert!(!memory.initialize_chunk(address, true).unwrap());
@@ -1082,12 +1688,12 @@ mod tests {
             [0]
         );
         memory.release(address);
-        assert_eq!(memory.used, 0);
+        assert_eq!(memory.used, [0]);
     }
 
     #[test]
     fn test_transient_windows_wrap_around_live_ranges_and_device_windows_never_do() {
-        let mut memory = Memory::new(1 << 20, Arc::new(Budget::new(1 << 30)));
+        let mut memory = Memory::new(1 << 20, Topology::default(), Arc::new(Budget::new(1 << 30)));
         let flag = AtomicBool::new(false);
         let grid = memory.begin_grid().unwrap();
         let first = memory
@@ -1141,11 +1747,11 @@ mod tests {
 
         memory.windows[Window::Global.index()] = WINDOW_BYTES - 8;
         let global = memory
-            .allocate(4, 4, StateSpace::Global, Owner::Device, true, &flag)
+            .allocate(4, 4, StateSpace::Global, Owner::Device(0), true, &flag)
             .unwrap();
         memory.release(global);
         assert!(matches!(
-            memory.allocate(4, 4, StateSpace::Global, Owner::Device, true, &flag),
+            memory.allocate(4, 4, StateSpace::Global, Owner::Device(0), true, &flag),
             Err(ExecutionError::AddressSpaceExhausted("global"))
         ));
     }

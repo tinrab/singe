@@ -22,7 +22,7 @@ use crate::{
             Admission, Command, CommandKind, Lease, Phase, Shared, Staging,
             buffer::AllocationRef,
             completion::Pending,
-            debug, lock,
+            debug, host, lock,
             module::Loaded,
             options::{ExecutionReport, LaunchConfig},
             submit::RetainedFailure,
@@ -45,8 +45,11 @@ impl Reclaimable {
 
 pub(crate) struct Worker {
     pub(crate) memory: Memory,
+    /// The device of the command being polled.
+    pub(crate) device: usize,
     pub(crate) shared: Arc<Shared>,
-    pub(crate) failure: Option<RetainedFailure>,
+    /// The failure that faulted each faulted device, in the order the devices faulted.
+    pub(crate) failures: Vec<(usize, RetainedFailure)>,
 }
 
 impl Worker {
@@ -84,15 +87,16 @@ impl Worker {
         size: usize,
     ) -> Result<AllocationRef, ExecutionError> {
         self.check_cancel()?;
-        let address = self
-            .memory
-            .reserve(size, 256, StateSpace::Global, Owner::Device)?;
+        let address =
+            self.memory
+                .reserve(size, 256, StateSpace::Global, Owner::Device(self.device))?;
         Ok(AllocationRef {
             _lease: Arc::new(Lease {
                 shared: Arc::downgrade(&self.shared),
                 addresses: vec![address],
             }),
             address,
+            device: self.device,
             writable: true,
             space: StateSpace::Global,
         })
@@ -105,23 +109,49 @@ impl Worker {
         }
     }
 
-    pub(crate) fn fault(&mut self, error: &ExecutionError, storage: Arc<Reservation>) {
-        if !matches!(
+    /// Returns whether a fault stopped `device`.
+    pub(crate) fn is_faulted(&self, device: usize) -> bool {
+        self.failures.iter().any(|(faulted, _)| *faulted == device)
+    }
+
+    /// Returns whether a fault stopped every device.
+    pub(crate) fn is_all_faulted(&self) -> bool {
+        self.failures.len() == self.shared.options.topology.device_count()
+    }
+
+    /// Faults `device` with `error`, as a sticky error poisons a CUDA context, so its later commands fail and other devices keep running.
+    /// Errors that only report an earlier fault or a cancellation, and faults of a device that already faulted, change nothing.
+    /// Once every device has faulted, debugging stops.
+    pub(crate) fn fault(
+        &mut self,
+        device: usize,
+        error: &ExecutionError,
+        storage: Option<Arc<Reservation>>,
+    ) {
+        if matches!(
             error.root_cause(),
             ExecutionError::Cancelled | ExecutionError::Faulted
-        ) {
-            if self.failure.is_none() {
-                self.failure = Some(RetainedFailure::new(error.clone(), Some(storage)));
-            }
+        ) || self.is_faulted(device)
+        {
+            return;
+        }
 
-            let mut state = lock(&self.shared.admission);
-            state.debug.faulted = true;
-            if state.phase == Phase::Running {
-                state.phase = Phase::Faulted;
-            }
-
-            drop(state);
+        self.failures
+            .push((device, RetainedFailure::new(error.clone(), storage)));
+        let is_all_faulted = self.is_all_faulted();
+        let mut state = lock(&self.shared.admission);
+        state.faults.push((device, error.clone()));
+        state.debug.faulted |= is_all_faulted;
+        drop(state);
+        if is_all_faulted {
             debug::finish_observers(&self.shared, &ExecutionError::Faulted);
+        }
+    }
+
+    /// Faults every device that has not faulted with `error`.
+    pub(crate) fn fault_all(&mut self, error: &ExecutionError) {
+        for device in 0..self.shared.options.topology.device_count() {
+            self.fault(device, error, None);
         }
     }
 }
@@ -179,7 +209,7 @@ impl ModuleLoad {
                             size,
                             variable.layout.alignment(),
                             variable.space,
-                            Owner::Device,
+                            Owner::Device(worker.device),
                         )?
                     };
                     self.addresses.push(address);
@@ -307,6 +337,7 @@ impl ModuleLoad {
             layout,
             addresses,
             lease,
+            device: worker.device,
         }))
     }
 }
@@ -407,7 +438,7 @@ impl LaunchWork {
         };
         let result_storage = engine.retain_result(&mut worker.memory);
         if let Err(error) = &result {
-            worker.fault(error, Arc::clone(&result_storage));
+            worker.fault(worker.device, error, Some(Arc::clone(&result_storage)));
         }
 
         self.result_storage = Some(result_storage);
@@ -453,6 +484,7 @@ impl LaunchWork {
                 self.config,
                 &worker.shared.options,
                 &mut worker.memory,
+                worker.device,
             )?);
         }
 
@@ -496,10 +528,12 @@ pub(crate) fn run_worker(shared: &Arc<Shared>) {
     let mut worker = Worker {
         memory: Memory::new(
             shared.options.device_storage_bytes,
+            shared.options.topology,
             Arc::clone(&shared.execution_budget),
         ),
+        device: 0,
         shared: Arc::clone(shared),
-        failure: None,
+        failures: Vec::new(),
     };
     let mut active = ActiveCommands::new();
     // An emulator panic becomes `WorkerFailed` for every pending result instead of leaving
@@ -530,8 +564,9 @@ pub(crate) fn run_worker(shared: &Arc<Shared>) {
 
                 drop(wait(&shared.changed, state));
                 continue;
-            } else if active.iter().all(|command| command.control.is_suspended())
-                && worker.failure.is_none()
+            } else if active
+                .iter()
+                .all(|command| command.control.is_suspended() && !worker.is_faulted(command.device))
                 && !shared.cancel.load(Ordering::Acquire)
             {
                 drop(wait(&shared.changed, state));
@@ -540,13 +575,14 @@ pub(crate) fn run_worker(shared: &Arc<Shared>) {
                 drop(state);
             }
 
+            host::poll_agents(&mut worker);
             run_next(&mut worker, &mut active);
         }
     }));
     let failure = if result.is_err() {
         Some(RetainedFailure::new(ExecutionError::WorkerFailed, None))
     } else {
-        worker.failure.take()
+        worker.failures.drain(..).next().map(|(_, failure)| failure)
     };
     close(shared, worker, active, failure);
 }
@@ -580,7 +616,7 @@ fn select_command(
             && (command.kind != CommandKind::Launch
                 || launches < shared.options.active_grids
                 || shared.cancel.load(Ordering::Acquire)
-                || worker.failure.is_some())
+                || worker.is_faulted(command.device))
     })?;
     state.queue.remove(index)
 }
@@ -590,8 +626,9 @@ fn run_next(worker: &mut Worker, active: &mut ActiveCommands) {
     let Some(mut command) = active.pop_front() else {
         return;
     };
+    worker.device = command.device;
     if command.control.is_suspended()
-        && worker.failure.is_none()
+        && !worker.is_faulted(command.device)
         && !worker.shared.cancel.load(Ordering::Acquire)
     {
         active.push_back(command);

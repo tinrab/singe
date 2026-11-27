@@ -34,7 +34,7 @@ fn test_address_sized_pointer_arguments_execute_odd_multiblock_kernels() -> Resu
                         st.global.u32 [address],result; ret;
                     }}"
                 );
-                let device = Emulator::create(EmulatorOptions::default())?;
+                let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
                 let module = device.load(ParsedModule::parse(&source)?)?.wait()?;
                 let output = device.zeroed::<u32>(count as usize)?.wait()?;
                 module
@@ -48,7 +48,7 @@ fn test_address_sized_pointer_arguments_execute_odd_multiblock_kernels() -> Resu
                     device.download(&output)?.wait()?,
                     (0..count).map(|index| index * 7 + 13).collect::<Vec<_>>()
                 );
-                device.shutdown(ShutdownMode::Drain).wait()?;
+                device.emulator().shutdown(ShutdownMode::Drain).wait()?;
             }
         }
     }
@@ -80,7 +80,7 @@ fn test_relocations_and_callee_access_to_live_caller_storage_work_in_both_addres
                 st.global.u32 [output],value; ret;
             }}"
         );
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device.load(ParsedModule::parse(&source)?)?.wait()?;
         module
             .kernel("k")?
@@ -90,7 +90,7 @@ fn test_relocations_and_callee_access_to_live_caller_storage_work_in_both_addres
             device.download(&module.global("output")?)?.wait()?,
             30u32.to_le_bytes()
         );
-        device.shutdown(ShutdownMode::Drain).wait()?;
+        device.emulator().shutdown(ShutdownMode::Drain).wait()?;
     }
     Ok(())
 }
@@ -117,7 +117,7 @@ fn test_non_coherent_global_loads_read_like_weak_loads_and_are_global_only() -> 
             add.u32 a,a,b; add.u32 a,a,c;
             st.global.u32 [to],a; ret;
         }";
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device.load(ParsedModule::parse(source)?)?.wait()?;
     let input = device.upload(&[1u32, 0, 20, 300])?.wait()?;
     let output = device.zeroed::<u32>(1)?.wait()?;
@@ -132,6 +132,6 @@ fn test_non_coherent_global_loads_read_like_weak_loads_and_are_global_only() -> 
 
     let shared = source.replace("ld.global.nc.u32 a,[from]", "ld.shared.nc.u32 a,[from]");
     assert!(ParsedModule::parse(&shared)?.compile("k").is_err());
-    device.shutdown(ShutdownMode::Drain).wait()?;
+    device.emulator().shutdown(ShutdownMode::Drain).wait()?;
     Ok(())
 }

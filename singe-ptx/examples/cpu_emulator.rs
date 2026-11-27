@@ -34,7 +34,7 @@ fn main() -> Result<()> {
         );
     }
 
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device.load(parsed.clone())?.wait()?;
     let kernel = module.bind(&compiled)?;
     let left_values = [1i32, 2, 3, 4, 5];
@@ -109,7 +109,7 @@ fn main() -> Result<()> {
             "async: {values:?}, {} lane instructions",
             report.instructions
         );
-        device.shutdown(ShutdownMode::Drain).await?;
+        device.emulator().shutdown(ShutdownMode::Drain).await?;
         Ok::<_, Error>(())
     })?;
     inspect_fault()
@@ -124,7 +124,7 @@ fn reuse_compiled(
     right_values: &[i32],
     expected: &[i32],
 ) -> Result<()> {
-    let other = Emulator::create(EmulatorOptions::default())?;
+    let other = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let other_module = other.load(parsed)?.wait()?;
     let other_kernel = other_module.bind(compiled)?;
     let other_left = other.upload(left_values)?.wait()?;
@@ -142,7 +142,7 @@ fn reuse_compiled(
         )?
         .wait()?;
     assert_eq!(other.download(&other_output)?.wait()?, expected);
-    other.shutdown(ShutdownMode::Drain).wait()?;
+    other.emulator().shutdown(ShutdownMode::Drain).wait()?;
     println!("reused compiled code on an independent emulator");
     Ok(())
 }
@@ -162,14 +162,15 @@ fn inspect_fault() -> Result<()> {
     trap;
 }";
     let parsed = ParsedModule::parse(source)?;
-    let device = Emulator::create(EmulatorOptions::default())?;
+    let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
     let module = device.load(parsed)?.wait()?;
     let diagnostic = device.create_stream()?;
     let launch = module
         .kernel("fail")?
         .launch(LaunchConfig::create([1; 3], [1; 3], 0)?, [])?;
-    let breakpoint = device.next_breakpoint()?.wait()?;
+    let breakpoint = device.emulator().next_breakpoint()?.wait()?;
     let snapshot = device
+        .emulator()
         .inspect_lane(
             &breakpoint.id,
             breakpoint.location.cta,
@@ -199,7 +200,7 @@ fn inspect_fault() -> Result<()> {
         diagnostic.download(&module.global("output")?)?.wait()?,
         42u32.to_le_bytes()
     );
-    device.resume(&breakpoint.id)?.wait()?;
+    device.emulator().resume(&breakpoint.id)?.wait()?;
     let result = launch.wait();
     let Err(error) = result else {
         return Err(anyhow!("expected the demonstration kernel to trap"));
@@ -217,7 +218,7 @@ fn inspect_fault() -> Result<()> {
     assert_eq!(output, 42u32.to_le_bytes());
     println!("completed write: {output:?}");
     // Shutdown also reports the original kernel fault.
-    let Err(error) = device.shutdown(ShutdownMode::Drain).wait() else {
+    let Err(error) = device.emulator().shutdown(ShutdownMode::Drain).wait() else {
         return Err(anyhow!("expected shutdown to retain the kernel fault"));
     };
     assert!(matches!(error.root_cause(), ExecutionError::Trap));

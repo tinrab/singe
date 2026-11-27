@@ -31,7 +31,7 @@ fn test_registers_and_directives_execute_and_validate() -> Result<()> {
             "duplicate register case"
         );
         for asynchronous in [false, true] {
-            let device = Emulator::create(EmulatorOptions::default())?;
+            let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
             let module = device
                 .load(ParsedModule::parse(&case.source)?)?
                 .observe(asynchronous)?;
@@ -61,7 +61,7 @@ fn test_registers_and_directives_execute_and_validate() -> Result<()> {
                 case.head,
                 case.shape
             );
-            device.shutdown(ShutdownMode::Drain).wait()?;
+            device.emulator().shutdown(ShutdownMode::Drain).wait()?;
         }
     }
     directives()
@@ -87,7 +87,7 @@ fn directives() -> Result<()> {
         );
     }
     compile(".version 9.3 .target sm_80 .entry kernel() {ret;}")?;
-    for target in ["sm_75", "sm_90"] {
+    for target in ["sm_75", "sm_100"] {
         ensure!(
             compile(&format!(
                 ".version 9.3 .target {target} .entry kernel() {{ret;}}"
@@ -231,7 +231,7 @@ fn test_declared_registers_shadow_special_registers_in_their_lexical_scope() -> 
             ret;
         }";
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device
             .load(ParsedModule::parse(text)?)?
             .observe(asynchronous)?;
@@ -258,7 +258,10 @@ fn test_declared_registers_shadow_special_registers_in_their_lexical_scope() -> 
                 "lane {lane}"
             );
         }
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }
@@ -270,7 +273,7 @@ fn test_percent_prefixed_memory_symbols_can_supply_addresses() -> Result<()> {
         .entry k() { .reg .u64 pointer; .reg .u32 value;
             mov.u64 pointer,%data; ld.global.u32 value,[pointer]; st.global.u32 [output],value; ret; }")?;
     for asynchronous in [false, true] {
-        let device = Emulator::create(EmulatorOptions::default())?;
+        let device = Emulator::create(EmulatorOptions::default())?.device(0)?;
         let module = device.load(parsed.clone())?.observe(asynchronous)?;
         module
             .kernel("k")?
@@ -282,7 +285,10 @@ fn test_percent_prefixed_memory_symbols_can_supply_addresses() -> Result<()> {
                 .observe(asynchronous)?,
             42u32.to_le_bytes()
         );
-        device.shutdown(ShutdownMode::Drain).observe(asynchronous)?;
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .observe(asynchronous)?;
     }
     Ok(())
 }

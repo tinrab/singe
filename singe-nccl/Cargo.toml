@@ -32,4 +32,6 @@ num_enum.workspace = true
 bitflags.workspace = true
 
 [dev-dependencies]
+singe-cuda-emulator.workspace = true
+singe-ptx.workspace = true
 anyhow.workspace = true

@@ -10,6 +10,7 @@ use crate::{
         ir::{self, MemoryOperation, Operation},
         layout::scalar_bytes,
         lowering::{Head, Opcode, operands, require},
+        target::Architecture,
     },
 };
 
@@ -47,13 +48,15 @@ pub(crate) fn access(
         instruction.span,
         "stores cannot target constant memory",
     )?;
-    if ordering != Ordering::Weak {
+    if !matches!(ordering, Ordering::Weak | Ordering::Volatile) {
         require(
             matches!(space, None | Some(StateSpace::Global | StateSpace::Shared)),
             instruction.span,
             "memory ordering requires generic, global, or shared addressing",
         )?;
     }
+
+    take_cache_hints(head, write);
 
     let count = if head.take("v2") {
         2
@@ -127,6 +130,26 @@ pub(crate) fn access(
     }
 }
 
+/// Consumes cache operators and eviction hints, which change only where data is cached.
+fn take_cache_hints(head: &mut Head<'_>, write: bool) {
+    let operators: &[&str] = if write {
+        &["wb", "cg", "cs", "wt"]
+    } else {
+        &["ca", "cg", "cs", "lu", "cv"]
+    };
+    operators.iter().any(|operator| head.take(operator));
+    while let Some(part) = head.parts.first()
+        && (part.starts_with("L1::evict_")
+            || part.starts_with("L2::evict_")
+            || matches!(
+                *part,
+                "L1::no_allocate" | "L2::64B" | "L2::128B" | "L2::256B"
+            ))
+    {
+        head.parts = &head.parts[1..];
+    }
+}
+
 /// Consumes the ordering and, for relaxed, acquire, and release accesses, the scope of `ld` or `st`.
 fn access_ordering(head: &mut Head<'_>, write: bool) -> Result<Ordering> {
     let ordering = if head.take("volatile") {
@@ -154,6 +177,20 @@ fn access_ordering(head: &mut Head<'_>, write: bool) -> Result<Ordering> {
     Ok(ordering)
 }
 
+fn atomic_ordering(head: &mut Head<'_>) -> Option<Ordering> {
+    if head.take("acquire") {
+        Some(Ordering::Acquire)
+    } else if head.take("release") {
+        Some(Ordering::Release)
+    } else if head.take("acq_rel") {
+        Some(Ordering::AcquireRelease)
+    } else if head.take("relaxed") {
+        Some(Ordering::Relaxed)
+    } else {
+        None
+    }
+}
+
 pub(crate) fn atomic(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
@@ -164,24 +201,46 @@ pub(crate) fn atomic(
 
     use ScalarType::{B32, B64, F32, S32, S64, U32, U64};
 
-    let ordering = if head.take("acquire") {
-        Ordering::Acquire
-    } else if head.take("release") {
-        Ordering::Release
-    } else if head.take("acq_rel") {
-        Ordering::AcquireRelease
-    } else {
-        head.take("relaxed");
-        Ordering::Relaxed
-    };
-    head.take_scope();
-    let space = head.space();
+    // ptxas also accepts the operation before the ordering, scope, and space, as NCCL's inline assembly writes it.
+    let mut name = None;
+    let mut ordering = None;
+    let mut scoped = false;
+    let mut space = None;
+    loop {
+        if ordering.is_none()
+            && let Some(found) = atomic_ordering(head)
+        {
+            ordering = Some(found);
+        } else if !scoped && head.take_scope() {
+            scoped = true;
+        } else if space.is_none()
+            && let Some(found) = head.space()
+        {
+            space = Some(found);
+        } else if name.is_none()
+            && let Some(&found) = head.parts.first()
+            && matches!(
+                found,
+                "add" | "min" | "max" | "and" | "or" | "xor" | "inc" | "dec" | "exch" | "cas"
+            )
+        {
+            head.parts = &head.parts[1..];
+            name = Some(found);
+        } else {
+            break;
+        }
+    }
+
+    let ordering = ordering.unwrap_or(Ordering::Relaxed);
     require(
         matches!(space, None | Some(StateSpace::Global | StateSpace::Shared)),
         instruction.span,
         "atomic operation requires generic, global, or shared addressing",
     )?;
-    let name = head.next()?;
+    let name = match name {
+        Some(name) => name,
+        None => head.next()?,
+    };
     let ty = head.ty()?;
     let valid = match name {
         "add" => matches!(ty, U32 | S32 | U64) || (ty == F32 && space == Some(StateSpace::Global)),
@@ -245,6 +304,135 @@ pub(crate) fn atomic(
         address: compiler.address(address, space, true)?,
         value: compiler.source(value, ty)?,
     }))
+}
+
+/// Lowers `multimem.ld_reduce`, `multimem.st`, and `multimem.red`, which need `sm_90`.
+pub(crate) fn multimem(
+    compiler: &FunctionCompiler<'_, '_>,
+    instruction: &Instruction,
+    head: &mut Head<'_>,
+) -> Result<Operation> {
+    use ScalarType::{B32, B64, F32, F64, S32, S64, U32, U64};
+
+    let span = instruction.span;
+    compiler.require_architecture(Architecture::Sm90, span)?;
+    let kind = head.next()?;
+    let orderings: &[&str] = match kind {
+        "ld_reduce" => &["weak", "relaxed", "acquire"],
+        "st" => &["weak", "relaxed", "release"],
+        "red" => &["relaxed", "release"],
+        _ => {
+            return Err(CompileError::unsupported(
+                span,
+                format!("instruction multimem.{kind}"),
+            ));
+        }
+    };
+    let ordered = orderings
+        .iter()
+        .find(|ordering| head.take(ordering))
+        .is_some_and(|ordering| *ordering != "weak");
+    if ordered {
+        require(
+            head.take_scope() || head.take("cluster"),
+            span,
+            "ordered multimem access requires a scope",
+        )?;
+    }
+
+    let space = if head.take("global") {
+        Some(StateSpace::Global)
+    } else {
+        None
+    };
+    let access = match kind {
+        "ld_reduce" => ir::MulticastAccess::LoadReduce(multimem_reduction(head)?),
+        "red" => ir::MulticastAccess::Reduce(multimem_reduction(head)?),
+        _ => ir::MulticastAccess::Store,
+    };
+    let count = if head.take("v2") {
+        2
+    } else if head.take("v4") {
+        4
+    } else {
+        1
+    };
+    let ty = head.ty()?;
+    let valid = match &access {
+        ir::MulticastAccess::Store => matches!(ty, B32 | B64 | U32 | S32 | U64 | S64 | F32 | F64),
+        ir::MulticastAccess::LoadReduce(op) | ir::MulticastAccess::Reduce(op) => match op {
+            ir::Atomic::Add => matches!(ty, U32 | S32 | U64 | F32),
+            ir::Atomic::Min | ir::Atomic::Max => matches!(ty, U32 | S32 | U64 | S64),
+            _ => matches!(ty, B32 | B64),
+        },
+    };
+    require(valid, span, "multimem type does not match its operation")?;
+    require(
+        count == 1 || ty == F32,
+        span,
+        "multimem vectors hold f32 elements",
+    )?;
+
+    let load = matches!(access, ir::MulticastAccess::LoadReduce(_));
+    let [first, second] = operands(instruction)?;
+    let (address, values) = if load {
+        (second, first)
+    } else {
+        (first, second)
+    };
+    let values = if count == 1 {
+        slice::from_ref(values)
+    } else {
+        let Operand::Vector { elements, .. } = values else {
+            return Err(CompileError::instruction(
+                values.span(),
+                "vector multimem access requires a vector operand",
+            ));
+        };
+        require(
+            elements.len() == count,
+            values.span(),
+            "multimem vector length does not match its qualifier",
+        )?;
+        elements.as_slice()
+    };
+    let address = compiler.address(address, space, !load)?;
+    let (destinations, sources) = if load {
+        let destinations = values
+            .iter()
+            .map(|value| compiler.destination(value, ty))
+            .collect::<Result<_>>()?;
+        (destinations, Vec::new())
+    } else {
+        let sources = values
+            .iter()
+            .map(|value| compiler.source(value, ty))
+            .collect::<Result<_>>()?;
+        (Vec::new(), sources)
+    };
+    Ok(Operation::Memory(MemoryOperation::Multicast {
+        access,
+        ty,
+        space,
+        address,
+        destinations,
+        sources,
+    }))
+}
+
+fn multimem_reduction(head: &mut Head<'_>) -> Result<ir::Atomic> {
+    match head.next()? {
+        "add" => Ok(ir::Atomic::Add),
+        "min" => Ok(ir::Atomic::Min),
+        "max" => Ok(ir::Atomic::Max),
+        "and" => Ok(ir::Atomic::And),
+        "or" => Ok(ir::Atomic::Or),
+        "xor" => Ok(ir::Atomic::Xor),
+        name => Err(CompileError::unsupported(
+            head.span,
+            format!("multimem reduction {name}"),
+        )),
+    }
 }
 
 /// Lowers `membar` and `fence`; the interpreter already serializes every access.

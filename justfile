@@ -65,6 +65,17 @@ generate:
 
     cargo fmt
 
+emulator-kernels:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    cd singe-cuda-emulator/examples/kernels
+    gin_backends=(-DNCCL_GIN_GDAKI_ENABLE=0 -DNCCL_GIN_GPI_ENABLE=0 -DNCCL_GIN_EFA_GDA_ENABLE=0)
+    flags=(-ptx -std=c++17 -I"$NCCL_INCLUDE_PATH" "${gin_backends[@]}")
+    nvcc "${flags[@]}" -arch=sm_80 lsa.cu -o lsa.ptx
+    nvcc "${flags[@]}" -arch=sm_80 gin.cu -o gin.ptx
+    nvcc "${flags[@]}" -arch=sm_90 multimem.cu -o multimem.ptx
+
 check: prepare-tests
     #!/usr/bin/env bash
     set -euxo pipefail

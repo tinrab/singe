@@ -24,12 +24,12 @@ use crate::emulator::{
 #[derive(Clone, Debug)]
 pub struct BreakpointId {
     sequence: u64,
-    device: Weak<Shared>,
+    emulator: Weak<Shared>,
 }
 
 impl PartialEq for BreakpointId {
     fn eq(&self, other: &Self) -> bool {
-        self.sequence == other.sequence && self.device.ptr_eq(&other.device)
+        self.sequence == other.sequence && self.emulator.ptr_eq(&other.emulator)
     }
 }
 
@@ -103,11 +103,11 @@ pub(crate) struct Registration {
 impl Drop for Registration {
     fn drop(&mut self) {
         let error = self.shared.upgrade().map(|shared| {
-            let phase = lock(&shared.admission).phase;
-            match phase {
+            let state = lock(&shared.admission);
+            match state.phase {
                 Phase::Cancelling => ExecutionError::Cancelled,
-                Phase::Faulted => ExecutionError::Faulted,
                 Phase::Closed => ExecutionError::WorkerFailed,
+                _ if state.debug.faulted => ExecutionError::Faulted,
                 _ => ExecutionError::Invalid("breakpoint is no longer active".into()),
             }
         });
@@ -186,11 +186,11 @@ impl Registration {
     }
 }
 
+/// Allows a debug request until the emulator stops or every device has faulted.
 fn allowed(phase: Phase, faulted: bool) -> Result<(), SubmitError> {
     match phase {
         Phase::Running | Phase::Draining if faulted => Err(SubmitError::Faulted),
         Phase::Running | Phase::Draining => Ok(()),
-        Phase::Faulted => Err(SubmitError::Faulted),
         Phase::Cancelling | Phase::Closed => Err(SubmitError::Closed),
     }
 }
@@ -204,7 +204,7 @@ impl Emulator {
     ///
     /// # Errors
     ///
-    /// Returns an error if `id` belongs to another emulator or is no longer suspended, the emulator is closed or faulted, or the request cannot be stored.
+    /// Returns an error if `id` belongs to another emulator or is no longer suspended, the emulator is closed or every device faulted, or the request cannot be stored.
     /// Invalid coordinates, or a resume that wins the race, are reported through the submission.
     pub fn inspect_lane(
         &self,
@@ -213,7 +213,7 @@ impl Emulator {
         lane: [u32; 3],
     ) -> Result<Submission<LaneSnapshot>, SubmitError> {
         let shared = &self.client.shared;
-        if !id.device.ptr_eq(&Arc::downgrade(shared)) {
+        if !id.emulator.ptr_eq(&Arc::downgrade(shared)) {
             return Err(SubmitError::ForeignResource);
         }
 
@@ -260,7 +260,7 @@ impl Emulator {
     ///
     /// # Errors
     ///
-    /// Returns an error if the emulator is closed or faulted, or the request cannot be stored.
+    /// Returns an error if the emulator is closed or every device faulted, or the request cannot be stored.
     pub fn next_breakpoint(&self) -> Result<Submission<Breakpoint>, SubmitError> {
         let shared = &self.client.shared;
         let mut state = lock(&shared.admission);
@@ -306,7 +306,7 @@ impl Emulator {
             .filter(|(_, pause)| pause.control.suspended.load(Ordering::Acquire))
             .map(|(sequence, _)| BreakpointId {
                 sequence: *sequence,
-                device: Arc::downgrade(shared),
+                emulator: Arc::downgrade(shared),
             })
             .collect()
     }
@@ -318,10 +318,10 @@ impl Emulator {
     ///
     /// # Errors
     ///
-    /// Returns an error if `id` belongs to another emulator or is no longer suspended, the emulator is closed or faulted, or the request cannot be stored.
+    /// Returns an error if `id` belongs to another emulator or is no longer suspended, the emulator is closed or every device faulted, or the request cannot be stored.
     pub fn resume(&self, id: &BreakpointId) -> Result<Submission<()>, SubmitError> {
         let shared = &self.client.shared;
-        if !id.device.ptr_eq(&Arc::downgrade(shared)) {
+        if !id.emulator.ptr_eq(&Arc::downgrade(shared)) {
             return Err(SubmitError::ForeignResource);
         }
 
@@ -379,7 +379,7 @@ pub(crate) fn register(
     let breakpoint = Breakpoint {
         id: BreakpointId {
             sequence,
-            device: Arc::downgrade(shared),
+            emulator: Arc::downgrade(shared),
         },
         location: engine
             .breakpoint_location()
@@ -500,11 +500,16 @@ mod tests {
 
     #[test]
     fn test_debug_observer_bursts_release_all_queue_storage() {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let budget = Arc::clone(&device.client.shared.execution_budget);
         let baseline = budget.used();
         for _ in 0..3 {
-            let observers: Vec<_> = (0..64).map(|_| device.next_breakpoint().unwrap()).collect();
+            let observers: Vec<_> = (0..64)
+                .map(|_| device.emulator().next_breakpoint().unwrap())
+                .collect();
             assert!(budget.used() > baseline);
             drop(observers);
             device.synchronize().unwrap().wait().unwrap();
@@ -516,13 +521,20 @@ mod tests {
             );
             assert_eq!(budget.used(), baseline);
         }
-        device.shutdown(ShutdownMode::Drain).wait().unwrap();
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .unwrap();
         assert_eq!(budget.used(), 0);
     }
 
     #[test]
     fn test_debug_notification_bursts_release_nodes_and_keep_fifo_order() {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let budget = Arc::clone(&device.client.shared.execution_budget);
         let module = device
             .load(
@@ -561,7 +573,7 @@ mod tests {
         let mut previous = None;
         let breakpoints: Vec<_> = (0..16)
             .map(|_| {
-                let breakpoint = device.next_breakpoint().unwrap().wait().unwrap();
+                let breakpoint = device.emulator().next_breakpoint().unwrap().wait().unwrap();
                 if let Some(sequence) = previous {
                     assert!(sequence < breakpoint.id.sequence);
                 }
@@ -577,18 +589,30 @@ mod tests {
         );
         assert!(budget.used() < queued);
         for breakpoint in &breakpoints {
-            device.resume(&breakpoint.id).unwrap().wait().unwrap();
+            device
+                .emulator()
+                .resume(&breakpoint.id)
+                .unwrap()
+                .wait()
+                .unwrap();
         }
         for launch in launches {
             launch.wait().unwrap();
         }
-        device.shutdown(ShutdownMode::Drain).wait().unwrap();
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .unwrap();
         assert_eq!(budget.used(), 0);
     }
 
     #[test]
     fn test_resumed_unobserved_notifications_release_queue_storage() {
-        let device = Emulator::create(EmulatorOptions::default()).unwrap();
+        let device = Emulator::create(EmulatorOptions::default())
+            .unwrap()
+            .device(0)
+            .unwrap();
         let budget = Arc::clone(&device.client.shared.execution_budget);
         let module = device
             .load(
@@ -612,7 +636,7 @@ mod tests {
             .unwrap();
         let deadline = Instant::now() + Duration::from_secs(5);
         let id = loop {
-            if let Some(id) = device.paused_breakpoints().into_iter().next() {
+            if let Some(id) = device.emulator().paused_breakpoints().into_iter().next() {
                 break id;
             }
             assert!(Instant::now() < deadline, "breakpoint did not arrive");
@@ -625,7 +649,7 @@ mod tests {
                 .len(),
             1
         );
-        device.resume(&id).unwrap().wait().unwrap();
+        device.emulator().resume(&id).unwrap().wait().unwrap();
         launch.wait().unwrap();
         device.synchronize().unwrap().wait().unwrap();
         assert!(
@@ -634,7 +658,11 @@ mod tests {
                 .notifications
                 .is_empty()
         );
-        device.shutdown(ShutdownMode::Drain).wait().unwrap();
+        device
+            .emulator()
+            .shutdown(ShutdownMode::Drain)
+            .wait()
+            .unwrap();
         assert_eq!(budget.used(), 0);
     }
 }

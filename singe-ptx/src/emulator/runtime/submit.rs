@@ -29,7 +29,7 @@ impl<T> Debug for Producer<T> {
     }
 }
 
-/// The fault that stopped an emulator, with the storage that keeps its report reserved.
+/// The fault that stopped a device, with the storage that keeps its report reserved.
 #[derive(Clone)]
 pub(crate) struct RetainedFailure {
     pub(crate) error: ExecutionError,
@@ -66,6 +66,7 @@ impl<T> Drop for Producer<T> {
 pub(crate) fn submit_poll<T: Send + 'static, F, B>(
     client: &Arc<Client>,
     stream: u64,
+    device: usize,
     kind: CommandKind,
     diagnostic: bool,
     size: usize,
@@ -77,10 +78,18 @@ where
         + 'static,
     B: FnOnce(Staging) -> F,
 {
-    submit_retained(client, stream, kind, diagnostic, size, move |staging| {
-        let mut step = build(staging);
-        move |worker: &mut Worker, terminal| step(worker, terminal).map(Retained::new)
-    })
+    submit_retained(
+        client,
+        stream,
+        device,
+        kind,
+        diagnostic,
+        size,
+        move |staging| {
+            let mut step = build(staging);
+            move |worker: &mut Worker, terminal| step(worker, terminal).map(Retained::new)
+        },
+    )
 }
 
 /// Returns the execution storage charged while a command is queued or running: its queue node, its closure and producer, a reserved error report, and its stream entry.
@@ -105,6 +114,7 @@ fn command_charge<T, F>() -> Result<usize, SubmitError> {
 pub(crate) fn submit_retained<T: Send + 'static, F, B>(
     client: &Arc<Client>,
     stream: u64,
+    device: usize,
     kind: CommandKind,
     diagnostic: bool,
     size: usize,
@@ -116,7 +126,7 @@ where
 {
     let shared = &client.shared;
     let mut state = lock(&shared.admission);
-    admission(state.phase, diagnostic)?;
+    admission(&state, Some(device), diagnostic)?;
     if state.queue.len() + state.pending_dependencies + state.reservations
         >= shared.options.queued_commands
     {
@@ -162,7 +172,7 @@ where
     let mut state = lock(&shared.admission);
     state.reservations -= 1;
     reservation.active = false;
-    if let Err(error) = admission(state.phase, diagnostic) {
+    if let Err(error) = admission(&state, Some(device), diagnostic) {
         drop(state);
         drop(run);
         return Err(error);
@@ -178,13 +188,14 @@ where
     };
     state.queue.push_back(Command {
         stream,
+        device,
         kind,
         control,
         poll: Box::new(move |worker, terminal| {
             let terminal = terminal.or_else(|| {
                 if worker.shared.cancel.load(Ordering::Acquire) {
                     Some(ExecutionError::Cancelled)
-                } else if worker.failure.is_some() && !diagnostic {
+                } else if !diagnostic && worker.is_faulted(device) {
                     Some(ExecutionError::Faulted)
                 } else {
                     None

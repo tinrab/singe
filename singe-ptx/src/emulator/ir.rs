@@ -502,6 +502,17 @@ pub(crate) enum Operation {
     Collective(CollectiveOperation),
 }
 
+/// What a `multimem` instruction does at each device's copy.
+#[derive(Debug, Clone)]
+pub(crate) enum MulticastAccess {
+    /// `multimem.ld_reduce`: reads every copy and combines the values.
+    LoadReduce(Atomic),
+    /// `multimem.st`: writes every copy.
+    Store,
+    /// `multimem.red`: updates every copy atomically.
+    Reduce(Atomic),
+}
+
 /// Loads, stores, atomics, and fences.
 #[derive(Debug, Clone)]
 pub(crate) enum MemoryOperation {
@@ -515,6 +526,15 @@ pub(crate) enum MemoryOperation {
         ty: ScalarType,
         space: Option<StateSpace>,
         address: Address,
+        sources: Vec<Source>,
+    },
+    /// A `multimem` access, which reaches the same offset on every device bound to a multicast object.
+    Multicast {
+        access: MulticastAccess,
+        ty: ScalarType,
+        space: Option<StateSpace>,
+        address: Address,
+        destinations: Vec<Destination>,
         sources: Vec<Source>,
     },
     ConvertAddress {
@@ -589,6 +609,10 @@ pub(crate) enum ControlOperation {
     Exit,
     Trap,
     Breakpoint,
+    /// `nanosleep`: the duration is read and ignored, since lanes already take turns.
+    Sleep {
+        duration: Source,
+    },
 }
 
 /// Operations that rendezvous with other lanes of a warp or CTA.
@@ -851,14 +875,25 @@ pub(crate) enum FloatOperation {
 /// Moves, conversions, comparisons, and selections.
 #[derive(Debug, Clone)]
 pub(crate) enum DataOperation {
-    Pack {
+    /// Sets `destination` when the generic address in `address` points into `space`.
+    SpaceTest {
+        ty: ScalarType,
+        space: StateSpace,
         destination: Destination,
-        low: Source,
-        high: Source,
+        address: Source,
     },
+    /// Concatenates `parts`, lowest first, into one value of `ty`.
+    Pack {
+        ty: ScalarType,
+        part: ScalarType,
+        destination: Destination,
+        parts: Vec<Source>,
+    },
+    /// Splits a value of `ty` into `destinations`, lowest first.
     Unpack {
-        low: Destination,
-        high: Destination,
+        ty: ScalarType,
+        part: ScalarType,
+        destinations: Vec<Destination>,
         source: Source,
     },
     Move {
