@@ -30,6 +30,7 @@ use crate::{
     },
     data_type::DataType,
     error::{Error, Result, UnsupportedTarget},
+    graph::PlanChoice,
     layout::Layout,
     shape::Shape,
     tensor::Tensor,
@@ -143,19 +144,27 @@ pub fn execute_cudnn_template<'a>(
         cudnn_backend_tensor_metadata_key(output_data_type, output_shape, &output_layout),
     );
     let operation = schema.operation();
+    let choice = PlanChoice::current();
     let template_owner =
         cached_cudnn_backend_graph_template(context.runtime(), key.for_eager(), |cudnn| {
             build(
                 cudnn,
                 &input_metadata,
                 &output_metadata,
-                PlanSelection::EAGER,
+                match choice {
+                    PlanChoice::Timed => PlanSelection::EAGER,
+                    PlanChoice::First => PlanSelection::First,
+                },
             )
         })
         .map_err(|error| unsupported_cudnn_configuration(operation, error))?;
     let mut template = template_owner.locked("cuda runtime cache")?;
-    // The first call times the plans the heuristics offered on its own operands and keeps the fastest.
+    // The first call times the plans the heuristics offered on its own operands and keeps the fastest, unless the caller takes the first untimed.
     let candidates = template.take_candidates();
+    let candidates = match choice {
+        PlanChoice::Timed => candidates,
+        PlanChoice::First => Vec::new(),
+    };
     let workspace_size = candidates
         .iter()
         .map(|candidate| candidate.workspace_size)

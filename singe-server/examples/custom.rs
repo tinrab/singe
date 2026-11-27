@@ -10,6 +10,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use singe::Device;
 use singe_server::{
     api::now,
     error::{ApiError, ApiResult},
@@ -87,13 +88,16 @@ async fn count(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let counter = Worker::spawn("word-counter", 16, || Ok(WordCounter { calls: Rc::new(0) }))?;
+    let counter = Worker::spawn("word-counter", Device::Cpu, 16, || {
+        Ok(WordCounter { calls: Rc::new(0) })
+    })?;
     let served = Served::create(vec![ServedModel {
         name: "word-counter".to_owned(),
         task: "word-count".to_owned(),
         engine: Engine::Custom(Arc::new(WordCount(counter.clone()))),
         tokenizer: None,
         created: now(),
+        voice_activity: None,
     }])?;
     let app = Router::new()
         .route("/count", post(count))

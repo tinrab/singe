@@ -11,6 +11,7 @@ pub mod musicgen;
 pub mod parakeet;
 mod quantizer;
 pub mod qwen3_asr;
+pub mod silero_vad;
 pub mod speech;
 pub mod transducer;
 pub mod univnet;

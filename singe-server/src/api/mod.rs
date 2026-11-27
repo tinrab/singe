@@ -7,6 +7,7 @@ pub mod completion;
 pub mod embedding;
 pub mod image;
 pub mod model;
+pub mod realtime;
 pub mod rerank;
 pub mod task;
 pub mod tensor;

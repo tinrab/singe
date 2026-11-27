@@ -27,6 +27,7 @@ mod numerics;
 mod operation;
 mod outputs;
 mod passes;
+mod plan_choice;
 mod prepare;
 mod program;
 mod remap;
@@ -71,6 +72,7 @@ pub use self::{
     ir::Graph,
     numerics::{ComputePrecision, Determinism, with_convolution_precision},
     operation::{GraphOperationInputs, GraphOperationOutput, GraphOperationRequest},
+    plan_choice::{PlanChoice, with_plan_choice},
     prepare::{
         GraphExecutionCacheStats, GraphExecutionMemoryStats, GraphExecutionMode,
         GraphExecutionPlan, GraphExecutor, GraphPrepareOptions,

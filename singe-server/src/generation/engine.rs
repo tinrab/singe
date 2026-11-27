@@ -9,6 +9,7 @@ use std::{
 };
 
 use singe::{
+    Device,
     generation::{
         Decoder, DecoderOptions, GenerationOptions, RunningBatch, SequenceOptions, TokenLogprobs,
     },
@@ -178,7 +179,7 @@ pub struct TextEngine {
 }
 
 impl TextEngine {
-    /// Spawns the engine's thread, named `singe-{name}`, which loads its model with `load`, then generates.
+    /// Spawns the engine's thread, named `singe-{name}`, which loads its model on `device` with `load`, then generates, on a stream of its own on a CUDA device.
     /// A load that fails or panics, or a later failure that stops the engine, leaves it [`ModelState::Failed`].
     ///
     /// # Errors
@@ -186,6 +187,7 @@ impl TextEngine {
     /// Returns an error if the thread cannot be spawned.
     pub fn spawn<M: TextModel>(
         name: &str,
+        device: Device,
         options: TextEngineOptions,
         load: impl FnOnce() -> Result<M, LoadError> + Send + 'static,
     ) -> io::Result<Self> {
@@ -194,6 +196,13 @@ impl TextEngine {
         thread::Builder::new()
             .name(format!("singe-{name}"))
             .spawn(move || {
+                let _stream = match worker::own_stream(device) {
+                    Ok(stream) => stream,
+                    Err(error) => {
+                        states.send_replace(ModelState::Failed(error_chain(&error)));
+                        return;
+                    }
+                };
                 // A failure before the first step fails the load; a later one stops the engine.
                 let failure = panic::catch_unwind(AssertUnwindSafe(|| match load() {
                     Ok(model) => run(&model, options, &mut receiver, &states)
@@ -293,6 +302,8 @@ fn run<M: TextModel>(
     .with_page_size(to_i64(options.page_size, "page size")?)
     .with_cache_tokens(to_i64(options.cache_tokens, "cache tokens")?);
     let mut decoder = model.decoder(decoder_options, options.compile)?;
+    // Each prompt length's step compiles before the first request, which would otherwise wait for it.
+    decoder.compile_steps()?;
     // The batch's own options only bound `join`, which the engine doesn't call.
     let defaults = GenerationOptions {
         max_new_tokens: 1,

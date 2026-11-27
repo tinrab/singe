@@ -136,6 +136,7 @@ SHAP_E_IMG2IMG = { repository = "openai/shap-e-img2img", revision = "refs/pr/8",
 ] }
 SIGLIP = "google/siglip2-base-patch16-224"
 SIGLIP2 = "google/siglip2-base-patch16-naflex"
+SILERO_VAD = { repository = "onnx-community/silero-vad", files = ["onnx/model.onnx"] }
 SMOLLM2 = "HuggingFaceTB/SmolLM2-135M"
 SMOLVLM2 = "HuggingFaceTB/SmolVLM2-256M-Video-Instruct"
 SUPERGLUE = "magic-leap-community/superglue_outdoor"

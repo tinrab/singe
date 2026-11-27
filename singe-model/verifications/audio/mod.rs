@@ -10,6 +10,7 @@ mod mimi;
 mod musicgen;
 mod parakeet;
 mod qwen3_asr;
+mod silero_vad;
 mod univnet;
 mod vits;
 mod wav2vec2;
@@ -30,6 +31,7 @@ verifications!(
         musicgen,
         parakeet,
         qwen3_asr,
+        silero_vad,
         univnet,
         vits,
         wav2vec2,

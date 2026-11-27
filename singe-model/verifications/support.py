@@ -238,6 +238,20 @@ def write_media():
         # The clip's first second, which keeps a codec's samples in `cases.json` few.
         samples, rate = soundfile.read(clip, dtype="int16")
         soundfile.write(second, samples[:rate], rate, subtype="PCM_16")
+    pauses = directory / "clip-pauses.wav"
+    if not pauses.exists():
+        import soundfile
+
+        # A second of silence, the clip, a second and a half of silence, its first second, and half a second of silence: turns a voice activity detector starts and ends.
+        samples, rate = soundfile.read(clip, dtype="int16")
+
+        def silence(seconds):
+            return numpy.zeros(int(rate * seconds), dtype=numpy.int16)
+
+        joined = numpy.concatenate(
+            [silence(1), samples, silence(1.5), samples[:rate], silence(0.5)]
+        )
+        soundfile.write(pauses, joined, rate, subtype="PCM_16")
     long = directory / "clip-long.wav"
     if not long.exists():
         import soundfile
@@ -630,6 +644,7 @@ def compare(task, want, got):
         "time-series-forecasting",
         "reinforcement-learning",
         "sentence-embeddings",
+        "voice-activity-detection",
         "tabular-classification",
         "tabular-regression",
     ):

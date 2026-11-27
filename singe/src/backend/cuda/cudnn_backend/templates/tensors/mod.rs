@@ -449,6 +449,7 @@ const GRAPH_WORKSPACE_BYTES: usize = 256 << 20;
 pub enum PlanSelection {
     Graph,
     Eager { candidates: usize },
+    First,
 }
 
 impl PlanSelection {
@@ -477,6 +478,8 @@ fn cudnn_execution_plan(
     let mut captured_fallback = None;
     // The plan with the least workspace above `GRAPH_WORKSPACE_BYTES`, for a graph no engine runs within it.
     let mut oversized: Option<(usize, CudnnExecutionPlan)> = None;
+    // `PlanSelection::First` builds the first engine that compiles its kernel with NVRTC only if no other runs.
+    let mut compiled = None;
 
     'modes: for &mode in HEURISTIC_MODES {
         let heuristics = match CudnnEngineHeuristics::create(
@@ -506,6 +509,28 @@ fn cudnn_execution_plan(
                     last_error = Some(error);
                     continue;
                 }
+            }
+
+            if selection == PlanSelection::First {
+                let compiles = config
+                    .engine()
+                    .and_then(|engine| {
+                        Ok(engine
+                            .behavior_notes()?
+                            .contains(&BackendBehaviorNote::RuntimeCompilation))
+                    })
+                    .unwrap_or(true);
+                if compiles {
+                    compiled.get_or_insert(config);
+                    continue;
+                }
+
+                match CudnnExecutionPlan::create(cudnn, &config, None, None) {
+                    Ok(plan) => return Ok((plan, candidates)),
+                    Err(error) => last_error = Some(Error::from(error)),
+                }
+
+                continue;
             }
 
             if let PlanSelection::Eager { candidates: limit } = selection {
@@ -572,6 +597,13 @@ fn cudnn_execution_plan(
                 }
                 Err(error) => last_error = Some(Error::from(error)),
             }
+        }
+    }
+
+    if let Some(config) = compiled {
+        match CudnnExecutionPlan::create(cudnn, &config, None, None) {
+            Ok(plan) => return Ok((plan, candidates)),
+            Err(error) => last_error = Some(Error::from(error)),
         }
     }
 

@@ -32,6 +32,11 @@ pub trait Decoder {
     fn report(&self) -> Result<Option<String>> {
         Ok(None)
     }
+
+    // Compiles now every step a compiled decoder would compile on first use, so no prompt waits for one.
+    fn compile_steps(&mut self) -> Result<()> {
+        Ok(())
+    }
 }
 
 // A boxed decoder decodes as the one it holds, so a holder of decoders resets any of them alike.
@@ -58,6 +63,10 @@ impl<D: Decoder + ?Sized> Decoder for Box<D> {
 
     fn report(&self) -> Result<Option<String>> {
         (**self).report()
+    }
+
+    fn compile_steps(&mut self) -> Result<()> {
+        (**self).compile_steps()
     }
 }
 

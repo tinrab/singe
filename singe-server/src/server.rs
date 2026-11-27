@@ -16,6 +16,7 @@ use singe_model::function::program;
 use singe_model::{
     LoadOptions, Source,
     function::{ExportManifest, Shapes, TensorFunction},
+    model::audio::silero_vad::SileroVad,
     processor::text::TextTokenizer,
     task::{self, Pipeline, Task, text::text_generation::TextGenerationPipeline},
     tune::Tuning,
@@ -39,7 +40,7 @@ use crate::{
     },
     handler::{
         audio_router, chat_router, embedding_router, health_router, image_router, model_router,
-        task_router, tensor_router, tokenize_router,
+        realtime_router, task_router, tensor_router, tokenize_router,
     },
     registry::{DuplicateModel, Engine, Served, ServedModel, TENSORS},
     worker::{ModelState, Worker},
@@ -173,7 +174,7 @@ pub fn load_model(config: &ModelConfig) -> Result<ServedModel, ServerError> {
                 source,
             }
         })?;
-        let engine = TextEngine::spawn(&name, engine_options, move || {
+        let engine = TextEngine::spawn(&name, device, engine_options, move || {
             Ok(TextGenerationPipeline::load(&source, options)?)
         })?;
         Engine::Text {
@@ -181,18 +182,43 @@ pub fn load_model(config: &ModelConfig) -> Result<ServedModel, ServerError> {
             format: Arc::new(format),
         }
     } else {
-        let worker = Worker::spawn(&name, config.max_queued_requests, move || {
+        let worker = Worker::spawn(&name, device, config.max_queued_requests, move || {
             Ok(task::load(task, &source, options)?)
         })?;
         Engine::Pipeline(worker)
     };
+    let voice_activity = voice_activity(config, task)?;
     Ok(ServedModel {
         name,
         task: task.id().to_owned(),
         engine,
         tokenizer,
         created: now(),
+        voice_activity,
     })
+}
+
+/// Loads the voice activity detector `config` names for a speech recognizer's realtime sessions; a model of another task has no use for one, which is logged and left out.
+fn voice_activity(config: &ModelConfig, task: Task) -> Result<Option<Arc<SileroVad>>, ServerError> {
+    let Some(name) = &config.voice_activity else {
+        return Ok(None);
+    };
+    if task != Task::AutomaticSpeechRecognition {
+        tracing::warn!(
+            model = config.served_name(),
+            task = task.id(),
+            "a voice activity detector for a model that is not a speech recognizer, left out"
+        );
+        return Ok(None);
+    }
+
+    let detector = Source::find(name)
+        .and_then(|source| SileroVad::load(&source))
+        .map_err(|error| ServerError::Model {
+            name: config.served_name(),
+            message: format!("voice activity detector {name}: {}", error_chain(&error)),
+        })?;
+    Ok(Some(Arc::new(detector)))
 }
 
 fn load_external(
@@ -225,13 +251,16 @@ fn load_external(
         (None, None) => None,
     };
     let Some(task) = task else {
-        let worker = Worker::spawn(&name, config.max_queued_requests, move || Ok(open()?))?;
+        let worker = Worker::spawn(&name, device, config.max_queued_requests, move || {
+            Ok(open()?)
+        })?;
         return Ok(ServedModel {
             name,
             task: TENSORS.to_owned(),
             engine: Engine::Tensors(worker),
             tokenizer: None,
             created: now(),
+            voice_activity: None,
         });
     };
 
@@ -256,16 +285,18 @@ fn load_external(
     })?;
     let options = LoadOptions::new(device, DataType::F32);
     let tokenizer = TextTokenizer::load(&processor).ok().map(Arc::new);
-    let worker = Worker::spawn(&name, config.max_queued_requests, move || {
+    let worker = Worker::spawn(&name, device, config.max_queued_requests, move || {
         let source = processor.with_function(open()?);
         Ok(task::load(task, &source, options)?)
     })?;
+    let voice_activity = voice_activity(config, task)?;
     Ok(ServedModel {
         name,
         task: task.id().to_owned(),
         engine: Engine::Pipeline(worker),
         tokenizer,
         created: now(),
+        voice_activity,
     })
 }
 
@@ -379,6 +410,7 @@ pub fn app(served: Served, config: &ServerConfig) -> Result<Router, ServerError>
         .merge(chat_router())
         .merge(embedding_router())
         .merge(audio_router())
+        .merge(realtime_router())
         .merge(image_router())
         .merge(task_router())
         .merge(tensor_router())

@@ -26,6 +26,8 @@ pub enum Format {
     Transformers,
     /// A Hugging Face snapshot `diffusers` reads, whose `config.json` names a `_class_name`, or a pipeline of them, whose `model_index.json` names its class and its components' directories.
     Diffusers,
+    /// A snapshot of ONNX files alone under `onnx/`, as `onnx-community` publishes them, with no config; its kind is `onnx`.
+    Onnx,
     /// A Hugging Face snapshot of `AutoGluon`'s `Tab2D`, which Mitra is, whose `config.json` names its `task` and its sizes but no model; its kind is `tab2d`.
     AutoGluon,
 }
@@ -46,11 +48,24 @@ impl Source {
     /// # Errors
     ///
     /// Returns an error if the file it reads, `config.json` or else `model_index.json`, cannot be read or parsed, or if it names no model kind.
+    /// A directory with neither file but an `onnx` directory opens as [`Format::Onnx`].
     pub fn open(directory: impl AsRef<Path>) -> Result<Self> {
         let directory = directory.as_ref().to_owned();
-        let index = directory.join("model_index.json");
-        let config = if directory.join("config.json").exists() || !index.exists() {
-            read_json::<Value>(&directory.join("config.json"))?
+        let (config, index) = (
+            directory.join("config.json"),
+            directory.join("model_index.json"),
+        );
+        if !config.exists() && !index.exists() && directory.join("onnx").is_dir() {
+            return Ok(Self {
+                directory,
+                format: Format::Onnx,
+                kind: "onnx".to_owned(),
+                function: None,
+            });
+        }
+
+        let config = if config.exists() || !index.exists() {
+            read_json::<Value>(&config)?
         } else {
             read_json::<Value>(&index)?
         };

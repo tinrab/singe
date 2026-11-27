@@ -112,6 +112,8 @@ pub struct ModelConfig {
     pub max_queued_requests: usize,
     /// Seeds a text generator's sampling.
     pub seed: Option<u64>,
+    /// A speech recognizer's: a Silero VAD v5 snapshot, a directory or a cached repository such as `onnx-community/silero-vad`, that its realtime sessions find turns with; without one, turns end by `commit`.
+    pub voice_activity: Option<String>,
 }
 
 impl ModelConfig {
@@ -162,6 +164,7 @@ impl ModelConfig {
             cache_tokens: None,
             max_queued_requests: default_max_queued_requests(),
             seed: None,
+            voice_activity: None,
         }
     }
 

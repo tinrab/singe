@@ -140,39 +140,128 @@ impl Audio {
     /// Resamples the clip to `rate` with a Hann-windowed sinc, low-passed below the lower rate's Nyquist frequency.
     #[must_use]
     pub fn resampled(&self, rate: u32) -> Self {
-        let ratio = f64::from(rate) / f64::from(self.rate);
-        let cutoff = ratio.min(1.0);
-        let reach = RESAMPLING_TAPS / cutoff;
-        let length = (self.samples.len() as f64 * ratio).round() as usize;
+        let kernel = Kernel::new(self.rate, rate);
+        let length = (self.samples.len() as f64 * kernel.ratio).round() as usize;
         let last = i64::try_from(self.samples.len()).unwrap_or(i64::MAX) - 1;
         let samples = (0..length)
             .map(|index| {
-                let center = index as f64 / ratio;
-                let first = (center - reach).ceil().max(0.0) as i64;
-                let end = ((center + reach).floor() as i64).min(last);
-                let (mut sum, mut weights) = (0.0, 0.0);
-                for source in first..=end {
-                    let distance = center - source as f64;
-                    let x = distance * cutoff;
-                    let sinc = if x.abs() < 1e-9 {
-                        1.0
-                    } else {
-                        (PI * x).sin() / (PI * x)
-                    };
-                    let window = 0.5 + 0.5 * (PI * distance / reach).cos();
-                    let weight = sinc * window;
+                let center = index as f64 / kernel.ratio;
+                let (first, end) = kernel.reach(center);
+                kernel.point(center, first, end.min(last), |source| {
                     // `source` lies within `0..=last`, so it indexes the samples.
-                    sum += weight * f64::from(self.samples[source as usize]);
-                    weights += weight;
-                }
-                if weights.abs() < 1e-12 {
-                    0.0
-                } else {
-                    (sum / weights) as f32
-                }
+                    self.samples[source as usize]
+                })
             })
             .collect();
         Self { samples, rate }
+    }
+}
+
+/// Resamples a stream that arrives in pieces, as [`Audio::resampled`] resamples a whole clip: each output sample comes once every input sample it reads has arrived.
+#[derive(Debug, Clone)]
+pub struct StreamingResampler {
+    kernel: Kernel,
+    /// The input samples later outputs still read.
+    pending: Vec<f32>,
+    /// The stream position of `pending`'s first sample.
+    start: i64,
+    /// The outputs given so far.
+    produced: i64,
+}
+
+impl StreamingResampler {
+    /// Creates a resampler of a stream at `from` to `to`, both in hertz.
+    #[must_use]
+    pub fn new(from: u32, to: u32) -> Self {
+        Self {
+            kernel: Kernel::new(from, to),
+            pending: Vec::new(),
+            start: 0,
+            produced: 0,
+        }
+    }
+
+    /// Takes the stream's next `samples` and returns the outputs they complete.
+    pub fn push(&mut self, samples: &[f32]) -> Vec<f32> {
+        self.pending.extend_from_slice(samples);
+        let available = self.start + i64::try_from(self.pending.len()).unwrap_or(i64::MAX);
+        let mut outputs = Vec::new();
+        loop {
+            let center = self.produced as f64 / self.kernel.ratio;
+            let (first, end) = self.kernel.reach(center);
+            if end >= available {
+                break;
+            }
+
+            let (pending, start) = (&self.pending, self.start);
+            // Samples before `start` were dropped only once no output read them, so `source - start` indexes `pending`.
+            outputs.push(self.kernel.point(center, first, end, |source| {
+                pending[(source - start) as usize]
+            }));
+            self.produced += 1;
+        }
+
+        let (needed, _) = self.kernel.reach(self.produced as f64 / self.kernel.ratio);
+        let dropped = usize::try_from(needed - self.start)
+            .unwrap_or(0)
+            .min(self.pending.len());
+        self.pending.drain(..dropped);
+        self.start += i64::try_from(dropped).unwrap_or(0);
+        outputs
+    }
+}
+
+/// The Hann-windowed sinc a resampling from one rate to another weighs inputs by.
+#[derive(Debug, Clone, Copy)]
+struct Kernel {
+    /// Output samples per input sample.
+    ratio: f64,
+    /// The low-pass cutoff, as a fraction of the input's Nyquist frequency.
+    cutoff: f64,
+    /// How far from a point, in input samples, the window reaches.
+    reach: f64,
+}
+
+impl Kernel {
+    fn new(from: u32, to: u32) -> Self {
+        let ratio = f64::from(to) / f64::from(from);
+        let cutoff = ratio.min(1.0);
+        Self {
+            ratio,
+            cutoff,
+            reach: RESAMPLING_TAPS / cutoff,
+        }
+    }
+
+    /// Returns the first and last input samples an output at `center` reads, the first no earlier than the stream's start.
+    fn reach(&self, center: f64) -> (i64, i64) {
+        (
+            (center - self.reach).ceil().max(0.0) as i64,
+            (center + self.reach).floor() as i64,
+        )
+    }
+
+    /// Returns the output at `center`, weighing inputs `first..=end`, which `sample` reads.
+    fn point(&self, center: f64, first: i64, end: i64, sample: impl Fn(i64) -> f32) -> f32 {
+        let (mut sum, mut weights) = (0.0, 0.0);
+        for source in first..=end {
+            let distance = center - source as f64;
+            let x = distance * self.cutoff;
+            let sinc = if x.abs() < 1e-9 {
+                1.0
+            } else {
+                (PI * x).sin() / (PI * x)
+            };
+            let window = 0.5 + 0.5 * (PI * distance / self.reach).cos();
+            let weight = sinc * window;
+            sum += weight * f64::from(sample(source));
+            weights += weight;
+        }
+        if weights.abs() < 1e-12 {
+            0.0
+        } else {
+            (sum / weights) as f32
+        }
     }
 }
 

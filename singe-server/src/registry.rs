@@ -1,23 +1,20 @@
 //! The models a server serves, by name: each with its task, which decides the endpoints it answers, and the engine that runs it.
 
-use std::{
-    pin::Pin,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-};
+use std::{pin::Pin, sync::Arc};
 
 use serde_json::Value;
 use singe_model::{
     function::TensorFunction,
+    model::audio::silero_vad::SileroVad,
     processor::text::TextTokenizer,
     task::{AnyPipeline, Task},
 };
+use tokio::sync::watch;
 
 use crate::{
     error::{ApiError, ApiResult},
     generation::{engine::TextEngine, format::TextFormat},
+    realtime::{self, RealtimeRunner},
     worker::{ModelState, Worker},
 };
 
@@ -46,6 +43,8 @@ pub enum Engine {
     Pipeline(Worker<Box<dyn AnyPipeline>>),
     /// A [`TaskRunner`] of one's own, served through the task API.
     Custom(Arc<dyn TaskRunner>),
+    /// A [`RealtimeRunner`] of one's own, served through `/v1/realtime/{model}`.
+    Realtime(Arc<dyn RealtimeRunner>),
     Tensors(Worker<Arc<dyn TensorFunction>>),
 }
 
@@ -61,6 +60,8 @@ pub struct ServedModel {
     pub tokenizer: Option<Arc<TextTokenizer>>,
     /// The model's creation time in seconds since the Unix epoch, as `/v1/models` lists it.
     pub created: u64,
+    /// The voice activity detector a speech recognizer's realtime sessions find turns with, when it has one.
+    pub voice_activity: Option<Arc<SileroVad>>,
 }
 
 impl ServedModel {
@@ -71,6 +72,7 @@ impl ServedModel {
             Engine::Text { engine, .. } => engine.state(),
             Engine::Pipeline(worker) => worker.state(),
             Engine::Custom(runner) => runner.state(),
+            Engine::Realtime(runner) => runner.state(),
             Engine::Tensors(worker) => worker.state(),
         }
     }
@@ -81,14 +83,18 @@ impl ServedModel {
             Engine::Text { engine, .. } => engine.loaded().await,
             Engine::Pipeline(worker) => worker.loaded().await,
             Engine::Custom(runner) => runner.state(),
+            Engine::Realtime(runner) => runner.state(),
             Engine::Tensors(worker) => worker.loaded().await,
         }
     }
 
-    /// Returns the endpoints that serve the model, as [`endpoints`] gives them for its task.
+    /// Returns the endpoints that serve the model: `/v1/realtime/<model>` for a [`RealtimeRunner`], and otherwise what [`endpoints`] gives for its task.
     #[must_use]
     pub fn endpoints(&self) -> Vec<&'static str> {
-        endpoints(&self.task)
+        match self.engine {
+            Engine::Realtime(_) => vec![realtime::ENDPOINT],
+            _ => endpoints(&self.task),
+        }
     }
 
     /// Returns the most tokens a sequence holds, prompt included, for a text generator, and `None` for any other model.
@@ -96,7 +102,9 @@ impl ServedModel {
     pub fn max_model_len(&self) -> Option<usize> {
         match &self.engine {
             Engine::Text { engine, .. } => Some(engine.limits().max_model_len),
-            Engine::Pipeline(_) | Engine::Custom(_) | Engine::Tensors(_) => None,
+            Engine::Pipeline(_) | Engine::Custom(_) | Engine::Realtime(_) | Engine::Tensors(_) => {
+                None
+            }
         }
     }
 
@@ -108,7 +116,7 @@ impl ServedModel {
     pub fn text(&self, endpoint: &str) -> ApiResult<(&TextEngine, &Arc<TextFormat>)> {
         match &self.engine {
             Engine::Text { engine, format } => Ok((engine, format)),
-            Engine::Pipeline(_) | Engine::Custom(_) | Engine::Tensors(_) => {
+            Engine::Pipeline(_) | Engine::Custom(_) | Engine::Realtime(_) | Engine::Tensors(_) => {
                 Err(ApiError::wrong_task(&self.name, &self.task, endpoint))
             }
         }
@@ -159,11 +167,12 @@ pub fn endpoints(task: &str) -> Vec<&'static str> {
             "/v1/completions",
             "/tokenize",
             "/detokenize",
+            realtime::ENDPOINT,
         ],
         Ok(Task::SentenceSimilarity) => &["/v1/embeddings"],
         Ok(Task::TextRanking) => &["/v1/rerank"],
-        Ok(Task::AutomaticSpeechRecognition) => &["/v1/audio/transcriptions"],
-        Ok(Task::TextToAudio) => &["/v1/audio/speech"],
+        Ok(Task::AutomaticSpeechRecognition) => &["/v1/audio/transcriptions", realtime::ENDPOINT],
+        Ok(Task::TextToAudio) => &["/v1/audio/speech", realtime::ENDPOINT],
         Ok(Task::TextToImage) => &["/v1/images/generations"],
         Ok(Task::ImageTextToImage) => &["/v1/images/edits"],
         _ => &[],
@@ -180,7 +189,7 @@ pub struct DuplicateModel(pub String);
 
 struct ServedModelSet {
     models: Vec<Arc<ServedModel>>,
-    stopping: AtomicBool,
+    stopping: watch::Sender<bool>,
 }
 
 /// The served models, as handlers take them for their state; clones share one set.
@@ -204,7 +213,7 @@ impl Served {
         Ok(Self {
             inner: Arc::new(ServedModelSet {
                 models: models.into_iter().map(Arc::new).collect(),
-                stopping: AtomicBool::new(false),
+                stopping: watch::Sender::new(false),
             }),
         })
     }
@@ -261,7 +270,7 @@ impl Served {
     /// Returns whether every model is ready and the server is not stopping.
     #[must_use]
     pub fn ready(&self) -> bool {
-        !self.inner.stopping.load(Ordering::Relaxed)
+        !*self.inner.stopping.borrow()
             && self
                 .inner
                 .models
@@ -271,6 +280,16 @@ impl Served {
 
     /// Marks the server as stopping, so `/health` fails while running requests finish.
     pub fn stop(&self) {
-        self.inner.stopping.store(true, Ordering::Relaxed);
+        self.inner.stopping.send_replace(true);
+    }
+
+    /// Resolves once the server is stopping, which closes realtime connections.
+    pub async fn stopped(&self) {
+        self.inner
+            .stopping
+            .subscribe()
+            .wait_for(|stopping| *stopping)
+            .await
+            .ok();
     }
 }

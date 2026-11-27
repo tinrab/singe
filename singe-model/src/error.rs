@@ -11,6 +11,7 @@ use singe::Error as SingeError;
 use singe::backend::cuda::export::compiled::ProgramError;
 #[cfg(feature = "onnx")]
 use singe::onnx::Error as OnnxError;
+use singe_onnx::Error as OnnxFileError;
 use thiserror::Error;
 use tokenizers::Error as TokenizerError;
 
@@ -26,6 +27,12 @@ pub enum Error {
     #[cfg(feature = "cuda_13_4")]
     #[error(transparent)]
     Program(Box<ProgramError>),
+    #[error("failed to read the ONNX file {}", path.display())]
+    OnnxFile {
+        path: PathBuf,
+        #[source]
+        source: OnnxFileError,
+    },
     #[error("failed to access {}", path.display())]
     Io {
         path: PathBuf,
@@ -109,6 +116,11 @@ impl Error {
     pub(crate) fn io(path: &Path) -> impl FnOnce(IoError) -> Self + use<> {
         let path = path.to_owned();
         move |source| Self::Io { path, source }
+    }
+
+    pub(crate) fn onnx_file(path: &Path) -> impl FnOnce(OnnxFileError) -> Self + use<> {
+        let path = path.to_owned();
+        move |source| Self::OnnxFile { path, source }
     }
 
     pub(crate) fn json(path: &Path) -> impl FnOnce(JsonError) -> Self + use<> {

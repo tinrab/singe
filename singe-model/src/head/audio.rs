@@ -5,6 +5,7 @@ use std::{f64::consts::PI, fmt::Debug, sync::Arc};
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
+    graph::{PlanChoice, with_plan_choice},
     nn::{Layer, Model, ModelState},
     signal::LogMelSpectrogram,
 };
@@ -445,9 +446,11 @@ impl TextToSpeech {
             scales.1.unwrap_or(self.speech.noise_scale_duration),
         );
         let mut noise = normal_noise(seed);
-        Ok(self
-            .model
-            .layer()
-            .speak(tokens, &mut noise, scales, self.model.state())?)
+        // Each text's length gives the speech its own shapes, so timing each new shape's plans would cost far more than the speech.
+        Ok(with_plan_choice(PlanChoice::First, || {
+            self.model
+                .layer()
+                .speak(tokens, &mut noise, scales, self.model.state())
+        })?)
     }
 }

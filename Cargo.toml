@@ -179,7 +179,7 @@ directories = "6.0.0"
 tree-sitter = "0.27.2"
 tree-sitter-c = "0.24.2"
 tokio = "1.54.1"
-axum = { version = "0.8.9", features = ["http2", "multipart"] }
+axum = { version = "0.8.9", features = ["http2", "multipart", "ws"] }
 tower-http = { version = "0.7.1", features = ["cors", "limit", "request-id", "trace", "util"] }
 tokio-stream = "0.1.19"
 futures = "0.3.34"

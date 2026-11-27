@@ -15,12 +15,12 @@ include.workspace = true
 [features]
 default = []
 cuda_13_4 = ["singe/cuda_13_4", "singe-testing/cuda_13_4"]
-onnx = ["singe/onnx", "dep:singe-onnx"]
+onnx = ["singe/onnx"]
 
 [dependencies]
 rayon.workspace = true
 singe.workspace = true
-singe-onnx = { workspace = true, optional = true }
+singe-onnx.workspace = true
 image.workspace = true
 minijinja.workspace = true
 minijinja-contrib.workspace = true

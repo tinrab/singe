@@ -166,7 +166,7 @@ pub fn default_head(source: &Source) -> Result<Head> {
                 .find(|head| classes.iter().any(|class| head.holds_class(class)))
                 .unwrap_or(first))
         }
-        Format::Diffusers => Ok(first),
+        Format::Diffusers | Format::Onnx => Ok(first),
         // A Tab2D snapshot holds the weights of the one task its config names.
         Format::AutoGluon => {
             let config = source.json::<Value>("config.json")?;

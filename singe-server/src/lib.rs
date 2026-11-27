@@ -5,6 +5,7 @@
 //! - **Server:** [`server::serve`] loads the models a [`ServerConfig`](config::ServerConfig) names and serves them until SIGINT or SIGTERM, and [`server::app`] returns its router without binding a port.
 //! - **Endpoints:** routers in [`handler`] for chat and text completions, embeddings, rerank, transcription, speech, image generation and edits, and `/v1/tasks/{task}` for any task, with request and response types in [`api`].
 //! - **Models:** a [`Served`](registry::Served) set of named models, each answering the endpoints of its task, as [`registry::endpoints`] lists them.
+//! - **Realtime connections:** [`realtime`] serves `/v1/realtime/{model}`, a long-lived WebSocket in place of requests: text generators, speech recognizers, and speech synthesizers stream over it, and a [`RealtimeRunner`](realtime::RealtimeRunner) serves a model of one's own.
 //! - **Text generation:** [`TextEngine`](generation::engine::TextEngine) batches requests continuously, joining each into a free row between decoding steps.
 //! - **Custom models:** [`Worker`](worker::Worker) runs a model on a thread of its own, and [`TaskRunner`](registry::TaskRunner) serves one through the task API.
 //!
@@ -36,6 +37,7 @@ pub mod error;
 pub mod generation;
 pub mod handler;
 pub mod media;
+pub mod realtime;
 pub mod registry;
 pub mod server;
 pub mod text;

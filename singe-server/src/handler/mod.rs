@@ -26,6 +26,7 @@ use tokio::task::spawn_blocking;
 use crate::{
     error::{ApiError, ApiResult},
     generation::engine::TextLimits,
+    realtime,
     registry::Served,
 };
 
@@ -39,6 +40,7 @@ where
         .merge(chat_router())
         .merge(embedding_router())
         .merge(audio_router())
+        .merge(realtime_router())
         .merge(image_router())
         .merge(task_router())
         .merge(tensor_router())
@@ -78,6 +80,15 @@ where
     Router::new()
         .route("/v1/audio/transcriptions", post(audio::transcribe))
         .route("/v1/audio/speech", post(audio::speak))
+}
+
+/// Returns a router of `/v1/realtime/{model}`.
+pub fn realtime_router<S>() -> Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+    Served: FromRef<S>,
+{
+    Router::new().route("/v1/realtime/{model}", get(realtime::connect))
 }
 
 /// Returns a router of `/v1/images/generations` and `/v1/images/edits`.

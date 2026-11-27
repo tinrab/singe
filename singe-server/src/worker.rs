@@ -7,6 +7,9 @@ use std::{
     thread,
 };
 
+use singe::Device;
+#[cfg(feature = "cuda_13_4")]
+use singe::backend::cuda::{CudaStream, set_current_stream};
 use tokio::sync::{
     mpsc::{self, error::TrySendError},
     oneshot, watch,
@@ -48,7 +51,8 @@ impl<M> Clone for Worker<M> {
 }
 
 impl<M: 'static> Worker<M> {
-    /// Spawns a thread named `singe-{name}` that loads its model with `load`, then runs jobs, up to `queue` of which wait at once.
+    /// Spawns a thread named `singe-{name}` that loads its model on `device` with `load`, then runs jobs, up to `queue` of which wait at once.
+    /// On a CUDA device the thread runs on a stream of its own, so its model's work runs beside other models' rather than behind it.
     /// A `load` that fails or panics leaves the worker [`ModelState::Failed`].
     ///
     /// # Errors
@@ -56,6 +60,7 @@ impl<M: 'static> Worker<M> {
     /// Returns an error if the thread cannot be spawned.
     pub fn spawn(
         name: &str,
+        device: Device,
         queue: usize,
         load: impl FnOnce() -> Result<M, LoadError> + Send + 'static,
     ) -> io::Result<Self> {
@@ -64,6 +69,13 @@ impl<M: 'static> Worker<M> {
         thread::Builder::new()
             .name(format!("singe-{name}"))
             .spawn(move || {
+                let _stream = match own_stream(device) {
+                    Ok(stream) => stream,
+                    Err(error) => {
+                        states.send_replace(ModelState::Failed(error_chain(&error)));
+                        return;
+                    }
+                };
                 let mut model = match panic::catch_unwind(AssertUnwindSafe(load)) {
                     Ok(Ok(model)) => model,
                     Ok(Err(error)) => {
@@ -149,4 +161,21 @@ pub(crate) fn ready(name: &str, state: &watch::Receiver<ModelState>) -> ApiResul
 
 fn stopped(name: &str) -> ApiError {
     ApiError::internal(format!("model {name}'s thread stopped"))
+}
+
+/// Makes a new stream on `device` this thread's current one until what it returns is dropped, so the thread's model runs beside other models rather than behind them on the device's shared eager stream.
+#[cfg(feature = "cuda_13_4")]
+pub(crate) fn own_stream(device: Device) -> singe::Result<Option<impl Sized>> {
+    if !matches!(device, Device::Cuda(_)) {
+        return Ok(None);
+    }
+
+    let stream = CudaStream::create(device)?;
+    Ok(Some(set_current_stream(&stream)?))
+}
+
+/// Gives the thread nothing: without CUDA its model runs on the host.
+#[cfg(not(feature = "cuda_13_4"))]
+pub(crate) const fn own_stream(_device: Device) -> singe::Result<Option<()>> {
+    Ok(None)
 }

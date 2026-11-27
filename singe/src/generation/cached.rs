@@ -538,6 +538,20 @@ impl<L: DecoderModel> Decoder for CachedDecoder<L> {
         compiled.max(self.chunks.last().copied())
     }
 
+    fn compile_steps(&mut self) -> Result<()> {
+        let sequences = self.pages.sequences();
+        for chunk in self.chunks.clone() {
+            if self
+                .compiled
+                .as_ref()
+                .is_some_and(|(steps, _)| steps.get(chunk + sequences).is_none())
+            {
+                self.compile_chunk(chunk)?;
+            }
+        }
+        Ok(())
+    }
+
     fn report(&self) -> Result<Option<String>> {
         let Some((steps, _)) = &self.compiled else {
             return Ok(None);

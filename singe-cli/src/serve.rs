@@ -74,6 +74,9 @@ struct ModelArguments {
     max_queued_requests: Option<usize>,
     #[arg(long)]
     seed: Option<u64>,
+    /// A Silero VAD v5 snapshot, such as `onnx-community/silero-vad`, that a speech recognizer's realtime sessions find turns with.
+    #[arg(long)]
+    voice_activity: Option<String>,
     /// The snapshot whose tokenizer or image processor and config a program or an ONNX file's task reads.
     #[arg(long)]
     processor: Option<String>,
@@ -117,6 +120,8 @@ impl ModelArguments {
         if let Some(queued) = self.max_queued_requests {
             config.max_queued_requests = queued;
         }
+
+        config.voice_activity.clone_from(&self.voice_activity);
 
         match kind {
             ModelKind::Snapshot => {

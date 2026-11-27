@@ -46,7 +46,7 @@ pub async fn run(
                 .await?
         }
         Engine::Custom(runner) => runner.run(request.inputs, request.parameters).await?,
-        Engine::Tensors(_) => {
+        Engine::Tensors(_) | Engine::Realtime(_) => {
             return Err(ApiError::wrong_task(
                 &model.name,
                 &model.task,
