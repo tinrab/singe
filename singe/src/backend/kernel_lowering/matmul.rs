@@ -11,7 +11,7 @@ use crate::{
             STATUS_INVALID_QUANTIZATION_SCALE,
             domain::{DomainKernel, LoweredKernel},
             element_type,
-            expression::{ElementValue, Expressions},
+            expression::{ElementValue, ExpressionBuilder},
             group::FusedStep,
             quantization::unpacked,
             row::row_schedule,
@@ -297,7 +297,7 @@ fn left_value(builder: &mut DomainKernel, lhs: &Lhs<'_>, element: ElementType) -
         });
     }
 
-    let mut expressions = Expressions {
+    let mut expressions = ExpressionBuilder {
         kernel: &mut builder.kernel,
         bindings: &mut builder.bindings,
         labels: &mut builder.labels,
@@ -336,7 +336,7 @@ fn product_epilogue(
         });
     }
 
-    let mut expressions = Expressions {
+    let mut expressions = ExpressionBuilder {
         kernel: &mut builder.kernel,
         bindings: &mut builder.bindings,
         labels: &mut builder.labels,

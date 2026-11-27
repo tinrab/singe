@@ -1,6 +1,6 @@
 use crate::{
     error::{Error, Result},
-    generation::{Penalties, RunningBatch},
+    generation::{PenaltySet, RunningBatch},
     random::Generator,
     tensor::{SamplingOptions, Tensor},
 };
@@ -74,7 +74,7 @@ pub struct GenerationOptions {
     pub suppressed_tokens: Vec<i64>,
     // Tokens not chosen as a sequence's first, as Whisper's `begin_suppress_tokens`.
     pub first_suppressed_tokens: Vec<i64>,
-    pub penalties: Penalties,
+    pub penalties: PenaltySet,
 }
 
 impl GenerationOptions {
@@ -98,7 +98,7 @@ pub struct SequenceOptions {
     pub seed: Option<u64>,
     pub logit_bias: Vec<(i64, f32)>,
     pub min_tokens: usize,
-    pub penalties: Penalties,
+    pub penalties: PenaltySet,
     pub logprobs: Option<usize>,
 }
 

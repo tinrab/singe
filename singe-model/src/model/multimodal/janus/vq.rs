@@ -8,12 +8,12 @@ use singe::{
 };
 
 use crate::{
-    assembly::{MiddleBlock, Norms, ResnetBlock, SpatialAttention, UpsampleBlock, same_2d},
+    assembly::{GroupNormSpec, MiddleBlock, ResnetBlock, SpatialAttention, UpsampleBlock, same_2d},
     schema::Schema,
 };
 
 /// The norms of every block, as `JanusVQVAEResnetBlock` and `JanusVQVAEAttnBlock` make them.
-const NORMS: Norms = Norms {
+const NORMS: GroupNormSpec = GroupNormSpec {
     groups: 32,
     eps: 1e-6,
 };

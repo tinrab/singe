@@ -6,7 +6,7 @@ use std::{collections::HashSet, fmt::Debug, slice, sync::Arc};
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Tensor,
-    generation::{CachedDecoder, Decoder, DecoderOptions, PromptChunks},
+    generation::{CachedDecoder, Decoder, DecoderOptions, PromptChunking},
     nn::{
         CacheSize, CrossAttention, DecodeCache, DecodeStep, DecoderModel, EncoderDecoderCache,
         EncoderDecoderCacheSpec, KvCacheSpec, Model, ModelState, TokenBatch,
@@ -14,7 +14,7 @@ use singe::{
 };
 
 use crate::{
-    decoder_cache::{Decoders, bucketed_capacity, cached_decoder},
+    decoder_cache::{DecoderCache, bucketed_capacity, cached_decoder},
     error::{Error, Result},
     head::{Boxed, argmax},
     host,
@@ -199,7 +199,7 @@ fn top(values: &[f32], count: usize) -> Vec<usize> {
 pub struct Seq2SeqLm {
     model: Model<Boxed<dyn Seq2SeqLayers>>,
     generation: Seq2SeqGeneration,
-    decoders: Decoders<Seq2SeqKey, CachedDecoder<Seq2SeqDecoder>>,
+    decoders: DecoderCache<Seq2SeqKey, CachedDecoder<Seq2SeqDecoder>>,
 }
 
 /// Returns the tokens that would complete an n-gram of `size` already in `tokens`, as `transformers`' `NoRepeatNGramLogitsProcessor` bans them.
@@ -422,7 +422,7 @@ impl Seq2SeqLm {
         Self {
             model,
             generation,
-            decoders: Decoders::default(),
+            decoders: DecoderCache::default(),
         }
     }
 
@@ -527,7 +527,7 @@ impl Seq2SeqLm {
                     sources: held,
                 };
                 let options =
-                    DecoderOptions::new(rows, capacity).with_prompt_chunks(PromptChunks::NONE);
+                    DecoderOptions::new(rows, capacity).with_prompt_chunks(PromptChunking::NONE);
                 Ok(cached_decoder(
                     &Model::new(decoder, state.clone()),
                     options,

@@ -512,7 +512,7 @@ impl Tensor {
 // Where each sequence's rows of a step sit, for operations that carry a state per sequence: sequence `b` holds rows `query_offsets[b]..query_offsets[b + 1]`, of which the first `real_tokens[b]` are its own, and `positions` gives each row's position, so a sequence whose first row is at position zero starts from a zero state.
 // The tensors are `I64` vectors.
 #[derive(Debug, Clone, Copy)]
-pub struct SequenceSpans<'a> {
+pub struct SequenceLayout<'a> {
     pub query_offsets: &'a Tensor,
     pub real_tokens: &'a Tensor,
     pub positions: &'a Tensor,
@@ -524,7 +524,7 @@ impl Tensor {
         &self,
         weight: &Self,
         state: &Self,
-        spans: SequenceSpans<'_>,
+        spans: SequenceLayout<'_>,
     ) -> Result<Self> {
         call_one(
             Operation::CausalConv1d,
@@ -541,7 +541,7 @@ impl Tensor {
     }
 
     // Returns `state` as `causal_conv1d` leaves it: each sequence's last `K − 1` inputs, after its real rows of `self`.
-    pub fn causal_conv1d_state(&self, state: &Self, spans: SequenceSpans<'_>) -> Result<Self> {
+    pub fn causal_conv1d_state(&self, state: &Self, spans: SequenceLayout<'_>) -> Result<Self> {
         call_one(
             Operation::CausalConv1dState,
             OperationAttributes::None,
@@ -566,7 +566,7 @@ impl Tensor {
         decay: &Self,
         strength: &Self,
         state: &Self,
-        spans: SequenceSpans<'_>,
+        spans: SequenceLayout<'_>,
     ) -> Result<(Self, Self)> {
         let mut outputs = call(
             Operation::GatedDeltaRule,
@@ -618,7 +618,7 @@ impl Tensor {
         input_projection: &Self,
         output_projection: &Self,
         state: &Self,
-        spans: SequenceSpans<'_>,
+        spans: SequenceLayout<'_>,
     ) -> Result<(Self, Self)> {
         let mut outputs = call(
             Operation::SelectiveScan,

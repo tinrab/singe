@@ -178,7 +178,7 @@ pub fn endpoints(task: &str) -> Vec<&'static str> {
 #[error("two models named {0}")]
 pub struct DuplicateModel(pub String);
 
-struct ServedModels {
+struct ServedModelSet {
     models: Vec<Arc<ServedModel>>,
     stopping: AtomicBool,
 }
@@ -186,7 +186,7 @@ struct ServedModels {
 /// The served models, as handlers take them for their state; clones share one set.
 #[derive(Clone)]
 pub struct Served {
-    inner: Arc<ServedModels>,
+    inner: Arc<ServedModelSet>,
 }
 
 impl Served {
@@ -202,7 +202,7 @@ impl Served {
             }
         }
         Ok(Self {
-            inner: Arc::new(ServedModels {
+            inner: Arc::new(ServedModelSet {
                 models: models.into_iter().map(Arc::new).collect(),
                 stopping: AtomicBool::new(false),
             }),

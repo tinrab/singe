@@ -25,7 +25,7 @@ use crate::{
             },
             export::{
                 builder::{
-                    matmul::{AddendLayout, Epilogue, MatmulLibraries, matmul_libraries},
+                    matmul::{AddendLayout, Epilogue, MatmulLibraryChoice, matmul_libraries},
                     names::identifier,
                 },
                 program::{
@@ -34,9 +34,9 @@ use crate::{
                     RowCount, StateKind, StepProvider,
                 },
             },
-            graph_binding::{InPlaceWrites, WritableInputs, graph_users},
+            graph_binding::{InPlaceWritePlan, WritableInputs, graph_users},
             kernel_plan::{KernelInput, KernelPlan, KernelPlanner},
-            tuning::{RecordCoverage, TunedChoice, TunedWay, TuningRecords, schedule_key},
+            tuning::{RecordCoverage, TunedChoice, TunedWay, TuningRecordSet, schedule_key},
         },
         registry::Operation,
     },
@@ -107,7 +107,7 @@ struct Builder<'a> {
     memory: GraphMemoryPlanner,
     users: HashMap<ValueId, Vec<ValueId>>,
     outputs: HashSet<ValueId>,
-    in_place_writes: InPlaceWrites,
+    in_place_writes: InPlaceWritePlan,
     positions: HashMap<ValueId, usize>,
     buffers: Vec<ProgramBuffer>,
     free: Vec<BufferId>,
@@ -120,7 +120,7 @@ struct Builder<'a> {
     failures: Vec<ExportFailure>,
     inputs: Vec<ProgramValue>,
     merged: HashSet<ValueId>,
-    library_matmuls: HashMap<ValueId, MatmulLibraries>,
+    library_matmuls: HashMap<ValueId, MatmulLibraryChoice>,
     state: Vec<ProgramState>,
     names: HashSet<String>,
 }
@@ -626,7 +626,7 @@ pub fn build_program(
         .collect();
     let memory = GraphMemoryPlanner::create(ir, &order)?;
     let in_place_writes =
-        InPlaceWrites::analyze(ir, &order, &users, &outputs, WritableInputs::Every)?;
+        InPlaceWritePlan::analyze(ir, &order, &users, &outputs, WritableInputs::Every)?;
     let mut builder = Builder {
         ir,
         policy,
@@ -701,7 +701,7 @@ pub fn build_program(
         .collect();
     let record_coverage = builder_records
         .as_deref()
-        .map_or_else(RecordCoverage::default, TuningRecords::coverage);
+        .map_or_else(RecordCoverage::default, TuningRecordSet::coverage);
     Ok(CudaProgram {
         target,
         buffers: builder.buffers,

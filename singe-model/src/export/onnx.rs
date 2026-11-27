@@ -21,7 +21,7 @@ use crate::{
         SentenceEmbedder, SequenceClassifier, TextEncoder, TokenClassifier,
     },
     model,
-    processor::image::{ImageTransforms, Resize},
+    processor::image::{ImagePreprocessor, Resize},
     source::{LoadOptions, Source},
     task::Task,
 };
@@ -112,7 +112,7 @@ pub fn program(
             text(
                 options,
                 &model,
-                &[("last_hidden_state", Values::PerToken)],
+                &[("last_hidden_state", OutputGranularity::PerToken)],
                 forward,
             )
         }
@@ -121,7 +121,7 @@ pub fn program(
             text(
                 options,
                 model.get_model()?,
-                &[("logits", Values::PerSequence)],
+                &[("logits", OutputGranularity::PerSequence)],
                 forward,
             )
         }
@@ -130,7 +130,7 @@ pub fn program(
             text(
                 options,
                 model.get_model()?,
-                &[("logits", Values::PerToken)],
+                &[("logits", OutputGranularity::PerToken)],
                 forward,
             )
         }
@@ -139,7 +139,7 @@ pub fn program(
             text(
                 options,
                 model.get_model()?,
-                &[("logits", Values::PerToken)],
+                &[("logits", OutputGranularity::PerToken)],
                 forward,
             )
         }
@@ -149,8 +149,8 @@ pub fn program(
                 options,
                 model.get_model()?,
                 &[
-                    ("start_logits", Values::PerToken),
-                    ("end_logits", Values::PerToken),
+                    ("start_logits", OutputGranularity::PerToken),
+                    ("end_logits", OutputGranularity::PerToken),
                 ],
                 |layer, batch, state| {
                     let scores = layer.forward(batch, state)?;
@@ -164,8 +164,8 @@ pub fn program(
                 options,
                 model.get_model()?,
                 &[
-                    ("token_embeddings", Values::PerToken),
-                    ("sentence_embedding", Values::PerSequence),
+                    ("token_embeddings", OutputGranularity::PerToken),
+                    ("sentence_embedding", OutputGranularity::PerSequence),
                 ],
                 |layer, batch, state| Ok(layer.embeddings(batch, state)?.to_vec()),
             )
@@ -323,7 +323,7 @@ fn forward<I, L: Layer<I> + ?Sized>(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Values {
+enum OutputGranularity {
     PerToken,
     PerSequence,
 }
@@ -344,11 +344,11 @@ fn build<L>(
 
 /// A text model over `input_ids`, `attention_mask`, and `token_type_ids`, which it leaves out when the model never reads it, as `optimum` does for `DistilBERT` and `RoBERTa`.
 ///
-/// The mask may mark real tokens anywhere in a row: each row's real tokens move to its start before the model runs, and the outputs marked [`Values::PerToken`] move back to the positions the caller sent.
+/// The mask may mark real tokens anywhere in a row: each row's real tokens move to its start before the model runs, and the outputs marked [`OutputGranularity::PerToken`] move back to the positions the caller sent.
 fn text<L: Layer<TokenBatch>>(
     options: &ExportOptions,
     model: &Model<L>,
-    outputs: &[(&str, Values)],
+    outputs: &[(&str, OutputGranularity)],
     results: impl Fn(&L, &TokenBatch, &ModelState) -> SingeResult<Vec<Tensor>>,
 ) -> Result<(GraphProgram, ModelState)> {
     let output_names = outputs.iter().map(|&(name, _)| name).collect::<Vec<_>>();
@@ -377,8 +377,8 @@ fn text<L: Layer<TokenBatch>>(
                 .iter()
                 .zip(outputs)
                 .map(|(result, &(_, values))| match values {
-                    Values::PerToken => placement.restore(result),
-                    Values::PerSequence => Ok(result.clone()),
+                    OutputGranularity::PerToken => placement.restore(result),
+                    OutputGranularity::PerSequence => Ok(result.clone()),
                 })
                 .collect()
         })
@@ -443,7 +443,7 @@ fn image<L: Layer>(
     outputs: &[&str],
     results: impl FnOnce(&L, &Tensor, &ModelState) -> SingeResult<Vec<Tensor>>,
 ) -> Result<(GraphProgram, ModelState)> {
-    let processor = ImageTransforms::load(source)?;
+    let processor = ImagePreprocessor::load(source)?;
     let (size, axes) = match image_size(&processor) {
         Ok(size) => (size, &[(0, "batch_size")][..]),
         Err(_) => (

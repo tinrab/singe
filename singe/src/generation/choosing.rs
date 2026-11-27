@@ -4,17 +4,17 @@ use crate::{
     generation::GenerationOptions,
     graph::capture,
     shape::Shape,
-    tensor::{Draws, SamplingOptions, Tensor},
+    tensor::{DrawSource, SamplingOptions, Tensor},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Penalties {
+pub struct PenaltySet {
     pub repetition: f32,
     pub frequency: f32,
     pub presence: f32,
 }
 
-impl Default for Penalties {
+impl Default for PenaltySet {
     fn default() -> Self {
         Self {
             repetition: 1.0,
@@ -24,7 +24,7 @@ impl Default for Penalties {
     }
 }
 
-impl Penalties {
+impl PenaltySet {
     #[must_use]
     pub fn is_neutral(&self) -> bool {
         *self == Self::default()
@@ -63,7 +63,7 @@ pub struct Choice<'a> {
     pub suppressed_tokens: &'a [i64],
     pub first_suppressed_tokens: &'a [i64],
     pub sampling: &'a [Option<SamplingOptions>],
-    pub draws: Draws<'a>,
+    pub draws: DrawSource<'a>,
     pub bias: Option<Bias<'a>>,
     pub penalties: Option<PenaltyCounts<'a>>,
     pub logprobs: Option<i64>,
@@ -75,7 +75,7 @@ impl<'a> Choice<'a> {
         first_tokens: &'a Tensor,
         options: &'a GenerationOptions,
         sampling: &'a [Option<SamplingOptions>],
-        draws: Draws<'a>,
+        draws: DrawSource<'a>,
     ) -> Self {
         Self {
             first_tokens,

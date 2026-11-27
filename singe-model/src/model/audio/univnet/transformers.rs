@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     error::{Error, Result},
-    format::Rules,
+    format::RuleSet,
     model::audio::univnet::UnivNetConfig,
     processor::fbank::AmplitudeMelOptions,
     source::Source,
@@ -81,8 +81,8 @@ pub(crate) fn config(source: &Source) -> Result<UnivNetConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename("conv_pre", "conv_pre")
         .rename("resblocks", "resblocks")
         .rename("conv_post", "conv_post")

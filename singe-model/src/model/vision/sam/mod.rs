@@ -272,7 +272,7 @@ impl VisionBlock {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PromptPositions {
+pub(crate) enum PromptPosition {
     Skipped,
     Added,
 }
@@ -287,14 +287,14 @@ pub(crate) struct TwoWayBlock {
     feed_forward_norm: LayerNorm,
     image_to_token: Attention,
     image_to_token_norm: LayerNorm,
-    prompt_positions: PromptPositions,
+    prompt_positions: PromptPosition,
 }
 
 impl TwoWayBlock {
     pub(crate) fn create(
         schema: &mut Schema<'_>,
         config: TwoWaySizes,
-        prompt_positions: PromptPositions,
+        prompt_positions: PromptPosition,
     ) -> SingeResult<Self> {
         let embedding = config.embedding;
         Ok(Self {
@@ -331,8 +331,8 @@ impl TwoWayBlock {
         state: &ModelState,
     ) -> SingeResult<(Tensor, Tensor)> {
         let queries = match self.prompt_positions {
-            PromptPositions::Skipped => self.attention.forward(queries, queries, queries, state)?,
-            PromptPositions::Added => {
+            PromptPosition::Skipped => self.attention.forward(queries, queries, queries, state)?,
+            PromptPosition::Added => {
                 let positioned = queries.add(prompts)?;
                 queries.add(
                     &self
@@ -431,9 +431,9 @@ impl SamLayers {
         let two_way = (0..config.decoder_layers)
             .map(|index| {
                 let prompt_positions = if index == 0 {
-                    PromptPositions::Skipped
+                    PromptPosition::Skipped
                 } else {
-                    PromptPositions::Added
+                    PromptPosition::Added
                 };
                 TwoWayBlock::create(
                     &mut schema.scope(format!("two_way.{index}")),

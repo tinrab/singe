@@ -16,7 +16,7 @@ use crate::{
     assembly::{FinalNorm, PreNormEncoder, PreNormEncoderConfig},
     error::Result,
     format::Loader,
-    head::{HeadLoader, Trajectory, TrajectoryModel, TrajectoryPredictions},
+    head::{HeadLoader, Trajectory, TrajectoryModel, TrajectoryOutput},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -148,7 +148,7 @@ impl Layer for DecisionTransformerLayers {
 pub type DecisionTransformer = Model<DecisionTransformerLayers>;
 
 impl TrajectoryModel for DecisionTransformer {
-    fn predict(&self, trajectory: &Trajectory) -> Result<TrajectoryPredictions> {
+    fn predict(&self, trajectory: &Trajectory) -> Result<TrajectoryOutput> {
         let config = &self.layer().config;
         let (states, actions) = (
             usize::try_from(config.state_dim)
@@ -198,7 +198,7 @@ impl TrajectoryModel for DecisionTransformer {
         let output = self.forward(&input)?.cast(DataType::F32)?.to_vec::<f32>()?;
         let row = states + actions + 1;
         let rows = output.chunks(row);
-        Ok(TrajectoryPredictions {
+        Ok(TrajectoryOutput {
             state_preds: rows.clone().map(|row| row[..states].to_vec()).collect(),
             action_preds: rows
                 .clone()

@@ -7,7 +7,7 @@ use crate::{
     assembly::unet_block_rules,
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         diffusers::{activation_field, default_true, silu},
         join,
     },
@@ -90,8 +90,8 @@ pub(crate) fn config(source: &Source) -> Result<AutoencoderKlConfig> {
 }
 
 /// Returns the rules that import one half, stored under `half` (`encoder` or `decoder`) with its blocks under `blocks` (`down_blocks` or `up_blocks`), and the 1 × 1 convolution stored at `quant` beside it.
-fn half_rules(half: &str, blocks: &str, quant: &str) -> Rules {
-    Rules::new()
+fn half_rules(half: &str, blocks: &str, quant: &str) -> RuleSet {
+    RuleSet::new()
         .rename_each(
             half,
             "",
@@ -109,10 +109,10 @@ fn half_rules(half: &str, blocks: &str, quant: &str) -> Rules {
         .rename(quant, "quant")
 }
 
-pub(crate) fn encoder_rules() -> Rules {
+pub(crate) fn encoder_rules() -> RuleSet {
     half_rules("encoder", "down_blocks", "quant_conv")
 }
 
-pub(crate) fn decoder_rules() -> Rules {
+pub(crate) fn decoder_rules() -> RuleSet {
     half_rules("decoder", "up_blocks", "post_quant_conv")
 }

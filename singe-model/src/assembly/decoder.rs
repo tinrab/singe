@@ -15,7 +15,7 @@ use singe::{
 };
 
 use crate::{
-    format::{Rules, join},
+    format::{RuleSet, join},
     schema::{Schema, SchemaNorm},
 };
 
@@ -66,9 +66,9 @@ impl DecoderConfig {
             bias: self.attention_bias,
             output_bias: self.attention_bias,
             head_norms: if self.head_norms {
-                HeadNorms::Rms(self.eps)
+                HeadNormKind::Rms(self.eps)
             } else {
-                HeadNorms::Omitted
+                HeadNormKind::Omitted
             },
             output_gate: false,
         }
@@ -153,7 +153,7 @@ pub fn pre_norm_block_with<A, F, N: SchemaNorm>(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum HeadNorms {
+pub enum HeadNormKind {
     Omitted,
     Rms(f32),
     OffsetRms(f32),
@@ -168,7 +168,7 @@ pub struct GroupedAttentionSpec {
     /// Whether the query, key, and value projections have a bias.
     pub bias: bool,
     pub output_bias: bool,
-    pub head_norms: HeadNorms,
+    pub head_norms: HeadNormKind,
     pub output_gate: bool,
 }
 
@@ -182,7 +182,7 @@ impl GroupedAttentionSpec {
             head_dim: width / heads,
             bias,
             output_bias: bias,
-            head_norms: HeadNorms::Omitted,
+            head_norms: HeadNormKind::Omitted,
             output_gate: false,
         }
     }
@@ -210,10 +210,10 @@ pub fn grouped_attention_layers(
         let linear = schema.linear(name, width, features, bias)?;
         let projection = HeadProjection::new(linear, heads, head_dim);
         Ok(match (norm, head_norms) {
-            (Some(norm), HeadNorms::Rms(eps)) => {
+            (Some(norm), HeadNormKind::Rms(eps)) => {
                 projection.with_norm(schema.rms_norm(norm, head_dim, eps)?)
             }
-            (Some(norm), HeadNorms::OffsetRms(eps)) => {
+            (Some(norm), HeadNormKind::OffsetRms(eps)) => {
                 projection.with_norm(schema.offset_rms_norm(norm, head_dim, eps)?)
             }
             _ => projection,
@@ -330,8 +330,8 @@ where
 
 /// Imports what `from` matches to `to` multiplied by `scale` in `F32`, as a constant multiplier of a layer's output folds into its weight.
 #[must_use]
-pub fn rename_scaled(from: &str, to: &str, scale: f32) -> Rules {
-    Rules::new().derive(from, to, move |weight| {
+pub fn rename_scaled(from: &str, to: &str, scale: f32) -> RuleSet {
+    RuleSet::new().derive(from, to, move |weight| {
         weight.cast(DataType::F32)?.mul_scalar(scale)
     })
 }
@@ -339,9 +339,9 @@ pub fn rename_scaled(from: &str, to: &str, scale: f32) -> Rules {
 /// Imports a Llama-family checkpoint whose decoder lies under `model` (`model`, or `model.language_model` in a model that also reads images or audio) into [`causal_lm`]'s names.
 /// Rules for a model's other weights go before these, since the first rule that matches a name decides it.
 #[must_use]
-pub fn llama_rules(model: &str) -> Rules {
+pub fn llama_rules(model: &str) -> RuleSet {
     let layers = join(model, "layers.*");
-    Rules::new()
+    RuleSet::new()
         .rename(&join(model, "embed_tokens"), "embeddings.tokens")
         .then(llama_block_rules(&layers, "blocks.*"))
         // Older checkpoints store the rotary frequencies, which the rotary table computes.
@@ -351,8 +351,8 @@ pub fn llama_rules(model: &str) -> Rules {
 }
 
 #[must_use]
-pub fn llama_block_rules(from: &str, to: &str) -> Rules {
-    Rules::new().rename_each(
+pub fn llama_block_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new().rename_each(
         from,
         to,
         &[

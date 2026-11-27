@@ -15,7 +15,7 @@ use crate::{
     assembly::{
         Attention, AttentionSpec, attention_rules, paged_cross_attention, paged_self_attention,
     },
-    format::{Rules, join},
+    format::{RuleSet, join},
     head::Seq2SeqDecoding,
     schema::Schema,
 };
@@ -389,9 +389,9 @@ impl Seq2SeqDecoding for BartDecoder {
 
 /// Imports a stack stored under `from`, as `transformers`' BART-family models name their parts, to the schema's names under `to`.
 #[must_use]
-pub fn bart_stack_rules(from: &str, to: &str) -> Rules {
+pub fn bart_stack_rules(from: &str, to: &str) -> RuleSet {
     let (layers, blocks) = (join(from, "layers.*"), join(to, "blocks.*"));
-    Rules::new()
+    RuleSet::new()
         .rename_each(
             from,
             to,

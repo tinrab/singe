@@ -91,11 +91,11 @@ impl Debug for Rule {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Rules {
+pub struct RuleSet {
     rules: Vec<Rule>,
 }
 
-impl Rules {
+impl RuleSet {
     #[must_use]
     pub fn new() -> Self {
         Self::default()

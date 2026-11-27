@@ -7,7 +7,7 @@ use singe_model::{
     Source,
     function::{
         ExportManifest, TensorSpec,
-        onnx::{DeclaredValues, declared_values},
+        onnx::{DeclaredSignature, declared_values},
     },
     model,
     task::Task,
@@ -134,7 +134,7 @@ fn describe(spec: &TensorSpec) -> String {
 }
 
 fn onnx(path: &Path) -> Result<()> {
-    let DeclaredValues { inputs, outputs } = declared_values(path)?;
+    let DeclaredSignature { inputs, outputs } = declared_values(path)?;
     for (kind, values) in [("input", inputs), ("output", outputs)] {
         for value in values {
             let data_type = value.data_type.map_or_else(

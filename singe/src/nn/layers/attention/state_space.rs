@@ -6,7 +6,7 @@ use crate::{
     graph::{DimensionExpr, capture},
     nn::{AttentionInput, DecodingLayer, Linear, ModelState, StateCache, StateCacheSpec, StateKey},
     shape::Shape,
-    tensor::{SequenceSpans, Tensor},
+    tensor::{SequenceLayout, Tensor},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -62,7 +62,7 @@ fn convolve(
     taps: &StateKey,
     bias: Option<&StateKey>,
     cache: &StateCache,
-    spans: SequenceSpans<'_>,
+    spans: SequenceLayout<'_>,
     state: &ModelState,
 ) -> Result<(Tensor, Tensor)> {
     let taps = state.tensor(taps)?;
@@ -120,7 +120,7 @@ impl DecodingLayer for MambaMixer {
             .exp()?
             .neg()?;
         let heads = convolved.reshape_with(&[tokens.clone(), spec.inner.into(), 1.into()])?;
-        let scan = |spans: SequenceSpans<'_>| {
+        let scan = |spans: SequenceLayout<'_>| {
             heads.selective_scan(
                 &step,
                 &step,
@@ -273,7 +273,7 @@ impl DecodingLayer for Mamba2Mixer {
             .exp()?
             .neg()?
             .reshape([spec.heads, 1])?;
-        let scan = |spans: SequenceSpans<'_>| {
+        let scan = |spans: SequenceLayout<'_>| {
             features.selective_scan(
                 &step,
                 &step,
@@ -432,7 +432,7 @@ impl DecodingLayer for RgLru {
         let strength = unit(&[tokens.clone(), spec.width.into()], DataType::F32)?;
         let rates = unit(&[spec.width.into(), 1.into()], DataType::F32)?;
         let projection = unit(&[tokens.clone(), 1.into(), 1.into()], data_type)?;
-        let scan = |spans: SequenceSpans<'_>| {
+        let scan = |spans: SequenceLayout<'_>| {
             normalized.selective_scan(
                 &steps,
                 &strength,

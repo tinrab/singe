@@ -24,7 +24,7 @@ pub use self::{
     library::{ForcedLibrary, LibraryRecorder, build_forced},
     records::{
         Measurement, RecordCoverage, TunedChoice, TunedRecord, TunedWay, TuningEnvironment,
-        TuningRecords,
+        TuningRecordSet,
     },
     report::{
         CandidateFailure, CandidateOutcome, CandidateReport, ChoiceReport, ComparisonReport,

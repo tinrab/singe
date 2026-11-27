@@ -23,9 +23,9 @@ impl Default for Seq2SeqParameters {
 
 /// `config.json`'s `task_specific_params`, which give each task's settings, such as T5's prefix `summarize: `.
 #[derive(Debug, Clone)]
-pub(crate) struct TaskPrefixes(Value);
+pub(crate) struct TaskPrefixTable(Value);
 
-impl TaskPrefixes {
+impl TaskPrefixTable {
     pub(crate) fn load(source: &Source) -> Result<Self> {
         let config: Value = source.json("config.json")?;
         Ok(Self(config["task_specific_params"].clone()))

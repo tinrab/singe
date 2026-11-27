@@ -7,7 +7,7 @@ use crate::{
     assembly::{ResNetConfig, attention_rules},
     error::{Error, Result},
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{activation_field, classifier_config},
     },
     model::vision::detr::DetrConfig,
@@ -75,14 +75,14 @@ pub(crate) fn resnet50() -> ResNetConfig {
 }
 
 /// Imports timm's ResNet-50 as DETR's and Deformable DETR's checkpoints store it.
-pub(crate) fn backbone_rules() -> Rules {
-    Rules::new()
+pub(crate) fn backbone_rules() -> RuleSet {
+    RuleSet::new()
         // Counts training updates, which evaluation never reads.
         .skip("model.backbone.conv_encoder.model.*.*.downsample.1.num_batches_tracked")
         .rename("model.backbone.conv_encoder.model", "backbone")
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     let mut rules = backbone_rules()
         .rename("model.input_projection", "projection")
         .rename("model.query_position_embeddings.weight", "queries")

@@ -11,7 +11,7 @@ use singe::{
 };
 
 use crate::{
-    format::{Rules, join},
+    format::{RuleSet, join},
     schema::Schema,
 };
 
@@ -161,8 +161,8 @@ impl Layer for PreNormEncoder {
 
 /// Imports `transformers`' Whisper-style layers under `from` (such as `model.encoder.layers`) into encoder blocks under `to` (such as `blocks`).
 #[must_use]
-pub fn pre_norm_encoder_rules(from: &str, to: &str) -> Rules {
-    Rules::new().rename_each(
+pub fn pre_norm_encoder_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new().rename_each(
         &join(from, "*"),
         &join(to, "*"),
         &[
@@ -180,8 +180,8 @@ pub fn pre_norm_encoder_rules(from: &str, to: &str) -> Rules {
 
 /// Imports `transformers`' `ViT`-style layers under `from` (such as `vit.encoder.layer`), which `ViT`, YOLOS, and `VideoMAE` store, into encoder blocks under `to`.
 #[must_use]
-pub fn vit_layer_rules(from: &str, to: &str) -> Rules {
-    Rules::new().rename_each(
+pub fn vit_layer_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new().rename_each(
         &join(from, "*"),
         &join(to, "*"),
         &[
@@ -199,8 +199,8 @@ pub fn vit_layer_rules(from: &str, to: &str) -> Rules {
 
 /// Imports `transformers`' CLIP-style layers under `from` (such as `text_model.encoder.layers`), which CLIP's and `OWL-ViT`'s towers store, into encoder blocks under `to`.
 #[must_use]
-pub fn clip_layer_rules(from: &str, to: &str) -> Rules {
-    Rules::new().rename_each(
+pub fn clip_layer_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new().rename_each(
         &join(from, "*"),
         &join(to, "*"),
         &[

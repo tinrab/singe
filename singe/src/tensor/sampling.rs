@@ -104,7 +104,7 @@ impl SamplingOptions {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum Draws<'a> {
+pub enum DrawSource<'a> {
     Generator(Option<&'a Generator>),
     Streams(&'a Tensor),
 }
@@ -120,7 +120,11 @@ impl Tensor {
     /// # Errors
     ///
     /// Returns an error if the logits are not a floating matrix, `options` has neither one entry nor one per row, an option is out of range, or the backend fails.
-    pub fn sample(&self, options: &[Option<SamplingOptions>], draws: Draws<'_>) -> Result<Self> {
+    pub fn sample(
+        &self,
+        options: &[Option<SamplingOptions>],
+        draws: DrawSource<'_>,
+    ) -> Result<Self> {
         let (rows, vocabulary) = match *self.shape().dimensions() {
             [rows, vocabulary] if self.data_type().is_float() => (rows, vocabulary),
             _ => {
@@ -184,8 +188,8 @@ impl Tensor {
         let weights = masked_below(&tempered, &threshold.maximum(&by_top_p)?)?.softmax(-1)?;
 
         let drawn = match draws {
-            Draws::Generator(generator) => weights.multinomial(1, generator)?,
-            Draws::Streams(states) => weights.multinomial_rows(1, states)?,
+            DrawSource::Generator(generator) => weights.multinomial(1, generator)?,
+            DrawSource::Streams(states) => weights.multinomial_rows(1, states)?,
         }
         .reshape_with(&[row_dimension])?;
         let is_greedy = temperature

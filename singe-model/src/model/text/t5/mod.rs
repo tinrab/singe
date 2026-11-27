@@ -52,7 +52,7 @@ pub struct T5Config {
     pub tied: bool,
     /// Switch Transformers' mixtures of experts in place of some blocks' feed-forward layers.
     #[serde(default)]
-    pub experts: Option<SwitchExperts>,
+    pub experts: Option<SwitchSpec>,
     /// `LongT5`'s transient-global encoder attention, in place of full attention.
     #[serde(default)]
     pub transient_global: Option<TransientGlobal>,
@@ -70,7 +70,7 @@ const OUTSIDE: f32 = -1e10;
 
 /// Where Switch Transformers' mixtures of experts sit and how many tokens each expert takes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SwitchExperts {
+pub struct SwitchSpec {
     pub count: i64,
     /// Every `step`-th block of each stack, from the second, has experts.
     pub encoder_step: i64,
@@ -79,7 +79,7 @@ pub struct SwitchExperts {
     pub capacity: i64,
 }
 
-impl SwitchExperts {
+impl SwitchSpec {
     /// Returns whether block `index` of a stack whose step is `step` has experts, as `SwitchTransformersStack` places them.
     const fn is_sparse(step: i64, index: i64) -> bool {
         step > 0 && (step == 1 || index % step == 1)
@@ -128,7 +128,7 @@ const UNSCALED: AttentionOptions = AttentionOptions {
 enum FeedForward {
     Plain(Mlp),
     Gated(GatedMlp),
-    Experts(Experts),
+    SwitchFeedForward(SwitchFeedForward),
 }
 
 impl Layer for FeedForward {
@@ -136,7 +136,7 @@ impl Layer for FeedForward {
         match self {
             Self::Plain(mlp) => mlp.forward(input, state),
             Self::Gated(mlp) => mlp.forward(input, state),
-            Self::Experts(experts) => experts.forward(input, state),
+            Self::SwitchFeedForward(experts) => experts.forward(input, state),
         }
     }
 }
@@ -144,19 +144,15 @@ impl Layer for FeedForward {
 /// A mixture of `ReLU` experts, as `SwitchTransformersSparseMLP` computes it: a router in `F32` picks each token's likeliest expert, whose output is scaled by that probability, and a token past its expert's capacity in its sequence gets no expert output.
 /// Every expert runs over every token and the routing picks the outputs, which is exact and costs the experts' count in feed-forward layers.
 #[derive(Debug, Clone)]
-struct Experts {
+struct SwitchFeedForward {
     router: StateKey,
     networks: Vec<[Linear; 2]>,
     activation: Activation,
     capacity: i64,
 }
 
-impl Experts {
-    fn create(
-        schema: &mut Schema<'_>,
-        config: &T5Config,
-        spec: SwitchExperts,
-    ) -> SingeResult<Self> {
+impl SwitchFeedForward {
+    fn create(schema: &mut Schema<'_>, config: &T5Config, spec: SwitchSpec) -> SingeResult<Self> {
         let (width, inner) = (config.width, config.inner);
         let networks = (0..spec.count)
             .map(|expert| {
@@ -281,7 +277,7 @@ impl<A> Block<A> {
         let (width, eps) = (config.width, config.eps);
         let sizes = [width, config.inner, width];
         let feed_forward = if let Some(spec) = config.experts.filter(|_| sparse) {
-            FeedForward::Experts(Experts::create(
+            FeedForward::SwitchFeedForward(SwitchFeedForward::create(
                 &mut schema.scope("feed_forward"),
                 config,
                 spec,
@@ -523,7 +519,7 @@ impl<A> Stack<A> {
                 Block::create(
                     &mut schema.scope(format!("blocks.{index}")),
                     config,
-                    SwitchExperts::is_sparse(step, index),
+                    SwitchSpec::is_sparse(step, index),
                     &attention,
                 )
             })

@@ -8,7 +8,7 @@ use singe::nn::Activation;
 use crate::{
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         diffusers::{activation_field, silu},
     },
     model::diffusion::shap_e::{PriorConfig, RendererConfig},
@@ -103,8 +103,8 @@ pub(crate) fn prior_config(source: &Source) -> Result<PriorConfig> {
     })
 }
 
-pub(crate) fn prior_rules() -> Rules {
-    Rules::new()
+pub(crate) fn prior_rules() -> RuleSet {
+    RuleSet::new()
         .rename("time_embedding.linear_1", "time.up")
         .rename("time_embedding.linear_2", "time.down")
         .rename("embedding_proj_norm", "embedding_norm")
@@ -170,7 +170,7 @@ pub(crate) fn renderer_config(source: &Source) -> Result<RendererConfig> {
     })
 }
 
-pub(crate) fn renderer_rules(config: &RendererConfig) -> Rules {
+pub(crate) fn renderer_rules(config: &RendererConfig) -> RuleSet {
     let projections = (0..config.projected.len())
         .map(|index| {
             (
@@ -183,7 +183,7 @@ pub(crate) fn renderer_rules(config: &RendererConfig) -> Rules {
         .iter()
         .map(|(stored, index)| (stored.as_str(), index.as_str()))
         .collect::<Vec<_>>();
-    Rules::new()
+    RuleSet::new()
         .rename_each("params_proj", "params_proj", &projections)
         .rename("mlp.mlp", "mlp")
         .rename("mesh_decoder.cases", "cases")

@@ -511,7 +511,7 @@ impl Normalization {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct ImageTransforms {
+pub struct ImagePreprocessor {
     pub resize: Option<Resize>,
     pub resample: Resample,
     /// The center crop's height and width.
@@ -524,7 +524,7 @@ pub struct ImageTransforms {
     pub normalization: Option<Normalization>,
 }
 
-impl ImageTransforms {
+impl ImagePreprocessor {
     /// Reads a snapshot's `preprocessor_config.json`, as `transformers`' default image processors read it.
     ///
     /// # Errors
@@ -581,11 +581,11 @@ impl ImageTransforms {
         Ok(self.one(image, device)?.cast(data_type)?)
     }
 
-    /// Returns the images as one batch, `[B, 3, H, W]` of `data_type` on `device`, each transformed as [`ImageTransforms::preprocess`] transforms one.
+    /// Returns the images as one batch, `[B, 3, H, W]` of `data_type` on `device`, each transformed as [`ImagePreprocessor::preprocess`] transforms one.
     ///
     /// # Errors
     ///
-    /// Returns an error if [`ImageTransforms::preprocess`] would fail on an image, or if the transformed images differ in size.
+    /// Returns an error if [`ImagePreprocessor::preprocess`] would fail on an image, or if the transformed images differ in size.
     pub fn preprocess_batch(
         &self,
         images: &[Image],

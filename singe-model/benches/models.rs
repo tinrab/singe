@@ -4,7 +4,7 @@ use std::{collections::HashMap, path::Path};
 
 use singe::{
     DataType, Device,
-    generation::{CachedDecoder, Decoder, DecoderOptions, PromptChunks},
+    generation::{CachedDecoder, Decoder, DecoderOptions, PromptChunking},
     graph::GraphPrepareOptions,
     nn::{DecoderModel, Model, TensorGroup},
 };
@@ -21,8 +21,8 @@ use singe_model::{
     task::{Pipeline, text::sentence_similarity::SentenceSimilarityPipeline},
 };
 use singe_testing::{
-    Benches, decode_step_or_restart, lock_device, pattern_image, snapshot_if_set, tone_and_chirp,
-    wait,
+    BenchSuite, decode_step_or_restart, lock_device, pattern_image, snapshot_if_set,
+    tone_and_chirp, wait,
 };
 
 const DEVICE: Device = Device::Cuda(0);
@@ -38,7 +38,7 @@ fn source(snapshot: &Path) -> Source {
     Source::open(snapshot).unwrap()
 }
 
-fn minilm(benches: &mut Benches) {
+fn minilm(benches: &mut BenchSuite) {
     let Some(snapshot) = snapshot_if_set("MINILM") else {
         return;
     };
@@ -70,7 +70,7 @@ fn minilm(benches: &mut Benches) {
     }
 }
 
-fn whisper(benches: &mut Benches) {
+fn whisper(benches: &mut BenchSuite) {
     let Some(snapshot) = snapshot_if_set("WHISPER") else {
         return;
     };
@@ -99,7 +99,7 @@ fn whisper(benches: &mut Benches) {
         let mut decoder = model
             .create_decoder(
                 DecoderOptions::new(1, model.config().target_positions).with_prompt_chunks(
-                    PromptChunks {
+                    PromptChunking {
                         smallest: extra,
                         largest: extra,
                     },
@@ -125,7 +125,7 @@ fn whisper(benches: &mut Benches) {
 
 /// Times one decode step and a 128-token prompt of the decoder `load` makes from the snapshot `SINGE_SNAPSHOT_<name>` names, eagerly and compiled, under `label`.
 fn text_decoder<L: DecoderModel>(
-    benches: &mut Benches,
+    benches: &mut BenchSuite,
     name: &str,
     label: &str,
     load: impl Fn(&Path) -> Model<L>,
@@ -170,7 +170,7 @@ fn text_decoder<L: DecoderModel>(
     }
 }
 
-fn dinov2(benches: &mut Benches) {
+fn dinov2(benches: &mut BenchSuite) {
     let Some(snapshot) = snapshot_if_set("DINOV2") else {
         return;
     };
@@ -192,7 +192,7 @@ fn dinov2(benches: &mut Benches) {
     }
 }
 
-fn taesd(benches: &mut Benches) {
+fn taesd(benches: &mut BenchSuite) {
     let Some(snapshot) = snapshot_if_set("TAESD") else {
         return;
     };
@@ -217,7 +217,7 @@ fn main() {
         eprintln!("the benchmarks need a GPU");
         return;
     };
-    let mut benches = Benches::from_args();
+    let mut benches = BenchSuite::from_args();
     minilm(&mut benches);
     whisper(&mut benches);
     text_decoder(&mut benches, "QWEN3", "qwen3-0.6b", |snapshot| {

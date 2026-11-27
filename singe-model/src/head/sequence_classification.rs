@@ -20,7 +20,7 @@ use crate::{
         TensorFunction,
         forward::{External, ExternalHead, Forward},
     },
-    head::{EncoderBody, EncoderHead, HeadLayouts},
+    head::{EncoderBody, EncoderHead, EncoderHeadLayout},
     host,
     schema::Schema,
     source::Source,
@@ -235,7 +235,7 @@ impl EncoderHead for SequenceClassifier {
         schema: &mut Schema<'_>,
         encoder: EncoderBody,
         config: &ClassifierConfig,
-        layouts: &HeadLayouts,
+        layouts: &EncoderHeadLayout,
     ) -> SingeResult<SequenceClassifierLayers> {
         let width = encoder.sizes.width;
         SequenceClassifierLayers::create(

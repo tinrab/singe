@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use crate::processor::image::{Image, Resample};
 
 /// Each output position's first input, its weights, and the bits they are scaled by.
-struct Weights {
+struct ResampleTable {
     starts: Vec<usize>,
     rows: Vec<Vec<i32>>,
     precision: u32,
@@ -54,7 +54,7 @@ fn lanczos(x: f64) -> f64 {
     clippy::cast_possible_wrap,
     reason = "image sides are far below 2^53, and the truncations are PyTorch's"
 )]
-fn weights(input: usize, output: usize, filter: fn(f64) -> f64, span: f64) -> Weights {
+fn weights(input: usize, output: usize, filter: fn(f64) -> f64, span: f64) -> ResampleTable {
     let scale = input as f64 / output as f64;
     let support = if scale >= 1.0 {
         span * 0.5 * scale
@@ -109,7 +109,7 @@ fn weights(input: usize, output: usize, filter: fn(f64) -> f64, span: f64) -> We
                 .collect()
         })
         .collect();
-    Weights {
+    ResampleTable {
         starts,
         rows: weights,
         precision,

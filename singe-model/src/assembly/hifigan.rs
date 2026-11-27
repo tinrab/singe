@@ -8,7 +8,7 @@ use singe::{
 
 use crate::{
     assembly::same_1d,
-    format::{Rules, join},
+    format::{RuleSet, join},
     schema::Schema,
 };
 
@@ -177,8 +177,8 @@ impl Layer for HifiGan {
 
 /// Imports a HiFi-GAN stored as `transformers` names it under `from` to [`HifiGan`]'s names under `to`.
 #[must_use]
-pub fn hifigan_rules(from: &str, to: &str) -> Rules {
-    Rules::new()
+pub fn hifigan_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new()
         .rename(&join(from, "conv_pre"), &join(to, "pre"))
         .rename(&join(from, "conv_post"), &join(to, "post"))
         .rename(&join(from, "upsampler"), &join(to, "upsamplers"))

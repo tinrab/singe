@@ -6,7 +6,7 @@ use crate::{
     assembly::unet_block_rules,
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         diffusers::{AttentionHeadDim, UnetFields, default_true},
     },
     model::diffusion::unet_2d::Unet2dConfig,
@@ -70,8 +70,8 @@ pub(crate) fn config(source: &Source) -> Result<Unet2dConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename("conv_in", "input")
         .rename("time_embedding.linear_1", "time.up")
         .rename("time_embedding.linear_2", "time.down")

@@ -11,7 +11,7 @@ use crate::{error::Result, model::text::qwen3_5::Qwen35VisionConfig, processor::
 
 /// The fewest and most pixels an image is resized into.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ImageSizeBounds {
+pub struct ImageSizeRange {
     pub min_pixels: i64,
     pub max_pixels: i64,
 }
@@ -20,14 +20,14 @@ pub struct ImageSizeBounds {
 /// How the image front end resizes and normalizes an image.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Qwen35ImageProcessor {
-    pub bounds: ImageSizeBounds,
+    pub bounds: ImageSizeRange,
     pub mean: [f32; 3],
     pub std: [f32; 3],
 }
 
 /// An image as the encoder reads it: its patches, `[N, C · T · P · P]` in `F32`, in the order that puts each merged block's patches together, and its grid of patches, rows then columns.
 #[derive(Debug, Clone)]
-pub(crate) struct ImagePatches {
+pub(crate) struct PatchedImage {
     pub(crate) patches: Tensor,
     pub(crate) grid: [i64; 2],
 }
@@ -39,7 +39,7 @@ impl Qwen35ImageProcessor {
         image: &Image,
         vision: &Qwen35VisionConfig,
         device: Device,
-    ) -> Result<ImagePatches> {
+    ) -> Result<PatchedImage> {
         let size = Spatial2d::new(i64::from(image.height), i64::from(image.width));
         let resized = smart_resize(size, vision.size_factor(), self.bounds);
         let mut pixels = image.to_tensor(device)?;
@@ -66,7 +66,7 @@ impl Qwen35ImageProcessor {
         width: i64,
         vision: &Qwen35VisionConfig,
         device: Device,
-    ) -> Result<ImagePatches> {
+    ) -> Result<PatchedImage> {
         let factor = vision.size_factor();
         if height <= 0 || width <= 0 || height % factor != 0 || width % factor != 0 {
             return Err(SingeError::invalid_argument(format!(
@@ -107,7 +107,7 @@ impl Qwen35ImageProcessor {
         }
 
         let count = grid[0] * grid[1];
-        Ok(ImagePatches {
+        Ok(PatchedImage {
             patches: Tensor::from_vec(
                 device,
                 Shape::create([count, vision.patch_features()])?,
@@ -119,7 +119,7 @@ impl Qwen35ImageProcessor {
 }
 
 /// Returns the size `transformers`' `smart_resize` gives an image of `size`: each side a multiple of `factor`, the area within `bounds`, and the aspect ratio kept as closely as that allows.
-fn smart_resize(size: Spatial2dI64, factor: i64, bounds: ImageSizeBounds) -> Spatial2dI64 {
+fn smart_resize(size: Spatial2dI64, factor: i64, bounds: ImageSizeRange) -> Spatial2dI64 {
     let (h, w, f) = (size.height as f64, size.width as f64, factor as f64);
     let area = h * w;
     let rounded = size.map(|side| ((side as f64 / f).round_ties_even() as i64) * factor);

@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     assembly::attention_rules_with_output,
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{RuleSet, transformers::activation_field},
     model::{
         multimodal::clip::transformers::{TextFields, text_config, text_rules},
         vision::sam3::{Sam3Config, Sam3VitConfig},
@@ -131,8 +131,8 @@ pub(crate) fn config(source: &Source) -> Result<Sam3Config> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    let mut rules = Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    let mut rules = RuleSet::new()
         // Text prompts read no geometry, the detector no coarsest level, and the instances no semantic map.
         .skip("geometry_encoder")
         .skip("vision_encoder.neck.fpn_layers.3")

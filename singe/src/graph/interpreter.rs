@@ -6,7 +6,7 @@ use crate::{
     error::{Error, Result},
     graph::{
         GraphRunStats,
-        guards::GraphGuards,
+        guards::GraphGuardSet,
         ir::{Graph, OperationId, ValueId},
         symbolic::SymbolicShapeEnv,
     },
@@ -95,7 +95,7 @@ pub fn execute_values(
             }
 
             for (value, tensor) in operation.result_values().zip(results) {
-                GraphGuards::check_tensor_for_ir_value_with_symbols(
+                GraphGuardSet::check_tensor_for_ir_value_with_symbols(
                     ir,
                     value,
                     &tensor,

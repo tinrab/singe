@@ -143,13 +143,13 @@ pub fn pages_for(sources: i64, page: i64) -> i64 {
 // How a cross-attention cache, `[N · k, page, H, D]`, pages each of its `N` sequences' encoder outputs: sequence `s` owns the `k` pages from `s · k`.
 // Both what writes a sequence's sources and what attends to them read the layout from here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SourcePages {
+pub struct SourcePageLayout {
     pub page: i64,
     pub per_sequence: i64,
     pub sequences: i64,
 }
 
-impl SourcePages {
+impl SourcePageLayout {
     // The layout of `cache` for `sequences` sequences.
     //
     // # Errors
@@ -219,11 +219,11 @@ impl SourcePaging {
                 "cross-attention source lengths are [sequences]",
             ));
         };
-        let SourcePages {
+        let SourcePageLayout {
             page,
             per_sequence: pages,
             ..
-        } = SourcePages::create(input.keys, sequences)?;
+        } = SourcePageLayout::create(input.keys, sequences)?;
         let step_offsets = input.step.paging().query_offsets;
         if step_offsets.shape().dimensions() != [sequences + 1] {
             return Err(Error::invalid_argument(

@@ -46,7 +46,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Extents {
+pub enum ExtentSign {
     NonNegative,
     Positive,
 }
@@ -54,11 +54,11 @@ pub enum Extents {
 pub fn dimension_product_usize(
     name: impl Into<Cow<'static, str>>,
     dimensions: &[i64],
-    extents: Extents,
+    extents: ExtentSign,
 ) -> Result<usize> {
     let name = name.into();
     dimensions.iter().try_fold(1_usize, |acc, &dimension| {
-        if extents == Extents::Positive && dimension <= 0 {
+        if extents == ExtentSign::Positive && dimension <= 0 {
             return Err(Error::invalid_argument(name.clone()));
         }
 

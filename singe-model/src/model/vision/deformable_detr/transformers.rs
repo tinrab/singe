@@ -7,7 +7,7 @@ use crate::{
     assembly::{deformable_decoder_rules, deformable_encoder_rules},
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{activation_field, classifier_config, detection_scoring},
     },
     model::vision::{
@@ -86,7 +86,7 @@ pub(crate) fn config(source: &Source) -> Result<DeformableDetrConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     backbone_rules()
         .rename_each(
             "model.input_proj.*",

@@ -6,7 +6,7 @@ use crate::{
     assembly::{DecoderConfig, llama_rules},
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{DecoderDefaults, DecoderFields},
     },
     source::Source,
@@ -54,9 +54,9 @@ pub(crate) fn config(source: &Source) -> Result<DecoderConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     let layers = "model.layers.*";
-    let mut rules = Rules::new().rename_each(
+    let mut rules = RuleSet::new().rename_each(
         layers,
         "blocks.*",
         &[

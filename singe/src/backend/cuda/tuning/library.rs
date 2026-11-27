@@ -9,7 +9,7 @@ use crate::{
     backend::{
         cuda::{
             runtime::CublasLtMatmulAlgorithmFingerprint,
-            tuning::records::{TunedChoice, TuningRecords},
+            tuning::records::{TunedChoice, TuningRecordSet},
         },
         registry::CudaGraphProvider,
     },
@@ -52,7 +52,7 @@ impl LibraryRecorder {
 // What records say a library should run a node with, and what to tell them about it.
 #[derive(Debug, Clone)]
 pub struct ForcedLibrary {
-    pub(crate) records: Arc<TuningRecords>,
+    pub(crate) records: Arc<TuningRecordSet>,
     pub(crate) key: String,
     pub(crate) choice: TunedChoice,
 }

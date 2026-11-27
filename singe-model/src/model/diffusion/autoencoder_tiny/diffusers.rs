@@ -9,7 +9,7 @@ use singe::nn::Activation;
 
 use crate::{
     error::{Error, Result},
-    format::{Rules, diffusers::activation_field},
+    format::{RuleSet, diffusers::activation_field},
     model::diffusion::autoencoder_tiny::{AutoencoderTinyConfig, Interpolation},
     source::Source,
 };
@@ -61,7 +61,7 @@ pub(crate) fn config(source: &Source) -> Result<AutoencoderTinyConfig> {
 struct Layers {
     half: &'static str,
     next: usize,
-    rules: Rules,
+    rules: RuleSet,
 }
 
 impl Layers {
@@ -69,7 +69,7 @@ impl Layers {
         Self {
             half,
             next: 0,
-            rules: Rules::new(),
+            rules: RuleSet::new(),
         }
     }
 
@@ -107,7 +107,7 @@ impl Layers {
 }
 
 /// Returns the rules that import `EncoderTiny`: per stage, a convolution and blocks, then the convolution to latents.
-pub(crate) fn encoder_rules(config: &AutoencoderTinyConfig) -> Rules {
+pub(crate) fn encoder_rules(config: &AutoencoderTinyConfig) -> RuleSet {
     let mut layers = Layers::new("encoder");
     for (stage, &count) in config.encoder_blocks.iter().enumerate() {
         if stage == 0 {
@@ -124,7 +124,7 @@ pub(crate) fn encoder_rules(config: &AutoencoderTinyConfig) -> Rules {
 }
 
 /// Returns the rules that import `DecoderTiny`: a convolution and the activation, then each stage's blocks, followed by an upsampling and a convolution in every stage but the last, which ends in the convolution to images.
-pub(crate) fn decoder_rules(config: &AutoencoderTinyConfig) -> Rules {
+pub(crate) fn decoder_rules(config: &AutoencoderTinyConfig) -> RuleSet {
     let mut layers = Layers::new("decoder");
     layers.convolution("input");
     layers.stateless();

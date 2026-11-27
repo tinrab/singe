@@ -7,7 +7,7 @@ use crate::backend::{
             Alternative, Candidate, ChoicePoint, MeasureError, Measured, Plan, PlanLimits,
             PlanRunner, PlanSearchOptions, check_plan, confirm, decide, search_plans,
         },
-        records::{TunedChoice, TunedWay, TuningRecords},
+        records::{TunedChoice, TunedWay, TuningRecordSet},
         report::{CandidateFailure, CandidateOutcome, DropReason, FailureStage, TuningReport},
     },
     registry::CudaGraphProvider,
@@ -166,7 +166,7 @@ struct Fake<F> {
     delay: Duration,
 }
 
-impl<F: FnMut(&TuningRecords) -> Result<Measured, CandidateFailure>> Fake<F> {
+impl<F: FnMut(&TuningRecordSet) -> Result<Measured, CandidateFailure>> Fake<F> {
     fn new(behave: F) -> Self {
         Self {
             behave,
@@ -177,8 +177,8 @@ impl<F: FnMut(&TuningRecords) -> Result<Measured, CandidateFailure>> Fake<F> {
     }
 }
 
-impl<F: FnMut(&TuningRecords) -> Result<Measured, CandidateFailure>> PlanRunner for Fake<F> {
-    fn fingerprint(&mut self, records: &TuningRecords) -> Result<String, CandidateFailure> {
+impl<F: FnMut(&TuningRecordSet) -> Result<Measured, CandidateFailure>> PlanRunner for Fake<F> {
+    fn fingerprint(&mut self, records: &TuningRecordSet) -> Result<String, CandidateFailure> {
         let print = format!("{:?}", records.entries().collect::<Vec<_>>());
         *self.fingerprints.entry(print.clone()).or_default() += 1;
         Ok(print)
@@ -186,7 +186,7 @@ impl<F: FnMut(&TuningRecords) -> Result<Measured, CandidateFailure>> PlanRunner 
 
     fn run(
         &mut self,
-        records: &TuningRecords,
+        records: &TuningRecordSet,
         _abandon_above: Option<Duration>,
     ) -> Result<Measured, CandidateFailure> {
         self.runs += 1;
@@ -196,8 +196,8 @@ impl<F: FnMut(&TuningRecords) -> Result<Measured, CandidateFailure>> PlanRunner 
 
     fn compare(
         &mut self,
-        baseline: &TuningRecords,
-        candidate: &TuningRecords,
+        baseline: &TuningRecordSet,
+        candidate: &TuningRecordSet,
     ) -> Result<Comparison, CandidateFailure> {
         let baseline = self.run(baseline, None)?.median;
         let candidate = self.run(candidate, None)?.median;
@@ -225,14 +225,14 @@ fn wrong(mut measured: Result<Measured, CandidateFailure>) -> Result<Measured, C
     measured
 }
 
-fn has(records: &TuningRecords, key: &str, choice: TunedWay) -> bool {
+fn has(records: &TuningRecordSet, key: &str, choice: TunedWay) -> bool {
     records.get(key) == Some(TunedChoice::Way(choice))
 }
 
 #[test]
 fn test_one_bad_choice_among_many_is_all_a_plan_loses() {
     let points = points(8, &[]);
-    let mut fake = Fake::new(|records: &TuningRecords| {
+    let mut fake = Fake::new(|records: &TuningRecordSet| {
         if has(records, "p5", TunedWay::Generated) {
             wrong(plain(10, 0))
         } else if has(records, "p2", TunedWay::Generated) {
@@ -267,7 +267,7 @@ fn test_one_bad_choice_among_many_is_all_a_plan_loses() {
 #[test]
 fn test_a_plan_slower_as_a_whole_loses_its_records() {
     let points = points(3, &[]);
-    let mut fake = Fake::new(|records: &TuningRecords| plain(10 + records.len() as u64, 0));
+    let mut fake = Fake::new(|records: &TuningRecordSet| plain(10 + records.len() as u64, 0));
     let (plan, report) = check_plan(
         &points,
         chosen(&points),
@@ -287,7 +287,7 @@ fn test_a_plan_slower_as_a_whole_loses_its_records() {
             .all(|dropped| dropped.reason == DropReason::Slower)
     );
     // With speed left out of it, the same plan keeps its records.
-    let mut fake = Fake::new(|records: &TuningRecords| plain(10 + records.len() as u64, 0));
+    let mut fake = Fake::new(|records: &TuningRecordSet| plain(10 + records.len() as u64, 0));
     let (plan, _) = check_plan(
         &points,
         chosen(&points),
@@ -301,7 +301,7 @@ fn test_a_plan_slower_as_a_whole_loses_its_records() {
 #[test]
 fn test_a_plan_keeps_its_records_when_only_the_default_fails() {
     let points = points(2, &[]);
-    let mut fake = Fake::new(|records: &TuningRecords| {
+    let mut fake = Fake::new(|records: &TuningRecordSet| {
         if records.is_empty() {
             Err(failed())
         } else {
@@ -325,7 +325,7 @@ fn test_a_plan_keeps_its_records_when_only_the_default_fails() {
 #[test]
 fn test_what_adds_the_most_memory_goes_first_until_a_plan_fits() {
     let points = points(3, &[100, 400, 200]);
-    let bytes = |records: &TuningRecords| {
+    let bytes = |records: &TuningRecordSet| {
         [("p0", 100), ("p1", 400), ("p2", 200)]
             .into_iter()
             .filter(|(key, _)| has(records, key, TunedWay::Generated))
@@ -336,7 +336,7 @@ fn test_what_adds_the_most_memory_goes_first_until_a_plan_fits() {
         memory: Some(memory),
         speed: false,
     };
-    let mut fake = Fake::new(|records: &TuningRecords| plain(10, 50 + bytes(records)));
+    let mut fake = Fake::new(|records: &TuningRecordSet| plain(10, 50 + bytes(records)));
     let (plan, report) = check_plan(&points, chosen(&points), None, limits(400), &mut fake);
     assert_eq!(plan, vec![Some(0), None, Some(0)]);
     assert_eq!(report.plan_bytes, Some(350));
@@ -344,14 +344,14 @@ fn test_what_adds_the_most_memory_goes_first_until_a_plan_fits() {
     assert_eq!(report.dropped[0].reason, DropReason::OverMemory);
     assert!(!report.default_over_limit);
     // A limit under the default leaves nothing to choose from, and says so.
-    let mut fake = Fake::new(|records: &TuningRecords| plain(10, 50 + bytes(records)));
+    let mut fake = Fake::new(|records: &TuningRecordSet| plain(10, 50 + bytes(records)));
     let (plan, report) = check_plan(&points, chosen(&points), None, limits(40), &mut fake);
     assert_eq!(plan, vec![None, None, None]);
     assert!(report.default_over_limit);
 }
 
 // Each choice point's second alternative is slower alone, yet the pair is fastest, which only a whole plan shows.
-fn interacting(records: &TuningRecords) -> Result<Measured, CandidateFailure> {
+fn interacting(records: &TuningRecordSet) -> Result<Measured, CandidateFailure> {
     let first = has(records, "p0", TunedWay::Separate);
     let second = has(records, "p1", TunedWay::Separate);
     plain(
@@ -396,7 +396,7 @@ fn test_search_finds_a_pair_that_only_wins_together() {
 fn test_search_never_accepts_a_plan_that_disagrees_or_does_not_fit() {
     let points = points(2, &[]);
     let mut fake =
-        Fake::new(|records: &TuningRecords| wrong_when_paired(records, PairedFailure::Disagrees));
+        Fake::new(|records: &TuningRecordSet| wrong_when_paired(records, PairedFailure::Disagrees));
     let (plan, report) = search_plans(
         &points,
         chosen(&points),
@@ -409,7 +409,7 @@ fn test_search_never_accepts_a_plan_that_disagrees_or_does_not_fit() {
     assert_eq!(report.accepted, 0);
 
     let mut fake =
-        Fake::new(|records: &TuningRecords| wrong_when_paired(records, PairedFailure::TooLarge));
+        Fake::new(|records: &TuningRecordSet| wrong_when_paired(records, PairedFailure::TooLarge));
     let mut options = search_options(Duration::from_secs(5), 1);
     options.memory_limit = Some(10);
     let (plan, report) = search_plans(&points, chosen(&points), None, options, &mut fake);
@@ -426,7 +426,7 @@ enum PairedFailure {
 
 // The pair of second alternatives is fastest, but disagrees, or allocates too much.
 fn wrong_when_paired(
-    records: &TuningRecords,
+    records: &TuningRecordSet,
     failure: PairedFailure,
 ) -> Result<Measured, CandidateFailure> {
     let paired = has(records, "p0", TunedWay::Separate) && has(records, "p1", TunedWay::Separate);

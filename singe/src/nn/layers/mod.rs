@@ -22,7 +22,7 @@ pub use self::{
         GroupedQueryLayers, HeadNorm, HeadProjection, LatentQuery, LocalAttention, Mamba2Layers,
         Mamba2Mixer, Mamba2Spec, MambaLayers, MambaMixer, MambaSpec, MultiHeadLatentAttention,
         MultiHeadLatentLayers, RelativeAttention, RelativeAttentionInput, RelativeAttentionLayers,
-        RgLru, RgLruLayers, RgLruSpec, SelfAttention, SourcePages, pages_for,
+        RgLru, RgLruLayers, RgLruSpec, SelfAttention, SourcePageLayout, pages_for,
     },
     blocks::{
         EncoderBlock, EncoderDecoderBlock, EncoderDecoderParts, HybridLayer, PreNormBlock,

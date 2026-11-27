@@ -16,7 +16,7 @@ use crate::{
     assembly::{ConvNorm, PYTORCH_NORM_EPS, merge_heads, split_heads, swapped_pairs},
     error::Result,
     format::Loader,
-    head::{Boxed, HeadLoader, KeypointMatcher, MatchingLayers, PairMatches},
+    head::{Boxed, HeadLoader, KeypointMatcher, MatchingLayers, PairMatching},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -437,7 +437,7 @@ impl EfficientLoftrLayers {
         Ok((coarse, finer))
     }
 
-    fn matched(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<PairMatches> {
+    fn matched(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<PairMatching> {
         let config = &self.config;
         let &[_, _, height, _] = pixels.shape().dimensions() else {
             return Err(SingeError::invalid_argument("image pair"));
@@ -553,7 +553,7 @@ impl EfficientLoftrLayers {
         }
 
         let count = first_keypoints.len().min(second_keypoints.len());
-        Ok(PairMatches {
+        Ok(PairMatching {
             keypoints: [first_keypoints, second_keypoints],
             matches: (0..).take(count).collect(),
             scores: scores.into_iter().take(count).collect(),
@@ -695,7 +695,7 @@ impl EfficientLoftrLayers {
 }
 
 impl MatchingLayers for EfficientLoftrLayers {
-    fn match_pair(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<PairMatches> {
+    fn match_pair(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<PairMatching> {
         // Matches are thresholded and argmaxed through a deep backbone, which TF32 convolutions round apart from PyTorch's: full precision.
         with_convolution_precision(ComputePrecision::Full, || self.matched(pixels, state))
     }

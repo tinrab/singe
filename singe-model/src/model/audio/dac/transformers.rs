@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     error::{Error, Result},
-    format::Rules,
+    format::RuleSet,
     model::audio::dac::{DILATIONS, DacConfig},
     source::Source,
 };
@@ -41,8 +41,8 @@ pub(crate) fn config(source: &Source) -> Result<DacConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    let mut rules = Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    let mut rules = RuleSet::new()
         .rename("encoder.conv1", "encoder_in")
         .rename("encoder.snake1.alpha", "encoder_snake")
         .rename("encoder.conv2", "encoder_out")

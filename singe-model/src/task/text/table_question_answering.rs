@@ -36,9 +36,9 @@ pub struct Table {
 /// A table in JSON is an object of each column's cells by its header, in the order it lists them, as `pandas.DataFrame` reads one.
 impl<'de> Deserialize<'de> for Table {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Self, D::Error> {
-        struct Columns;
+        struct TableVisitor;
 
-        impl<'de> Visitor<'de> for Columns {
+        impl<'de> Visitor<'de> for TableVisitor {
             type Value = Table;
 
             fn expecting(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
@@ -61,7 +61,7 @@ impl<'de> Deserialize<'de> for Table {
             }
         }
 
-        deserializer.deserialize_map(Columns)
+        deserializer.deserialize_map(TableVisitor)
     }
 }
 

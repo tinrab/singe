@@ -15,14 +15,14 @@ use crate::{
         Attention, AttentionSpec, SinusoidArithmetic, SinusoidOrder, same_2d, sinusoids, spatial,
         to_map, to_tokens,
     },
-    format::Rules,
+    format::RuleSet,
     head::upload,
     schema::Schema,
 };
 
 /// How a `UNet`'s or a VAE's group norms are made.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Norms {
+pub struct GroupNormSpec {
     pub groups: i64,
     pub eps: f32,
 }
@@ -46,7 +46,7 @@ impl ResnetBlock {
         schema: &mut Schema<'_>,
         [input, output]: [i64; 2],
         time: Option<i64>,
-        norms: Norms,
+        norms: GroupNormSpec,
         output_scale: f64,
     ) -> SingeResult<Self> {
         Ok(Self {
@@ -107,7 +107,7 @@ pub fn resnet_stack(
     count: usize,
     [input, output]: [i64; 2],
     time: Option<i64>,
-    norms: Norms,
+    norms: GroupNormSpec,
 ) -> SingeResult<Vec<ResnetBlock>> {
     (0..count)
         .map(|layer| {
@@ -196,7 +196,7 @@ impl SpatialAttention {
         schema: &mut Schema<'_>,
         channels: i64,
         heads: i64,
-        norms: Norms,
+        norms: GroupNormSpec,
         rescale: f64,
     ) -> SingeResult<Self> {
         Ok(Self {
@@ -234,7 +234,7 @@ impl<A> MiddleBlock<A> {
         schema: &mut Schema<'_>,
         width: i64,
         time: Option<i64>,
-        norms: Norms,
+        norms: GroupNormSpec,
         scale: f64,
         attention: impl FnOnce(&mut Schema<'_>) -> SingeResult<A>,
     ) -> SingeResult<Self> {
@@ -331,8 +331,8 @@ pub struct UnetConfig {
 
 impl UnetConfig {
     #[must_use]
-    pub const fn norms(&self) -> Norms {
-        Norms {
+    pub const fn norms(&self) -> GroupNormSpec {
+        GroupNormSpec {
             groups: self.groups,
             eps: self.eps,
         }
@@ -567,8 +567,8 @@ impl<A> Unet<A> {
 
 /// Imports the residual blocks, attentions, and resamplers of `diffusers`' block `from` (such as `down_blocks.*`) into `to` (such as `down.*`), under the attention's names of before and after `diffusers` renamed them.
 #[must_use]
-pub fn unet_block_rules(from: &str, to: &str) -> Rules {
-    Rules::new().rename_each(
+pub fn unet_block_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new().rename_each(
         from,
         to,
         &[

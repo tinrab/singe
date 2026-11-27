@@ -8,7 +8,7 @@ use crate::{
     assembly::{PreNormEncoderConfig, VisionTowerConfig, clip_layer_rules, llama_rules},
     error::Result,
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{
             DecoderDefaults, DecoderFields, activation_field, default_channels, default_true,
         },
@@ -166,9 +166,9 @@ pub(crate) fn processor(source: &Source) -> Result<SmolVlmProcessor> {
 }
 
 /// Returns the rules that import the vision tower stored under `prefix` and the connector stored at `connector`, reshaping the learned positions to the layout [`PatchTokens`](singe::nn::PatchTokens) reads.
-pub(crate) fn vision_rules(prefix: &str, connector: &str) -> Rules {
+pub(crate) fn vision_rules(prefix: &str, connector: &str) -> RuleSet {
     let vision = |name: &str| join(prefix, name);
-    Rules::new()
+    RuleSet::new()
         .rename(&vision("embeddings.patch_embedding"), "embeddings.patches")
         .derive(
             &vision("embeddings.position_embedding.weight"),
@@ -180,6 +180,6 @@ pub(crate) fn vision_rules(prefix: &str, connector: &str) -> Rules {
         .rename(connector, "connector")
 }
 
-pub(crate) fn decoder_rules() -> Rules {
+pub(crate) fn decoder_rules() -> RuleSet {
     llama_rules("model.text_model")
 }

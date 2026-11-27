@@ -42,13 +42,13 @@ pub struct Swin2SrConfig {
 
 /// A window's side, the log-spaced relative coordinates the position bias network reads, `[(2w - 1)², 2]`, and each pair of a window's points' index among them, `[w⁴]`, as `create_coords_table_and_index` makes them.
 #[derive(Debug, Clone)]
-struct Windows {
+struct WindowGeometry {
     window: i64,
     coordinates: Vec<f32>,
     index: Vec<i64>,
 }
 
-impl Windows {
+impl WindowGeometry {
     fn create(window: i64) -> Self {
         let span = window - 1;
         let scaled = |offset: i64| {
@@ -97,7 +97,7 @@ impl Attention {
     fn forward(
         &self,
         windows: &Tensor,
-        geometry: &Windows,
+        geometry: &WindowGeometry,
         mask: Option<&Tensor>,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
@@ -201,7 +201,7 @@ impl Block {
         &self,
         hidden: &Tensor,
         Spatial2d { height, width }: Spatial2dI64,
-        geometry: &Windows,
+        geometry: &WindowGeometry,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let window = geometry.window;
@@ -280,7 +280,7 @@ impl Stage {
         &self,
         input: &Tensor,
         size: Spatial2dI64,
-        geometry: &Windows,
+        geometry: &WindowGeometry,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let mut hidden = input.clone();
@@ -308,7 +308,7 @@ pub struct Swin2SrLayers {
     before_upsample: Conv2d,
     upsample: Vec<Conv2d>,
     last: Conv2d,
-    windows: Windows,
+    windows: WindowGeometry,
 }
 
 impl Swin2SrLayers {
@@ -353,7 +353,7 @@ impl Swin2SrLayers {
             )?,
             upsample,
             last: schema.conv2d("last", features, config.channels, 3, same_2d(3, 1), true)?,
-            windows: Windows::create(config.window),
+            windows: WindowGeometry::create(config.window),
         })
     }
 }

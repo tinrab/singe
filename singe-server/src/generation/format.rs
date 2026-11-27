@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use serde_json::{Map, Value};
 use singe::{
-    generation::{Penalties, SequenceOptions},
+    generation::{PenaltySet, SequenceOptions},
     tensor::SamplingOptions,
 };
 use singe_model::{
@@ -238,9 +238,9 @@ impl TextFormat {
         Ok(self.tokenizer.decode(&[token], false)?)
     }
 
-    fn penalties(&self, sampling: &Sampling) -> ApiResult<Penalties> {
+    fn penalties(&self, sampling: &Sampling) -> ApiResult<PenaltySet> {
         let defaults = self.defaults;
-        let penalties = Penalties {
+        let penalties = PenaltySet {
             repetition: sampling
                 .repetition_penalty
                 .or(defaults.repetition_penalty)

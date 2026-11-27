@@ -95,7 +95,7 @@ impl GraphReplayStats {
 }
 
 #[derive(Debug, Default)]
-pub struct PendingRuns {
+pub struct PendingRunQueue {
     runs: Vec<PendingRun>,
 }
 
@@ -118,7 +118,7 @@ impl Drop for PendingRun {
     }
 }
 
-impl PendingRuns {
+impl PendingRunQueue {
     pub fn len(&self) -> usize {
         self.runs.len()
     }

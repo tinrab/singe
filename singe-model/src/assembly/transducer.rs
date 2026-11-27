@@ -13,7 +13,7 @@ use singe::{
 
 use crate::{
     assembly::recurrent_rules,
-    format::{Rules, join},
+    format::{RuleSet, join},
     schema::Schema,
 };
 
@@ -317,8 +317,8 @@ fn best(logits: &Tensor, vocabulary: i64) -> SingeResult<(i64, Option<i64>)> {
 
 /// Imports the prediction and joint networks `transformers` stores for Parakeet's transducers: `decoder.embedding`, `decoder.lstm`, `decoder.decoder_projector`, `encoder_projector`, and `joint.head`, under `to`.
 #[must_use]
-pub fn transducer_rules(to: &str) -> Rules {
-    Rules::new()
+pub fn transducer_rules(to: &str) -> RuleSet {
+    RuleSet::new()
         .rename("decoder.embedding", &join(to, "prediction.embedding"))
         .rename(
             "decoder.decoder_projector",

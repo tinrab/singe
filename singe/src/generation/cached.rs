@@ -8,26 +8,26 @@ use crate::{
     error::{Error, Result},
     generation::{
         Choice, Decoder, GenerationOptions, choose,
-        compiled::{CompiledSteps, capture_step},
+        compiled::{CompiledStepCache, capture_step},
     },
-    graph::{Graph, GraphExecutor, GraphPrepareOptions, SharedBuffers},
+    graph::{Graph, GraphExecutor, GraphPrepareOptions, SharedArena},
     nn::{
         DecodeCache, DecodeStep, DecoderModel, Model, ModelState, PageLayout, PageTable,
         TensorGroup, caches_from_inputs, named_cache_inputs,
     },
     shape::Shape,
-    tensor::{Draws, Tensor},
+    tensor::{DrawSource, Tensor},
 };
 
 // The steps past one token per row that a compiled decoder compiles, by the extra tokens they read: `smallest`, then twice as many each time, up to `largest` and to one less than a sequence's capacity, which is always the last.
 // A step pads to the smallest compiled one that holds it, so a prompt up to the largest reads in one step, padded to less than twice its rows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PromptChunks {
+pub struct PromptChunking {
     pub smallest: usize,
     pub largest: usize,
 }
 
-impl PromptChunks {
+impl PromptChunking {
     // Compiles only the step of one token per row, so a prompt reads a token per step.
     pub const NONE: Self = Self {
         smallest: 0,
@@ -62,7 +62,7 @@ impl PromptChunks {
     }
 }
 
-impl Default for PromptChunks {
+impl Default for PromptChunking {
     fn default() -> Self {
         Self::STANDARD
     }
@@ -80,7 +80,7 @@ pub struct DecoderOptions {
     // The tokens a cache holds across its sequences, or enough for every sequence's capacity at once.
     pub cache_tokens: Option<i64>,
     // The prompt steps a compiled decoder compiles beside the step of one token per row.
-    pub prompt_chunks: PromptChunks,
+    pub prompt_chunks: PromptChunking,
 }
 
 impl DecoderOptions {
@@ -91,7 +91,7 @@ impl DecoderOptions {
             capacity,
             page_size: 32,
             cache_tokens: None,
-            prompt_chunks: PromptChunks::STANDARD,
+            prompt_chunks: PromptChunking::STANDARD,
         }
     }
 
@@ -109,7 +109,7 @@ impl DecoderOptions {
     }
 
     #[must_use]
-    pub const fn with_prompt_chunks(mut self, prompt_chunks: PromptChunks) -> Self {
+    pub const fn with_prompt_chunks(mut self, prompt_chunks: PromptChunking) -> Self {
         self.prompt_chunks = prompt_chunks;
         self
     }
@@ -156,7 +156,7 @@ pub struct CachedDecoder<L: DecoderModel> {
     tables: L::Tables,
     caches: Vec<L::Cache>,
     chunks: Vec<usize>,
-    compiled: Option<(CompiledSteps, GraphPrepareOptions)>,
+    compiled: Option<(CompiledStepCache, GraphPrepareOptions)>,
     unfollowed: Tensor,
 }
 
@@ -188,8 +188,8 @@ fn step_forward<L: DecoderModel>(
         return Ok(vec![logits]);
     };
     let (first, draws) = match rest {
-        [first] => (first, Draws::Generator(None)),
-        [first, streams] => (first, Draws::Streams(streams)),
+        [first] => (first, DrawSource::Generator(None)),
+        [first, streams] => (first, DrawSource::Streams(streams)),
         _ => return Err(Error::missing_input("the rows choosing their first token")),
     };
     let sampling = [options.sampling];
@@ -232,8 +232,8 @@ impl<L: DecoderModel> CachedDecoder<L> {
 
     fn compile_under(&mut self, options: GraphPrepareOptions) -> Result<()> {
         // Only one step runs at a time, so the steps share their buffers.
-        let options = options.sharing_buffers(&SharedBuffers::default());
-        self.compiled = Some((CompiledSteps::default(), options));
+        let options = options.sharing_buffers(&SharedArena::default());
+        self.compiled = Some((CompiledStepCache::default(), options));
         let compiled = self.compile_chunk(0);
         if compiled.is_err() {
             self.compiled = None;

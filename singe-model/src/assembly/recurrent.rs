@@ -4,13 +4,13 @@
 
 use singe::{Error as SingeError, nn::TensorSource};
 
-use crate::format::{Rules, join};
+use crate::format::{RuleSet, join};
 
 /// Imports the recurrent layer whose tensors `PyTorch` stores under `from`, such as `decoder.lstm`, into `to`.
 #[must_use]
-pub fn recurrent_rules(from: &str, to: &str) -> Rules {
+pub fn recurrent_rules(from: &str, to: &str) -> RuleSet {
     let to = to.to_owned();
-    Rules::new().custom(&join(from, "*"), move |found| {
+    RuleSet::new().custom(&join(from, "*"), move |found| {
         let name = found.captures.last().copied().unwrap_or_default();
         let target = recurrent_target(name).ok_or_else(|| {
             SingeError::invalid_argument(format!("`{}` is no recurrent layer's tensor", found.name))

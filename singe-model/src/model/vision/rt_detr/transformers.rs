@@ -7,7 +7,7 @@ use crate::{
     assembly::{ResNetConfig, attention_rules, deformable_decoder_rules},
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{activation_field, classifier_config, detection_scoring},
     },
     model::vision::rt_detr::RtDetrConfig,
@@ -164,14 +164,14 @@ pub(crate) fn config(source: &Source) -> Result<RtDetrConfig> {
 }
 
 /// Renames a convolution and batch norm stored as `conv` and `norm` under `from` to a [`ConvNorm`](crate::assembly::ConvNorm)'s names under `to`.
-fn conv_norm_rules(from: &str, to: &str) -> Rules {
-    Rules::new().rename_each(from, to, &[("conv", "convolution"), ("norm", "norm")])
+fn conv_norm_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new().rename_each(from, to, &[("conv", "convolution"), ("norm", "norm")])
 }
 
 /// Returns the rules of an RT-DETR of `decoder_layers` decoder layers.
-pub(crate) fn rules(decoder_layers: i64) -> Rules {
+pub(crate) fn rules(decoder_layers: i64) -> RuleSet {
     let backbone = "model.backbone.model";
-    let mut rules = Rules::new()
+    let mut rules = RuleSet::new()
         // Counts training updates, which evaluation never reads.
         .skip("model.encoder_input_proj.*.1.num_batches_tracked")
         .skip("model.decoder_input_proj.*.1.num_batches_tracked")

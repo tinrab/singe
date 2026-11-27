@@ -8,8 +8,8 @@ use singe::{
 use crate::{
     assembly::{PostNormEncoderConfig, post_norm_encoder_rules},
     error::Result,
-    format::{Rules, transformers::EncoderFields},
-    head::{ClassifierLayout, EncoderBody, EncoderModel, Head, HeadLayouts, post_norm_body},
+    format::{RuleSet, transformers::EncoderFields},
+    head::{ClassifierLayout, EncoderBody, EncoderHeadLayout, EncoderModel, Head, post_norm_body},
     model::text::bert::Bert,
     schema::Schema,
     source::Source,
@@ -19,7 +19,7 @@ impl EncoderModel for Bert {
     type Config = PostNormEncoderConfig;
 
     /// A classifier reads the pooler, a tanh projection of the first token's state.
-    const LAYOUTS: HeadLayouts = HeadLayouts {
+    const LAYOUTS: EncoderHeadLayout = EncoderHeadLayout {
         classifier: ClassifierLayout {
             pooling: PoolingMode::Cls,
             projection: Some(Activation::Tanh),
@@ -36,7 +36,7 @@ impl EncoderModel for Bert {
         post_norm_body(schema, config)
     }
 
-    fn encoder_rules() -> Rules {
+    fn encoder_rules() -> RuleSet {
         post_norm_encoder_rules("", "")
             .then(post_norm_encoder_rules("bert", ""))
             // The heads' tensors, which only their own head's rules read.
@@ -45,12 +45,12 @@ impl EncoderModel for Bert {
             .skip("qa_outputs")
     }
 
-    fn head_rules(head: Head) -> Rules {
+    fn head_rules(head: Head) -> RuleSet {
         match head {
-            Head::SequenceClassification => Rules::new()
+            Head::SequenceClassification => RuleSet::new()
                 .rename("bert.pooler.dense", "classifier.projection")
                 .rename("classifier", "classifier.output"),
-            Head::MaskedLm => Rules::new()
+            Head::MaskedLm => RuleSet::new()
                 .rename_each(
                     "cls.predictions",
                     "masked_lm",
@@ -63,7 +63,7 @@ impl EncoderModel for Bert {
                 )
                 // The same parameter as `cls.predictions.bias`.
                 .skip("cls.predictions.decoder.bias"),
-            _ => Rules::new(),
+            _ => RuleSet::new(),
         }
     }
 }

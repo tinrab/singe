@@ -25,7 +25,7 @@ pub fn max_pool2d(
     dilation: Spatial2dI64,
     ceil_mode: bool,
 ) -> Result<Tensor> {
-    fn maximum<T: NativeFloat>(taps: &Taps<'_, T>) -> T {
+    fn maximum<T: NativeFloat>(taps: &TapWindow<'_, T>) -> T {
         let mut maximum = T::neg_infinity();
         taps.for_each(|value| {
             if value.is_nan() || value > maximum {
@@ -63,7 +63,7 @@ pub fn avg_pool2d(
     ceil_mode: bool,
     count_include_pad: bool,
 ) -> Result<Tensor> {
-    fn average<T: NativeFloat>(taps: &Taps<'_, T>, count_include_pad: bool) -> T {
+    fn average<T: NativeFloat>(taps: &TapWindow<'_, T>, count_include_pad: bool) -> T {
         let (mut sum, mut count) = (T::zero(), 0_usize);
         taps.for_each(|value| {
             sum = sum + value;
@@ -100,7 +100,7 @@ pub fn avg_pool2d(
 }
 
 /// The input values one output element of a pooling reads, in row-major kernel order.
-struct Taps<'a, T> {
+struct TapWindow<'a, T> {
     window: &'a Window2d,
     values: &'a [T],
     width: usize,
@@ -110,7 +110,7 @@ struct Taps<'a, T> {
     padded: usize,
 }
 
-impl<T: Copy> Taps<'_, T> {
+impl<T: Copy> TapWindow<'_, T> {
     fn for_each(&self, mut visit: impl FnMut(T)) {
         self.window
             .for_each_tap(self.row, self.column, |_, _, input_row, input_column| {
@@ -127,7 +127,7 @@ fn pool2d<T: NativeFloat>(
     (kernel_size, stride, padding, dilation, ceil_mode): PoolOptions,
     reduction: PoolReduction,
     diagnostic_prefix: &'static str,
-    reduce: impl Fn(&Taps<'_, T>) -> T + Sync,
+    reduce: impl Fn(&TapWindow<'_, T>) -> T + Sync,
 ) -> Result<Tensor> {
     if input.device() != Device::Cpu {
         return Err(cpu_device_mismatch("cpu operation input", input.device()));
@@ -167,7 +167,7 @@ fn pool2d<T: NativeFloat>(
             let row = linear / output_width % output_height;
             let plane = linear / (output_width * output_height);
             let start = plane * input_height * input_width;
-            reduce(&Taps {
+            reduce(&TapWindow {
                 window: &window,
                 values: &input_data[start..start + input_height * input_width],
                 width: input_width,

@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     assembly::{PreNormEncoderConfig, VisionTowerConfig, clip_layer_rules},
     error::Result,
-    format::{Rules, transformers::activation_field},
+    format::{RuleSet, transformers::activation_field},
     model::multimodal::siglip::{SiglipConfig, SiglipTextConfig},
     source::Source,
 };
@@ -116,13 +116,13 @@ pub(crate) fn config(source: &Source) -> Result<SiglipConfig> {
     })
 }
 
-pub(crate) fn rules(config: &SiglipConfig) -> Rules {
+pub(crate) fn rules(config: &SiglipConfig) -> RuleSet {
     let head = "vision_model.head";
     let positions = "vision_model.embeddings.position_embedding.weight";
     let positions = if config.flexible_grid.is_some() {
-        Rules::new().rename(positions, "vision.embeddings.positions")
+        RuleSet::new().rename(positions, "vision.embeddings.positions")
     } else {
-        Rules::new().derive(positions, "vision.embeddings.positions", |positions| {
+        RuleSet::new().derive(positions, "vision.embeddings.positions", |positions| {
             positions.unsqueeze(0)
         })
     };

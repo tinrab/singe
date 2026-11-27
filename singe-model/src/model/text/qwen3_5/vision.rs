@@ -17,11 +17,11 @@ use singe::{
 use crate::{
     BatchOptions,
     assembly::{PreNormEncoderBlock, PreNormEncoderConfig, pre_norm_encoder_block},
-    decoder_cache::{DecoderKey, Decoders},
+    decoder_cache::{DecoderCache, DecoderKey},
     error::{Error, Result},
-    head::{ImageTextToText, LoopLimits, LoopSteps},
+    head::{ImageTextToText, LoopLimits, LoopStepSet},
     model::text::qwen3_5::{
-        Qwen35Block, Qwen35VisionConfig, Qwen35VisionLanguageConfig, processor::ImagePatches,
+        Qwen35Block, Qwen35VisionConfig, Qwen35VisionLanguageConfig, processor::PatchedImage,
     },
     processor::{image::Image, text::TextTokenizer},
     schema::Schema,
@@ -279,7 +279,7 @@ pub struct Qwen35VisionLanguage {
     pub(crate) encoder: Model<Qwen35VisionEncoder>,
     pub(crate) decoder: Model<Qwen35ImageDecoder>,
     pub(crate) device: Device,
-    pub(crate) decoders: Decoders<DecoderKey, CachedDecoder<Qwen35ImageDecoder>>,
+    pub(crate) decoders: DecoderCache<DecoderKey, CachedDecoder<Qwen35ImageDecoder>>,
 }
 
 /// A prompt that reads one image: its tokens, with one image token per row of `rows`, and the encoder's rows, `[N, W]`, of an image whose merged grid is `grid`.
@@ -292,7 +292,7 @@ struct ImagePrompt {
 
 impl Qwen35VisionLanguage {
     /// Encodes an image's patches into the rows its prompt's image tokens read, `[N, W]`, and returns them with its merged grid.
-    fn encode(&self, image: &ImagePatches) -> Result<(Tensor, [i64; 2])> {
+    fn encode(&self, image: &PatchedImage) -> Result<(Tensor, [i64; 2])> {
         let merge = self.config.encoder.merge_size;
         let grid = Tensor::from_vec(self.device, Shape::create([2])?, image.grid.to_vec())?;
         let rows = self
@@ -461,11 +461,15 @@ fn rotary_offsets(
 }
 
 impl ImageTextToText for Qwen35VisionLanguage {
-    fn loop_steps(&self, limits: &LoopLimits, generation: &GenerationOptions) -> Result<LoopSteps> {
+    fn loop_steps(
+        &self,
+        limits: &LoopLimits,
+        generation: &GenerationOptions,
+    ) -> Result<LoopStepSet> {
         let patches = limits
             .image_patches
             .ok_or_else(|| SingeError::missing_input("the most patches of an image"))?;
-        LoopSteps::one_sequence(&self.decoder, limits, generation, |decoder| {
+        LoopStepSet::one_sequence(&self.decoder, limits, generation, |decoder| {
             let (encode, _) = self.encode_step_graph(decoder, patches)?;
             Ok(Some(encode))
         })

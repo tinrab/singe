@@ -10,7 +10,7 @@ use crate::{
                 program::{BufferKind, Library, ProgramValue, StateKind},
                 writer::{
                     CONFIGURATION_REFUSED, CUBLAS_BASE, CUDNN_BASE, CUFFT_BASE, CUTENSOR_BASE,
-                    EMBEDDED_VALUE_BYTES, LIBRARY_VERSION, LIBRARY_VERSIONS, ProgramFiles,
+                    EMBEDDED_VALUE_BYTES, LIBRARY_VERSION, LIBRARY_VERSIONS, ProgramArtifact,
                     REPLAY_GRAPHS, Renderer, cudnn::TABLE_KNOBS_HELPER, fill_template,
                     steps::StepOutput, tokenizer::tokenizer_file,
                 },
@@ -390,7 +390,7 @@ impl Renderer<'_> {
         .map_err(|error| Error::Compile(error.into()))
     }
 
-    pub fn render(&self) -> Result<ProgramFiles> {
+    pub fn render(&self) -> Result<ProgramArtifact> {
         let prefix = self.prefix;
         let program = self.program;
         let mut out = StepOutput::default();
@@ -496,7 +496,7 @@ impl Renderer<'_> {
             .map(tokenizer_file);
         let run = self.runner(buffers.weights.len())?;
         let forced = self.forced.take();
-        Ok(ProgramFiles {
+        Ok(ProgramArtifact {
             header: self.header()?,
             generate,
             tokenizer,

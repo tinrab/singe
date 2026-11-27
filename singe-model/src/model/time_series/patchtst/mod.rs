@@ -12,7 +12,7 @@ use crate::{
     assembly::{Attention, AttentionSpec},
     error::{Error, Result},
     format::Loader,
-    head::{Draws, Forecast, Forecaster, HeadLoader, PastValues, Series, refuse_draws},
+    head::{Forecast, Forecaster, HeadLoader, PastSeries, PathSampling, Series, refuse_draws},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -212,11 +212,11 @@ pub type PatchTst = Model<PatchTstLayers>;
 
 impl Forecaster for PatchTst {
     /// Forecasts the last context of a multivariate series, `[T][C]`, as `PatchTSTForPrediction` forecasts it: each channel scaled by its mean and deviation over the context's observed values, and the forecast scaled back.
-    fn forecast(&self, series: &Series, draws: Option<Draws>) -> Result<Forecast> {
+    fn forecast(&self, series: &Series, draws: Option<PathSampling>) -> Result<Forecast> {
         refuse_draws(draws, "PatchTST")?;
         series.refuse_extras("PatchTST")?;
         let config = &self.layer().config;
-        let PastValues::Multivariate(steps) = &series.past_values else {
+        let PastSeries::Multivariate(steps) = &series.past_values else {
             return Err(Error::unsupported(
                 "a PatchTST forecast of one channel without its axis",
             ));
@@ -233,7 +233,7 @@ impl Forecaster for PatchTst {
 
         let observed = match &series.past_observed_mask {
             None => vec![1.0; context * channels],
-            Some(PastValues::Multivariate(mask))
+            Some(PastSeries::Multivariate(mask))
                 if mask.len() == steps.len() && mask.iter().all(|step| step.len() == channels) =>
             {
                 mask[mask.len() - context..]

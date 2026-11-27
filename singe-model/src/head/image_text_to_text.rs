@@ -5,7 +5,7 @@ use singe::generation::GenerationOptions;
 use crate::{
     BatchOptions,
     error::{Error, Result},
-    head::{LoopLimits, LoopSteps},
+    head::{LoopLimits, LoopStepSet},
     processor::{image::Image, text::TextTokenizer, video::Video},
 };
 
@@ -21,7 +21,11 @@ pub trait ImageTextToText: Debug {
     ) -> Result<Vec<i64>>;
 
     /// Returns the steps an exported loop runs within `limits`: the decoder's steps, and an encode step that reads one image's patches when the model has one.
-    fn loop_steps(&self, limits: &LoopLimits, generation: &GenerationOptions) -> Result<LoopSteps>;
+    fn loop_steps(
+        &self,
+        limits: &LoopLimits,
+        generation: &GenerationOptions,
+    ) -> Result<LoopStepSet>;
 
     /// Returns the token a prompt holds where an image's rows go.
     fn image_token(&self) -> i64;

@@ -7,7 +7,7 @@ use crate::{
     error::Result,
     head::KeypointDetector,
     model,
-    processor::image::{Image, ImageTransforms},
+    processor::image::{Image, ImagePreprocessor},
     source::{LoadOptions, Source},
     task::{Pipeline, vision::pixels::rescaled_point},
 };
@@ -15,13 +15,13 @@ use crate::{
 #[derive(Debug)]
 pub struct KeypointDetectionPipeline {
     model: KeypointDetector,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     options: LoadOptions,
 }
 
 /// An image's keypoints at its own whole pixels, `[x, y]`, their scores, and their descriptors.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct DetectedKeypoints {
+pub struct KeypointDetectionOutput {
     pub keypoints: Vec<[i32; 2]>,
     pub scores: Vec<f32>,
     pub descriptors: Vec<Vec<f32>>,
@@ -32,12 +32,12 @@ impl Pipeline for KeypointDetectionPipeline {
 
     type Parameters = ();
 
-    type Output = DetectedKeypoints;
+    type Output = KeypointDetectionOutput;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             options,
         })
     }
@@ -50,7 +50,7 @@ impl Pipeline for KeypointDetectionPipeline {
             return Err(SingeError::invalid_argument("images, [B, C, H, W]").into());
         };
         let keypoints = self.model.detect(&pixels)?.remove(0);
-        Ok(DetectedKeypoints {
+        Ok(KeypointDetectionOutput {
             keypoints: keypoints
                 .keypoints
                 .iter()

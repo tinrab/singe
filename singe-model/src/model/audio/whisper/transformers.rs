@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     assembly::{attention_rules, pre_norm_encoder_rules},
     error::{Error, Result},
-    format::{Rules, join, transformers::activation_field},
+    format::{RuleSet, join, transformers::activation_field},
     model::audio::whisper::WhisperConfig,
     source::Source,
 };
@@ -51,9 +51,9 @@ pub(crate) fn config(source: &Source) -> Result<WhisperConfig> {
     })
 }
 
-pub(crate) fn encoder_rules() -> Rules {
+pub(crate) fn encoder_rules() -> RuleSet {
     let encoder = "model.encoder";
-    Rules::new()
+    RuleSet::new()
         .rename_each(
             encoder,
             "encoder",
@@ -72,10 +72,10 @@ pub(crate) fn encoder_rules() -> Rules {
 
 /// Returns the rules that import the decoder's tensors.
 /// A decoder layer's self-attention and feed-forward layer are stored as an encoder layer's are, and its cross-attention as `encoder_attn`.
-pub(crate) fn decoder_rules() -> Rules {
+pub(crate) fn decoder_rules() -> RuleSet {
     let decoder = "model.decoder";
     let layers = join(decoder, "layers");
-    Rules::new()
+    RuleSet::new()
         .rename_each(
             decoder,
             "decoder",

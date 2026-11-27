@@ -7,7 +7,7 @@ use crate::{
     assembly::{SwinConfig, post_norm_encoder_rules, swin_rules},
     error::{Error, Result},
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{EncoderFields, activation_field, default_true},
     },
     model::audio::clap::ClapConfig,
@@ -147,10 +147,10 @@ pub(crate) fn config(source: &Source) -> Result<ClapConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     let encoder = "audio_model.audio_encoder";
     let projection = [("linear1", "up"), ("linear2", "down")];
-    Rules::new()
+    RuleSet::new()
         // Counts training updates, which evaluation never reads.
         .skip(&join(encoder, "batch_norm.num_batches_tracked"))
         .rename(&join(encoder, "batch_norm"), "audio.norm")

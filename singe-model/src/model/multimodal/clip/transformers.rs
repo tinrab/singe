@@ -7,7 +7,7 @@ use crate::{
     assembly::{PreNormEncoderConfig, VisionTowerConfig, clip_layer_rules},
     error::Result,
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{activation_field, default_channels},
     },
     model::multimodal::clip::{ClipConfig, ClipTextConfig, ClipTextProjectionConfig},
@@ -100,7 +100,7 @@ pub(crate) fn config(source: &Source) -> Result<ClipConfig> {
 }
 
 /// Returns the rules that import CLIP's towers, projections, and logit scale stored under `prefix`, reshaping the class embedding and the vision positions to the layout [`PatchTokens`](singe::nn::PatchTokens) reads.
-pub(crate) fn clip_rules(prefix: &str) -> Rules {
+pub(crate) fn clip_rules(prefix: &str) -> RuleSet {
     text_rules(&join(prefix, "text_model"), "text")
         .then(vision_rules(&join(prefix, "vision_model"), "vision"))
         .rename(&join(prefix, "visual_projection"), "image_projection")
@@ -109,10 +109,10 @@ pub(crate) fn clip_rules(prefix: &str) -> Rules {
 }
 
 /// Returns the rules that import a text tower stored under `from` (such as `text_model`) into the tower under `to` (such as `text`, or nothing for the tower alone).
-pub(crate) fn text_rules(from: &str, to: &str) -> Rules {
+pub(crate) fn text_rules(from: &str, to: &str) -> RuleSet {
     let text = |name: &str| join(from, name);
     let target = |name: &str| join(to, name);
-    Rules::new()
+    RuleSet::new()
         .rename(
             &text("embeddings.token_embedding"),
             &target("embeddings.tokens"),
@@ -149,10 +149,10 @@ pub(crate) fn text_projection_model_config(source: &Source) -> Result<ClipTextPr
 }
 
 /// Returns the rules that import a vision tower stored under `from` (such as `vision_model`) into the tower under `to`, reshaping the class embedding and the positions to the layout [`PatchTokens`](singe::nn::PatchTokens) reads.
-pub(crate) fn vision_rules(from: &str, to: &str) -> Rules {
+pub(crate) fn vision_rules(from: &str, to: &str) -> RuleSet {
     let vision = |name: &str| join(from, name);
     let target = |name: &str| join(to, name);
-    Rules::new()
+    RuleSet::new()
         // A buffer of the positions an input leaves out, which the embeddings compute.
         .skip(&vision("embeddings.position_ids"))
         .rename(

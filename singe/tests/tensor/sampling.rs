@@ -1,7 +1,7 @@
 use singe::{
     Device, Shape, Tensor,
     random::Generator,
-    tensor::{Draws, SamplingOptions},
+    tensor::{DrawSource, SamplingOptions},
 };
 
 #[cfg(all(feature = "testing", feature = "cuda"))]
@@ -36,7 +36,9 @@ fn test_near_zero_temperature_selects_the_most_likely_tokens() {
     let logits = logits(Device::Cpu, 2, &[0.5, 3., -1., 2.]);
     let greedy = SamplingOptions::new().with_temperature(0.);
     for options in [vec![Some(greedy)], vec![Some(greedy), None], vec![None]] {
-        let chosen = logits.sample(&options, Draws::Generator(None)).unwrap();
+        let chosen = logits
+            .sample(&options, DrawSource::Generator(None))
+            .unwrap();
         assert_eq!(chosen.shape().dimensions(), [2]);
         assert_eq!(chosen.to_vec::<i64>().unwrap(), [1, 1], "{options:?}");
     }
@@ -68,7 +70,7 @@ fn test_filtered_tokens_are_never_drawn_and_frequencies_match() {
         (top_p, 4, &top_p_weights[..]),
     ] {
         let drawn = logits
-            .sample(&[Some(options)], Draws::Generator(Some(&generator)))
+            .sample(&[Some(options)], DrawSource::Generator(Some(&generator)))
             .unwrap()
             .to_vec::<i64>()
             .unwrap();
@@ -81,7 +83,7 @@ fn test_filtered_tokens_are_never_drawn_and_frequencies_match() {
         .collect::<Vec<_>>();
     let states = streams(Device::Cpu, rows);
     let drawn = logits
-        .sample(&options, Draws::Streams(&states))
+        .sample(&options, DrawSource::Streams(&states))
         .unwrap()
         .to_vec::<i64>()
         .unwrap();
@@ -103,7 +105,7 @@ fn test_filtered_tokens_are_never_drawn_and_frequencies_match() {
             .unwrap()
             .sample(
                 &[options[usize::try_from(row).unwrap()]],
-                Draws::Streams(&states.narrow(0, row, 1).unwrap().contiguous().unwrap()),
+                DrawSource::Streams(&states.narrow(0, row, 1).unwrap().contiguous().unwrap()),
             )
             .unwrap()
             .to_vec::<i64>()
@@ -144,10 +146,10 @@ fn test_cuda_sampling_draws_the_same_tokens_as_cpu() {
         mixed,
     ] {
         let expected = cpu
-            .sample(&options, Draws::Generator(Some(&Generator::new(3))))
+            .sample(&options, DrawSource::Generator(Some(&Generator::new(3))))
             .unwrap();
         let actual = cuda
-            .sample(&options, Draws::Generator(Some(&Generator::new(3))))
+            .sample(&options, DrawSource::Generator(Some(&Generator::new(3))))
             .unwrap();
         assert_eq!(actual.device(), Device::Cuda(0));
         assert_eq!(
@@ -157,10 +159,13 @@ fn test_cuda_sampling_draws_the_same_tokens_as_cpu() {
         );
 
         let expected = cpu
-            .sample(&options, Draws::Streams(&streams(Device::Cpu, rows)))
+            .sample(&options, DrawSource::Streams(&streams(Device::Cpu, rows)))
             .unwrap();
         let actual = cuda
-            .sample(&options, Draws::Streams(&streams(Device::Cuda(0), rows)))
+            .sample(
+                &options,
+                DrawSource::Streams(&streams(Device::Cuda(0), rows)),
+            )
             .unwrap();
         assert_eq!(
             actual.to_vec::<i64>().unwrap(),

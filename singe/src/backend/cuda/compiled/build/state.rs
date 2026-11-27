@@ -18,7 +18,7 @@ use crate::{
             },
             plan::{
                 fusion::FusionPlan,
-                kernel::NodeKernelPlans,
+                kernel::NodeKernelPlan,
                 lowering::{CudaGraphProvider, LoweringPlan, RealizedLoweringPlan},
                 memory::GraphMemoryPlanner,
             },
@@ -50,7 +50,7 @@ pub struct GraphLoweringState {
     /// The fusion groups lowering builds, each when it reaches the group's first member.
     pub(crate) fusion_plan: FusionPlan,
     pub(crate) planner: KernelPlanner,
-    pub(crate) node_plans: HashMap<ValueId, NodeKernelPlans>,
+    pub(crate) node_plans: HashMap<ValueId, NodeKernelPlan>,
     // The results a kernel already wrote for nodes that lower later, and the graph node that writes them.
     pub(crate) sibling_results: HashMap<ValueId, (CudaGraphValue, GraphNode, CudaGraphProvider)>,
 }

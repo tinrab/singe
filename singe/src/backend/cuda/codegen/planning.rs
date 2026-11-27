@@ -10,7 +10,7 @@ use crate::{
     backend::cuda::{
         codegen::{description::KernelDescription, emission::KernelLanguage},
         kernel_tuning::PlannedKernel,
-        tuning::{ForcedLibrary, Measurement, TuningRecords, library_key},
+        tuning::{ForcedLibrary, Measurement, TuningRecordSet, library_key},
     },
     error::{Error, Result},
     graph::ir::{Graph, ValueId},
@@ -33,7 +33,7 @@ pub enum KernelDestination {
 pub struct PlanningContext {
     pub language: KernelLanguage,
     // What the tuning step chose, which planning reads and never adds to.
-    pub records: Option<Arc<TuningRecords>>,
+    pub records: Option<Arc<TuningRecordSet>>,
     pub recorder: Option<KernelRecorder>,
     // Plans a generated kernel for a convolution that is not depthwise, which a library runs otherwise.
     pub generated_convolutions: bool,
@@ -44,7 +44,7 @@ pub struct PlanningContext {
 
 impl PlanningContext {
     // The records that hold for this context's target, which are none when they were measured on another architecture, which `check_records` refuses first.
-    pub(crate) fn records(&self) -> Option<&TuningRecords> {
+    pub(crate) fn records(&self) -> Option<&TuningRecordSet> {
         self.records.as_deref().filter(|_| self.records_hold())
     }
 

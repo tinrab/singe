@@ -10,7 +10,7 @@ use singe::{
     tensor::AttentionOptions,
 };
 
-use crate::{format::Rules, schema::Schema};
+use crate::{format::RuleSet, schema::Schema};
 
 /// The widths of an attention's projections.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -197,14 +197,14 @@ pub fn merge_heads(tensor: &Tensor) -> SingeResult<Tensor> {
 }
 
 #[must_use]
-pub fn attention_rules(from: &str, to: &str) -> Rules {
+pub fn attention_rules(from: &str, to: &str) -> RuleSet {
     attention_rules_with_output(from, to, "out_proj")
 }
 
 /// Imports the attention `transformers` stores under `from` as [`attention_rules`] does, its output projection named `output`, such as `o_proj`.
 #[must_use]
-pub fn attention_rules_with_output(from: &str, to: &str, output: &str) -> Rules {
-    Rules::new().rename_each(
+pub fn attention_rules_with_output(from: &str, to: &str, output: &str) -> RuleSet {
+    RuleSet::new().rename_each(
         from,
         to,
         &[

@@ -9,10 +9,10 @@ use singe::{DataType, Shape, Tensor, tensor::InterpolateMode};
 
 use crate::{
     error::{Error, Result},
-    head::{ConceptSegmenter, Head, ImageSegmenter, SegmentQueries, SegmenterLayout},
+    head::{ConceptSegmenter, Head, ImageSegmenter, SegmentPrediction, SegmenterLayout},
     model,
     processor::{
-        image::{Image, ImageTransforms},
+        image::{Image, ImagePreprocessor},
         text::TextTokenizer,
     },
     source::{LoadOptions, Source},
@@ -34,7 +34,7 @@ enum Segmenter {
 #[derive(Debug)]
 pub struct ImageSegmentationPipeline {
     model: Segmenter,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     options: LoadOptions,
 }
 
@@ -90,7 +90,7 @@ impl Pipeline for ImageSegmentationPipeline {
             } else {
                 Segmenter::Classes(model::load_served(source, options)?)
             },
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             options,
         })
     }
@@ -214,7 +214,7 @@ impl ImageSegmentationPipeline {
     fn panoptic(
         model: &ImageSegmenter,
         image: &Image,
-        queries: &SegmentQueries,
+        queries: &SegmentPrediction,
         parameters: &ImageSegmentationParameters,
     ) -> Result<Vec<Segment>> {
         let classes = queries.classes.cast(DataType::F32)?;

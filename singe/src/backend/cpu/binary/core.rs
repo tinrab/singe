@@ -10,14 +10,14 @@ use crate::{
     tensor::Tensor,
 };
 
-enum Values<'a> {
+enum TypedSlice<'a> {
     F32(CpuSlice<'a, f32>),
     F64(CpuSlice<'a, f64>),
     I64(CpuSlice<'a, i64>),
     Bool(CpuSlice<'a, bool>),
 }
 
-impl<'a> Values<'a> {
+impl<'a> TypedSlice<'a> {
     fn create(input: &'a Tensor) -> Result<Self> {
         Ok(match input.data_type() {
             DataType::F32 => Self::F32(typed_values(input)?),
@@ -80,8 +80,8 @@ pub fn binary(lhs: &Tensor, rhs: &Tensor, operation: Operation) -> Result<Tensor
     }
 
     let data_type = inference.computation_data_type();
-    let lhs = Values::create(lhs)?;
-    let rhs = Values::create(rhs)?;
+    let lhs = TypedSlice::create(lhs)?;
+    let rhs = TypedSlice::create(rhs)?;
     let comparison = matches!(
         operation,
         Operation::Equal

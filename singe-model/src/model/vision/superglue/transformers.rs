@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     error::{Error, Result},
-    format::Rules,
+    format::RuleSet,
     model::vision::{
         superglue::SuperGlueConfig,
         superpoint::transformers::{Fields as SuperPointFields, detector_rules, fields_config},
@@ -45,7 +45,7 @@ pub(crate) fn config(source: &Source) -> Result<SuperGlueConfig> {
     })
 }
 
-pub(crate) fn rules(config: &SuperGlueConfig) -> Rules {
+pub(crate) fn rules(config: &SuperGlueConfig) -> RuleSet {
     let encoder = config.encoder.len();
     detector_rules("keypoint_detector", "detector")
         // A batch norm's count of the batches it saw in training, which evaluation never reads.

@@ -11,7 +11,7 @@ use crate::{
     },
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{activation_field, default_true, parse},
     },
     model::{
@@ -195,7 +195,7 @@ pub(crate) fn config(source: &Source) -> Result<VisionEncoderDecoderConfig> {
     })
 }
 
-pub(crate) fn rules(config: &VisionEncoderDecoderConfig) -> Rules {
+pub(crate) fn rules(config: &VisionEncoderDecoderConfig) -> RuleSet {
     let encoder = match config.encoder {
         ImageEncoderConfig::Deit(_) => encoder_rules("encoder", "encoder").rename(
             "encoder.embeddings.distillation_token",

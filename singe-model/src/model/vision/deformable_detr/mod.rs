@@ -14,7 +14,7 @@ use singe::{
 use crate::{
     assembly::{
         ConvGroupNorm, DeformableAttentionSpec, DeformableDecoderLayer, DeformableEncoderLayer,
-        FeatureLevels, LinearStack, PYTORCH_NORM_EPS, ResNet, ResNetConfig, SinePositions,
+        FeaturePyramid, LinearStack, PYTORCH_NORM_EPS, ResNet, ResNetConfig, SinePositionSpec,
         inverse_sigmoid, sine_positions, to_tokens,
     },
     error::Result,
@@ -29,7 +29,7 @@ use crate::{
 const PROJECTION_GROUPS: i64 = 32;
 
 /// The positions of every level, normalized sines of each point's center.
-const POSITIONS: SinePositions = SinePositions {
+const POSITIONS: SinePositionSpec = SinePositionSpec {
     offset: 0.5,
     temperature: 10_000.0,
 };
@@ -190,7 +190,7 @@ impl Layer for DeformableDetrLayers {
         }
 
         let positions = Tensor::concat(&positions, 1)?;
-        let levels = FeatureLevels::create(device, sizes)?;
+        let levels = FeaturePyramid::create(device, sizes)?;
         let references = levels.reference_points()?.cast(data_type)?;
         let mut memory = Tensor::concat(&tokens, 1)?;
         for layer in &self.encoder {

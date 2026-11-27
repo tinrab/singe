@@ -26,7 +26,7 @@ pub use self::{
 };
 use self::{
     buffers::{output_buffer_allocation_records, output_buffer_summaries, output_value_tensors},
-    replay::PendingRuns,
+    replay::PendingRunQueue,
     report::build_cuda_graph_compile_report,
 };
 use crate::{
@@ -41,7 +41,7 @@ use crate::{
         },
         cudnn_backend::CudnnBackendExecutable,
         diagnostics::GraphProviderFailures,
-        graph_binding::InPlaceWrites,
+        graph_binding::InPlaceWritePlan,
         graph_value::CudaGraphValue,
         runtime::CudaRuntime,
         tuning::LibraryRecorder,
@@ -50,7 +50,7 @@ use crate::{
     device::Device,
     error::{Error, Result},
     graph::{
-        guards::GraphGuards,
+        guards::GraphGuardSet,
         ir::{Graph, ValueId},
     },
     shape::Shape,
@@ -84,7 +84,7 @@ pub struct CudaCompiledGraph {
     report: GraphCompileReport,
     runtime: Arc<CudaRuntime>,
     device: Device,
-    guards: GraphGuards,
+    guards: GraphGuardSet,
     execution_order: Vec<ValueId>,
     // The template graph and library child graphs own the nodes the executable was built from.
     _native_graph: Option<NativeCudaGraph>,
@@ -92,7 +92,7 @@ pub struct CudaCompiledGraph {
     cudnn_steps: Vec<CudnnGraphStep>,
     cutensor_steps: Vec<CutensorGraphStep>,
     _library_resources: Vec<LibraryResource>,
-    pending_runs: PendingRuns,
+    pending_runs: PendingRunQueue,
     values: HashMap<ValueId, CudaGraphValue>,
     outputs: Vec<ValueId>,
     output_buffers: Vec<GraphOutputBufferSummary>,
@@ -108,7 +108,7 @@ pub struct GraphPrivateBuffers {
     /// Runtime inputs the graph reads where they are instead of copying them into placeholders; replays must pass these same tensors.
     pub(crate) inputs_in_place: HashMap<ValueId, Tensor>,
     // What the graph's scatters write in place of fresh buffers, given those inputs.
-    pub(crate) in_place_writes: InPlaceWrites,
+    pub(crate) in_place_writes: InPlaceWritePlan,
     // Where lowering lists what libraries could run each node with, for tuning.
     pub(crate) library_recorder: Option<LibraryRecorder>,
     /// The names of the inputs bound in place whose written values the graph itself copies back, as its last nodes.
@@ -294,7 +294,7 @@ pub struct CudaCompiledGraphParts {
     pub report: GraphCompileReport,
     pub runtime: Arc<CudaRuntime>,
     pub device: Device,
-    pub guards: GraphGuards,
+    pub guards: GraphGuardSet,
     pub execution_order: Vec<ValueId>,
     pub native_graph: Option<NativeCudaGraph>,
     pub executable: Option<NativeExecutableGraph>,
@@ -353,7 +353,7 @@ impl CudaCompiledGraph {
             cudnn_steps,
             cutensor_steps,
             _library_resources: library_resources,
-            pending_runs: PendingRuns::default(),
+            pending_runs: PendingRunQueue::default(),
             values,
             outputs,
             output_buffers,

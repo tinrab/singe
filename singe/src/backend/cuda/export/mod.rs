@@ -15,12 +15,12 @@ pub use singe_cuda::architecture::GpuArchitecture;
 use self::builder::build_program;
 pub use self::{
     program::{
-        Activation, BufferId, BufferKind, BufferView, CharacterClasses, Composition, CudaProgram,
-        CudaProgramSet, Decoding, GemmOperand, Library, LibraryCall, LoopEncoder, LoopToken,
-        LoopTokenizer, OperationProvider, ProgramBuffer, ProgramEntry, ProgramState, ProgramStep,
-        ProgramValue, RowCount, StateKind, StepProvider,
+        Activation, BufferId, BufferKind, BufferView, CharacterClassTable, Composition,
+        CudaProgram, CudaProgramSet, Decoding, GemmOperand, Library, LibraryCall, LoopEncoder,
+        LoopToken, LoopTokenizer, OperationProvider, ProgramBuffer, ProgramEntry, ProgramState,
+        ProgramStep, ProgramValue, RowCount, StateKind, StepProvider,
     },
-    writer::{ProgramFiles, set::ProgramSetFiles},
+    writer::{ProgramArtifact, set::ProgramSetArtifact},
 };
 use crate::{
     backend::{
@@ -31,7 +31,7 @@ use crate::{
                 plan::lowering::{CudaGraphProvider, LibraryFeature, LoweringPolicy, ModuleKernel},
             },
             kernel_plan::KernelPlanner,
-            tuning::{TunedChoice, TuningRecords, dependent_launch_key},
+            tuning::{TunedChoice, TuningRecordSet, dependent_launch_key},
         },
         registry::Operation,
     },
@@ -50,7 +50,7 @@ pub struct CudaExport {
     // What a tuning candidate's program may run, in place of the lists above.
     policy: Option<LoweringPolicy>,
     state_functions: bool,
-    records: Option<Arc<TuningRecords>>,
+    records: Option<Arc<TuningRecordSet>>,
     library_table: bool,
     decoding: Option<Decoding>,
 }
@@ -153,7 +153,7 @@ impl CudaExport {
 
     // Reads what `tune_graph` chose, which holds only for the architecture it measured; a program contains only the winners.
     #[must_use]
-    pub fn with_tuning_records(mut self, records: TuningRecords) -> Self {
+    pub fn with_tuning_records(mut self, records: TuningRecordSet) -> Self {
         self.records = Some(Arc::new(records));
         self
     }

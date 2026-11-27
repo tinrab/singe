@@ -8,7 +8,7 @@ use singe::nn::Activation;
 use crate::{
     error::{Error, Result},
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{LayerType, activation_field},
     },
     model::multimodal::{
@@ -115,8 +115,8 @@ pub(crate) fn config(source: &Source) -> Result<ColModernVBertConfig> {
 }
 
 /// Returns the rules that import the `SigLIP` tower and the connector, skipping the tower's pooling head, since the encoder reads every patch.
-pub(crate) fn vision_rules() -> Rules {
-    Rules::new()
+pub(crate) fn vision_rules() -> RuleSet {
+    RuleSet::new()
         .skip("model.vision_model.vision_model.head")
         .then(tower_rules(
             "model.vision_model.vision_model",
@@ -125,10 +125,10 @@ pub(crate) fn vision_rules() -> Rules {
 }
 
 /// Returns the rules that import `ModernBERT`, splitting its fused projections, and the projection to each token's embedding, which `sentence-transformers`' `1_Dense` holds again.
-pub(crate) fn text_rules() -> Rules {
+pub(crate) fn text_rules() -> RuleSet {
     let text = |name: &str| join("model.text_model", name);
     let layer = |name: &str| join("model.text_model.layers.*", name);
-    Rules::new()
+    RuleSet::new()
         .rename(&text("embeddings.tok_embeddings"), "tokens")
         .rename(&text("embeddings.norm"), "embedding_norm")
         .rename(&layer("attn_norm"), "blocks.*.attention_norm")

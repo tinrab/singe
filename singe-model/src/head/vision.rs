@@ -547,7 +547,7 @@ pub enum SegmenterLayout {
 
 /// The queries of a universal segmenter: each one's label scores, the last for no object, `[B, Q, labels + 1]`, and its mask's logits, `[B, Q, h, w]`.
 #[derive(Debug, Clone)]
-pub struct SegmentQueries {
+pub struct SegmentPrediction {
     pub classes: Tensor,
     pub masks: Tensor,
 }
@@ -598,7 +598,7 @@ impl ImageSegmenter {
     /// # Errors
     ///
     /// Returns an error if the segmenter is semantic, if its output is not `[B, Q, N]`, or if running the model fails.
-    pub fn queries(&self, pixels: &Tensor) -> Result<SegmentQueries> {
+    pub fn queries(&self, pixels: &Tensor) -> Result<SegmentPrediction> {
         let SegmenterLayout::Universal { stride } = self.layout else {
             return Err(Error::unsupported("queries of a semantic segmenter"));
         };
@@ -613,7 +613,7 @@ impl ImageSegmenter {
                 };
                 let scores = self.config.label_count()? + 1;
                 let (height, width) = (height / stride, width / stride);
-                Ok(SegmentQueries {
+                Ok(SegmentPrediction {
                     classes: output.narrow(2, 0, scores)?,
                     masks: output
                         .narrow(2, scores, height * width)?
@@ -623,7 +623,7 @@ impl ImageSegmenter {
             Forward::External(model) => {
                 let [classes, masks] = <[Tensor; 2]>::try_from(model.single_outputs(pixels)?)
                     .map_err(|_| Error::invalid("a universal segmenter without two outputs"))?;
-                Ok(SegmentQueries { classes, masks })
+                Ok(SegmentPrediction { classes, masks })
             }
         }
     }

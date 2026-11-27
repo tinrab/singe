@@ -50,7 +50,7 @@ pub const CUTENSOR_BASE: i32 = 4_000_000;
 
 // A program's files, named by its prefix.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProgramFiles {
+pub struct ProgramArtifact {
     pub header: String,
     pub source: String,
     pub weights: Vec<u8>,
@@ -213,12 +213,12 @@ impl CudaProgram {
     // # Errors
     //
     // Returns an error if a step has no C++ form or `prefix` is not a C++ identifier.
-    pub fn render(&self, prefix: &str) -> Result<ProgramFiles> {
+    pub fn render(&self, prefix: &str) -> Result<ProgramArtifact> {
         self.render_as(prefix, Vec::new())
     }
 
     // Renders the program as `render` does, reading the state tensors `shared` marks from another program.
-    pub(crate) fn render_as(&self, prefix: &str, shared: Vec<bool>) -> Result<ProgramFiles> {
+    pub(crate) fn render_as(&self, prefix: &str, shared: Vec<bool>) -> Result<ProgramArtifact> {
         if prefix.is_empty()
             || !prefix
                 .chars()

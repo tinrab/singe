@@ -13,7 +13,7 @@ use singe::{
 
 use crate::{
     assembly::recurrent_rules,
-    format::{Rules, join},
+    format::{RuleSet, join},
     schema::Schema,
 };
 
@@ -424,8 +424,8 @@ pub fn seanet_rules(
     config: &SeanetConfig,
     [encoder, decoder]: [&str; 2],
     weight_norm: bool,
-) -> Rules {
-    let mut rules = Rules::new();
+) -> RuleSet {
+    let mut rules = RuleSet::new();
     if weight_norm {
         for part in [encoder, decoder] {
             for convolution in ["*.conv", "*.block.*.conv", "*.shortcut.conv"] {

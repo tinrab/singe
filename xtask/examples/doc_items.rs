@@ -308,9 +308,9 @@ fn main() -> Result<()> {
 }
 
 fn audit_tokens(mut file: File) -> TokenStream {
-    struct NormalizeLists;
+    struct ListNormalizer;
 
-    impl VisitMut for NormalizeLists {
+    impl VisitMut for ListNormalizer {
         fn visit_fields_named_mut(&mut self, fields: &mut FieldsNamed) {
             let _ = fields.named.pop_punct();
             visit_mut::visit_fields_named_mut(self, fields);
@@ -335,7 +335,7 @@ fn audit_tokens(mut file: File) -> TokenStream {
         }
     }
 
-    NormalizeLists.visit_file_mut(&mut file);
+    ListNormalizer.visit_file_mut(&mut file);
     without_docs(file.to_token_stream())
 }
 

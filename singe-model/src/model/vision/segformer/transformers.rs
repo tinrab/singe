@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{activation_field, classifier_config, default_true},
     },
     model::vision::segformer::{SegformerConfig, SegformerStageConfig},
@@ -75,8 +75,8 @@ pub(crate) fn config(source: &Source) -> Result<SegformerConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename_each(
             "segformer.encoder",
             "stages",

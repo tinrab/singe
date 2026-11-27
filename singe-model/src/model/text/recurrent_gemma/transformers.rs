@@ -10,7 +10,7 @@ use crate::{
     assembly::DecoderConfig,
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{DecoderDefaults, DecoderFields, activation_field, default_true},
     },
     model::text::recurrent_gemma::RecurrentGemmaConfig,
@@ -102,9 +102,9 @@ pub(crate) fn config(source: &Source) -> Result<RecurrentGemmaConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     let layers = "model.layers.*";
-    Rules::new()
+    RuleSet::new()
         .rename("model.embed_tokens", "embeddings.tokens")
         .rename("model.final_norm", "norm")
         .rename_each(

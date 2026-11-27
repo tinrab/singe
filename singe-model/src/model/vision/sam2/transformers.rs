@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     assembly::attention_rules_with_output,
     error::{Error, Result},
-    format::{Rules, join, transformers::activation_field},
+    format::{RuleSet, join, transformers::activation_field},
     model::vision::{
         sam::{TwoWaySizes, transformers::linear_stack_rules},
         sam2::{HieraBlock, Sam2Config, Sam2MemoryConfig},
@@ -69,14 +69,14 @@ const fn stability_threshold() -> f32 {
 
 /// The memory's embeddings a config turns on, both of which Singe's memory has.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-struct MemoryEmbeddings {
+struct MemoryEmbeddingFields {
     enable_occlusion_spatial_embedding: bool,
     enable_temporal_pos_encoding_for_object_pointers: bool,
 }
 
 /// Where a config has the decoder give several masks, which Singe's tracker does for prompted and tracked frames alike.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-struct SeveralMasks {
+struct MultimaskFields {
     multimask_output_in_sam: bool,
     multimask_output_for_tracking: bool,
 }
@@ -114,9 +114,9 @@ struct MemoryFields {
     sigmoid_scale_for_mem_enc: f32,
     sigmoid_bias_for_mem_enc: f32,
     #[serde(flatten)]
-    embeddings: MemoryEmbeddings,
+    embeddings: MemoryEmbeddingFields,
     #[serde(flatten)]
-    several_masks: SeveralMasks,
+    several_masks: MultimaskFields,
     multimask_min_pt_num: usize,
     multimask_max_pt_num: usize,
 }
@@ -273,10 +273,10 @@ pub(crate) fn config(source: &Source) -> Result<Sam2Config> {
 }
 
 /// Imports the image path's weights, and the video memory's when `tracking`.
-pub(crate) fn rules(config: &Sam2Config, tracking: bool) -> Rules {
+pub(crate) fn rules(config: &Sam2Config, tracking: bool) -> RuleSet {
     let backbone = "vision_encoder.backbone";
     let two_way = "mask_decoder.transformer.layers.*";
-    let mut rules = Rules::new()
+    let mut rules = RuleSet::new()
         .rename(&format!("{backbone}.patch_embed.projection"), "patches")
         .rename(&format!("{backbone}.pos_embed_window"), "window_positions")
         .rename(&format!("{backbone}.pos_embed"), "background")
@@ -396,9 +396,9 @@ pub(crate) fn rules(config: &Sam2Config, tracking: bool) -> Rules {
 }
 
 /// Imports the video memory's weights under `memory`.
-fn memory_rules() -> Rules {
+fn memory_rules() -> RuleSet {
     let layers = "memory_attention.layers.*";
-    Rules::new()
+    RuleSet::new()
         .rename_each(
             layers,
             "memory.layers.*",

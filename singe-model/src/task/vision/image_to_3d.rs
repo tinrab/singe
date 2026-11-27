@@ -9,7 +9,7 @@ use crate::{
     error::Result,
     head::Boxed,
     model::{diffusion::shap_e::Mesh, multimodal::clip::load_vision_states},
-    processor::image::ImageTransforms,
+    processor::image::ImagePreprocessor,
     source::{LoadOptions, Source},
     task::{
         Pipeline,
@@ -22,7 +22,7 @@ use crate::{
 pub struct ImageTo3dPipeline {
     shap_e: ShapE,
     image_encoder: Model<Boxed<dyn Layer>>,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     options: LoadOptions,
 }
 
@@ -37,7 +37,7 @@ impl Pipeline for ImageTo3dPipeline {
         Ok(Self {
             shap_e: ShapE::load(source, options)?,
             image_encoder: load_vision_states(&source.component("image_encoder")?, options)?,
-            processor: ImageTransforms::load(&source.subdirectory("image_processor"))?,
+            processor: ImagePreprocessor::load(&source.subdirectory("image_processor"))?,
             options,
         })
     }

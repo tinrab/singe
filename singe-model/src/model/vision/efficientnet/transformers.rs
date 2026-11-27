@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{activation_field, classifier_config},
     },
     model::vision::{
@@ -107,10 +107,10 @@ pub(crate) fn config(source: &Source) -> Result<EfficientNetConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     let blocks = "efficientnet.encoder.blocks.*";
     // Counts training updates, which evaluation never reads.
-    let mut rules = Rules::new()
+    let mut rules = RuleSet::new()
         .skip("efficientnet.embeddings.batchnorm.num_batches_tracked")
         .skip("efficientnet.encoder.top_bn.num_batches_tracked");
     for norm in [

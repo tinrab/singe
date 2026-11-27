@@ -11,7 +11,7 @@ use crate::{
                 source::{attention::PAD, parameters::MAX_STATIC_SHARED},
             },
             runtime::runtime_for_device,
-            tuning::{TunedChoice, TunedRecord, TuningRecords},
+            tuning::{TunedChoice, TunedRecord, TuningRecordSet},
         },
         registry::{Operation, OperationAttributes, ScaledDotProductAttentionAttributes},
     },
@@ -23,7 +23,7 @@ use crate::{
 };
 
 fn planner_with(key: &str, parameters: Option<KernelParameters>) -> KernelPlanner {
-    let mut records = TuningRecords::new(None);
+    let mut records = TuningRecordSet::new(None);
     if let Some(parameters) = parameters {
         records.insert(
             key.to_owned(),

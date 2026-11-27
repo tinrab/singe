@@ -120,7 +120,7 @@ struct Case {
 }
 
 #[derive(Debug, Deserialize)]
-struct Cases {
+struct CaseFile {
     cases: Vec<Case>,
 }
 
@@ -146,7 +146,7 @@ impl Session {
     pub fn open(name: &'static str, filter: &str) -> Result<Self> {
         let path = root().join(name).join("cases.json");
         let text = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-        let cases: Cases =
+        let cases: CaseFile =
             serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
         Ok(Self {
             name,

@@ -14,7 +14,7 @@ use crate::{
         TensorFunction,
         forward::{External, ExternalHead, Forward},
     },
-    head::{EncoderBody, EncoderHead, HeadLayouts, TokenScoreLayers},
+    head::{EncoderBody, EncoderHead, EncoderHeadLayout, TokenScoreLayers},
     schema::Schema,
     source::Source,
 };
@@ -66,7 +66,7 @@ impl EncoderHead for QuestionAnswerer {
         schema: &mut Schema<'_>,
         encoder: EncoderBody,
         (): &(),
-        _layouts: &HeadLayouts,
+        _layouts: &EncoderHeadLayout,
     ) -> SingeResult<TokenScoreLayers> {
         TokenScoreLayers::create(schema, "span", encoder, 2)
     }

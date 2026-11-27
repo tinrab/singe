@@ -5,7 +5,7 @@ use singe::nn::Activation;
 
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{RuleSet, transformers::activation_field},
     model::time_series::patchtst::{PatchNorm, PatchPooling, PatchTstConfig},
     source::Source,
 };
@@ -99,8 +99,8 @@ pub(crate) fn config(source: &Source) -> Result<PatchTstConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename("model.encoder.embedder.input_embedding", "embedding")
         .rename("model.encoder.positional_encoder.position_enc", "positions")
         .derive(

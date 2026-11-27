@@ -6,7 +6,7 @@ use crate::{
     error::Result,
     head::{DetectionScoring, ObjectDetector, ScoreFunction, argmax},
     model,
-    processor::image::{Image, ImageTransforms},
+    processor::image::{Image, ImagePreprocessor},
     source::{LoadOptions, Source},
     task::Pipeline,
 };
@@ -14,7 +14,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ObjectDetectionPipeline {
     model: ObjectDetector,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     options: LoadOptions,
 }
 
@@ -72,7 +72,7 @@ impl Pipeline for ObjectDetectionPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load_served(source, options)?,
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             options,
         })
     }

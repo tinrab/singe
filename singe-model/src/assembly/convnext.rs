@@ -10,7 +10,7 @@ use singe::{
 
 use crate::{
     assembly::{channel_norm, same_2d},
-    format::Rules,
+    format::RuleSet,
     schema::Schema,
 };
 
@@ -219,8 +219,8 @@ impl ConvNext {
 
 /// Imports a `ConvNeXt` stored as `transformers` names it under `from` to the schema's names under `to`.
 #[must_use]
-pub fn convnext_rules(from: &str, to: &str) -> Rules {
-    Rules::new()
+pub fn convnext_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new()
         .rename(
             &format!("{from}.embeddings.patch_embeddings"),
             &format!("{to}.patches"),

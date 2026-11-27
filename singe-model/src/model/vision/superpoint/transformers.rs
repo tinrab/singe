@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     error::{Error, Result},
-    format::Rules,
+    format::RuleSet,
     head::KeypointConfig,
     model::vision::superpoint::SuperPointConfig,
     source::Source,
@@ -73,8 +73,8 @@ pub(crate) fn fields_config(fields: &Fields) -> Result<SuperPointConfig> {
 }
 
 /// Returns the rules that import the detector stored under `from`, as `LightGlue`'s checkpoints store it under `keypoint_detector`, to the schema's names under `to`.
-pub(crate) fn detector_rules(from: &str, to: &str) -> Rules {
-    Rules::new().rename_each(
+pub(crate) fn detector_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new().rename_each(
         from,
         to,
         &[
@@ -88,6 +88,6 @@ pub(crate) fn detector_rules(from: &str, to: &str) -> Rules {
     )
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     detector_rules("", "")
 }

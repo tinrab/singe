@@ -24,7 +24,7 @@ use crate::{
         generators::with_generator_states,
         prepare::{
             GraphExecutionPlan, GraphExecutor, GraphPrepareOptions, PreparedBackend, PreparedPlan,
-            SharedBuffers,
+            SharedArena,
             cache::{CachedPlan, RuntimeMetadataKey},
         },
     },
@@ -101,7 +101,7 @@ impl GraphExecutor {
     pub(crate) fn create_instance_sharing(
         &self,
         inputs: impl IntoIterator<Item = (String, Tensor)>,
-        buffers: &SharedBuffers,
+        buffers: &SharedArena,
     ) -> Result<Self> {
         self.execution_plan()
             .create_instance_sharing(inputs, buffers)
@@ -111,7 +111,7 @@ impl GraphExecutor {
     pub(crate) fn create_instance_sharing(
         &self,
         inputs: impl IntoIterator<Item = (String, Tensor)>,
-        _buffers: &SharedBuffers,
+        _buffers: &SharedArena,
     ) -> Result<Self> {
         self.create_instance_with_inputs_in_place(inputs)
     }

@@ -24,13 +24,13 @@ use crate::{
 };
 
 /// Slices of a contiguous tensor along one dimension: `outer * inner` slices of `length` elements, `inner` apart.
-pub struct ScanSlices {
+pub struct ScanLayout {
     outer: usize,
     length: usize,
     inner: usize,
 }
 
-impl ScanSlices {
+impl ScanLayout {
     /// Splits `shape` into slices along `dim`; a scalar is one slice of one element.
     ///
     /// # Errors
@@ -125,7 +125,7 @@ impl KernelPlan {
 
         let ty = value_type(input.data_type)?;
         let shape = input.layout.shape();
-        let slices = ScanSlices::create(shape, dim)?;
+        let slices = ScanLayout::create(shape, dim)?;
         let (length, inner, padded) = (slices.length, slices.inner, slices.padded_length());
         let ordered = if descending { "a > b" } else { "a < b" };
         let nan_wins = if nan_first { "an" } else { "bn" };
@@ -189,7 +189,7 @@ impl KernelPlan {
             return Ok(None);
         }
 
-        let slices = ScanSlices::create(shape, topk.dim)?;
+        let slices = ScanLayout::create(shape, topk.dim)?;
         let k = to_usize(topk.k, "cuda topk k")?;
         if k > slices.length {
             return Err(Error::invalid_argument("cuda topk k exceeds the dimension"));

@@ -9,8 +9,8 @@ use singe::{
 use crate::{
     assembly::{KeyPattern, PostNormEncoderConfig, post_norm_encoder_rules},
     error::{Error, Result},
-    format::{Rules, transformers::EncoderFields},
-    head::{ClassifierLayout, EncoderBody, EncoderModel, Head, HeadLayouts, post_norm_body},
+    format::{RuleSet, transformers::EncoderFields},
+    head::{ClassifierLayout, EncoderBody, EncoderHeadLayout, EncoderModel, Head, post_norm_body},
     model::text::big_bird::BigBird,
     schema::Schema,
     source::Source,
@@ -31,7 +31,7 @@ impl EncoderModel for BigBird {
     type Config = PostNormEncoderConfig;
 
     /// A classifier reads the pooler, a tanh projection of the first token's state.
-    const LAYOUTS: HeadLayouts = HeadLayouts {
+    const LAYOUTS: EncoderHeadLayout = EncoderHeadLayout {
         classifier: ClassifierLayout {
             pooling: PoolingMode::Cls,
             projection: Some(Activation::Tanh),
@@ -67,18 +67,18 @@ impl EncoderModel for BigBird {
         post_norm_body(schema, config)
     }
 
-    fn encoder_rules() -> Rules {
+    fn encoder_rules() -> RuleSet {
         post_norm_encoder_rules("bert", "")
             // The next-sentence head of pre-training, which no task here reads.
             .skip("cls.seq_relationship")
     }
 
-    fn head_rules(head: Head) -> Rules {
+    fn head_rules(head: Head) -> RuleSet {
         match head {
-            Head::SequenceClassification => Rules::new()
+            Head::SequenceClassification => RuleSet::new()
                 .rename("bert.pooler", "classifier.projection")
                 .rename("classifier", "classifier.output"),
-            Head::MaskedLm => Rules::new().rename_each(
+            Head::MaskedLm => RuleSet::new().rename_each(
                 "cls.predictions",
                 "masked_lm",
                 &[
@@ -87,7 +87,7 @@ impl EncoderModel for BigBird {
                     ("bias", "output.bias"),
                 ],
             ),
-            _ => Rules::new(),
+            _ => RuleSet::new(),
         }
     }
 }

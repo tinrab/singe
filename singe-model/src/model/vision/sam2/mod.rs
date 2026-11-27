@@ -25,7 +25,7 @@ use crate::{
     head::{Boxed, HeadLoader, MaskGenerator, PromptableLayers},
     model::{
         ModelEntry,
-        vision::sam::{PromptPositions, TwoWayBlock, TwoWaySizes, fourier, grid_positions},
+        vision::sam::{PromptPosition, TwoWayBlock, TwoWaySizes, fourier, grid_positions},
     },
     schema::Schema,
     source::Format,
@@ -359,9 +359,9 @@ impl Sam2Layers {
             two_way: (0..config.decoder_layers)
                 .map(|index| {
                     let positions = if index == 0 {
-                        PromptPositions::Skipped
+                        PromptPosition::Skipped
                     } else {
-                        PromptPositions::Added
+                        PromptPosition::Added
                     };
                     TwoWayBlock::create(
                         &mut schema.scope(format!("two_way.{index}")),

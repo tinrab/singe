@@ -41,7 +41,7 @@ pub struct Vjepa2Config {
 }
 
 /// The cosines and sines of each of a section's features at each token, `[N, D]`, and the section's width.
-struct SectionTables {
+struct SectionTable {
     cos: Tensor,
     sin: Tensor,
     width: i64,
@@ -70,7 +70,7 @@ impl RopeAttention {
     }
 
     /// Returns `x`, `[B, H, N, d]`, each of its three sections turned by its own positions, and any features past them kept.
-    fn rotated(x: &Tensor, sections: &[SectionTables]) -> SingeResult<Tensor> {
+    fn rotated(x: &Tensor, sections: &[SectionTable]) -> SingeResult<Tensor> {
         let head = *x
             .shape()
             .dimensions()
@@ -96,7 +96,7 @@ impl RopeAttention {
     fn forward(
         &self,
         hidden: &Tensor,
-        sections: &[SectionTables],
+        sections: &[SectionTable],
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let heads = |linear: &Linear| split_heads(&hidden.apply(linear, state)?, self.heads);
@@ -140,7 +140,7 @@ impl Block {
     fn forward(
         &self,
         hidden: &Tensor,
-        sections: &[SectionTables],
+        sections: &[SectionTable],
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let attended =
@@ -269,7 +269,7 @@ impl Vjepa2Encoder {
     }
 
     /// Returns the three sections' tables for `count` tokens, by frame, row, and column of the grid, as `get_position_ids` numbers them, in `like`'s type on its device.
-    fn sections(&self, count: i64, like: &Tensor) -> SingeResult<Vec<SectionTables>> {
+    fn sections(&self, count: i64, like: &Tensor) -> SingeResult<Vec<SectionTable>> {
         let head = self.config.width / self.config.heads;
         let width = 2 * ((head / 3) / 2);
         let half = width / 2;
@@ -279,7 +279,7 @@ impl Vjepa2Encoder {
             .collect::<Vec<_>>();
         let grid = self.config.grid;
         let per_frame = grid * grid;
-        let tables = |position: &dyn Fn(i64) -> i64| -> SingeResult<SectionTables> {
+        let tables = |position: &dyn Fn(i64) -> i64| -> SingeResult<SectionTable> {
             let angles = (0..count)
                 .flat_map(|token| {
                     let at = position(token) as f32;
@@ -290,7 +290,7 @@ impl Vjepa2Encoder {
                 Tensor::from_vec(like.device(), Shape::create([count, width])?, values)?
                     .cast(like.data_type())
             };
-            Ok(SectionTables {
+            Ok(SectionTable {
                 cos: table(angles.iter().map(|angle| angle.cos()).collect())?,
                 sin: table(angles.iter().map(|angle| angle.sin()).collect())?,
                 width,

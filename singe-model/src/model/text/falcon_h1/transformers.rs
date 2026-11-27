@@ -9,10 +9,10 @@ use crate::{
     assembly::{llama_rules, rename_scaled},
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{DecoderDefaults, DecoderFields, default_true},
     },
-    model::text::falcon_h1::{FalconH1Config, FalconH1Multipliers},
+    model::text::falcon_h1::{FalconH1Config, FalconH1Scaling},
     source::Source,
 };
 
@@ -95,7 +95,7 @@ pub(crate) fn config(source: &Source) -> Result<FalconH1Config> {
         convolution_bias: fields.mamba_biases.mamba_conv_bias,
         embedding_scale: fields.embedding_multiplier,
         logit_scale: fields.lm_head_multiplier,
-        multipliers: FalconH1Multipliers {
+        multipliers: FalconH1Scaling {
             attention_in: fields.attention_in_multiplier,
             attention_out: fields.attention_out_multiplier,
             key: fields.key_multiplier,
@@ -109,7 +109,7 @@ pub(crate) fn config(source: &Source) -> Result<FalconH1Config> {
 }
 
 /// Each row's multiplier of the mixer's input projection, `[P, 1]`, its section's times the input multiplier, as `compute_mup_vector` lays the sections out.
-fn input_scales(spec: Mamba2Spec, multipliers: FalconH1Multipliers) -> Vec<f32> {
+fn input_scales(spec: Mamba2Spec, multipliers: FalconH1Scaling) -> Vec<f32> {
     let (inner, width) = (spec.inner(), spec.groups * spec.state);
     let sections = [inner, inner, width, width, spec.heads];
     sections
@@ -124,7 +124,7 @@ fn input_scales(spec: Mamba2Spec, multipliers: FalconH1Multipliers) -> Vec<f32> 
         .collect()
 }
 
-pub(crate) fn rules(config: &FalconH1Config) -> Rules {
+pub(crate) fn rules(config: &FalconH1Config) -> RuleSet {
     let layers = "model.layers.*";
     let multipliers = config.multipliers;
     let scales = input_scales(config.mixer, multipliers);

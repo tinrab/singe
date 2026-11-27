@@ -6,7 +6,7 @@ use singe::shape::spatial::Spatial2dI64;
 use crate::{
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{classifier_config, spatial_field},
     },
     model::vision::{
@@ -45,7 +45,7 @@ pub(crate) fn config(source: &Source) -> Result<YolosConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     encoder_rules("vit", "")
         .rename("vit.embeddings.detection_tokens", "embeddings.detection")
         .rename("class_labels_classifier.layers", "classes")

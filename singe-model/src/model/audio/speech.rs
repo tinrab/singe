@@ -6,9 +6,9 @@ use singe::{
 };
 
 use crate::{
-    decoder_cache::{DecoderKey, Decoders},
+    decoder_cache::{DecoderCache, DecoderKey},
     error::Result,
-    format::{Loader, Rules, transformers::generation_options},
+    format::{Loader, RuleSet, transformers::generation_options},
 };
 
 #[derive(Debug, Clone)]
@@ -18,15 +18,15 @@ pub struct SpeechModel<C, E, D: DecoderModel> {
     decoder: Model<D>,
     /// The snapshot's stop tokens, suppressed tokens and first suppressed tokens, with a `max_new_tokens` of zero until a caller sets one.
     generation: GenerationOptions,
-    decoders: Decoders<DecoderKey, CachedDecoder<D>>,
+    decoders: DecoderCache<DecoderKey, CachedDecoder<D>>,
 }
 
 impl<C, E, D: DecoderModel> SpeechModel<C, E, D> {
     pub(crate) fn load(
         loader: &mut Loader<'_>,
         config: C,
-        (encoder, encoder_rules): (&Model<E>, &Rules),
-        (decoder, decoder_rules): (&Model<D>, &Rules),
+        (encoder, encoder_rules): (&Model<E>, &RuleSet),
+        (decoder, decoder_rules): (&Model<D>, &RuleSet),
     ) -> Result<Self> {
         let generation = generation_options(loader.source())?;
         let encoder = loader.load("encoder", encoder, encoder_rules)?;
@@ -37,7 +37,7 @@ impl<C, E, D: DecoderModel> SpeechModel<C, E, D> {
             encoder,
             decoder,
             generation,
-            decoders: Decoders::default(),
+            decoders: DecoderCache::default(),
         })
     }
 
@@ -70,7 +70,7 @@ impl<C, E, D: DecoderModel> SpeechModel<C, E, D> {
         &self.generation
     }
 
-    pub(crate) const fn decoders(&self) -> &Decoders<DecoderKey, CachedDecoder<D>> {
+    pub(crate) const fn decoders(&self) -> &DecoderCache<DecoderKey, CachedDecoder<D>> {
         &self.decoders
     }
 }

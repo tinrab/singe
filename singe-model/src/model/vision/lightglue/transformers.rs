@@ -5,7 +5,7 @@ use singe::nn::Activation;
 
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{RuleSet, transformers::activation_field},
     model::vision::{
         lightglue::LightGlueConfig,
         superpoint::transformers::{Fields as SuperPointFields, detector_rules, fields_config},
@@ -90,7 +90,7 @@ pub(crate) fn config(source: &Source) -> Result<LightGlueConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     const ATTENTION: &[(&str, &str)] = &[
         ("q_proj", "query"),
         ("k_proj", "key"),
@@ -99,7 +99,7 @@ pub(crate) fn rules() -> Rules {
     ];
 
     const UPDATE: &[(&str, &str)] = &[("fc1", "up"), ("layer_norm", "norm"), ("fc2", "down")];
-    Rules::new()
+    RuleSet::new()
         .rename("positional_encoder.projector", "positions")
         .rename(
             "match_assignment_layers.*.final_projection",

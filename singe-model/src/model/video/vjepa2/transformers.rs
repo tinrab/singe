@@ -7,7 +7,7 @@ use crate::{
     assembly::clip_layer_rules,
     error::Result,
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{activation_field, classifier_config},
     },
     model::video::vjepa2::Vjepa2Config,
@@ -55,9 +55,9 @@ pub(crate) fn config(source: &Source) -> Result<Vjepa2Config> {
 }
 
 /// Imports the encoder stored under `prefix`, `vjepa2` in a classifier and nothing in a `VJEPA2Model`, skipping the predictor and any classifier.
-pub(crate) fn encoder_rules(prefix: &str) -> Rules {
+pub(crate) fn encoder_rules(prefix: &str) -> RuleSet {
     let encoder = |name: &str| join(prefix, &format!("encoder.{name}"));
-    Rules::new()
+    RuleSet::new()
         .rename(&encoder("embeddings.patch_embeddings.proj"), "tubelets")
         .rename_each(
             &encoder("layer.*"),
@@ -80,7 +80,7 @@ pub(crate) fn encoder_rules(prefix: &str) -> Rules {
 }
 
 /// Imports a classifier: its pooler and classifier, then its encoder under `vjepa2`.
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     clip_layer_rules("pooler.self_attention_layers", "pooler.blocks")
         .rename("pooler.query_tokens", "pooler.query")
         .rename_each(

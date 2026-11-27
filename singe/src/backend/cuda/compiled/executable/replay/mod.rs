@@ -6,4 +6,4 @@ mod state;
 mod submission;
 mod sync;
 
-pub use self::state::{GraphReplayStats, PendingRuns, ReplayOutputTarget, ReplaySubmission};
+pub use self::state::{GraphReplayStats, PendingRunQueue, ReplayOutputTarget, ReplaySubmission};

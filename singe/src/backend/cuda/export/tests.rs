@@ -11,11 +11,11 @@ use crate::{
     backend::{
         cuda::{
             export::{
-                CudaExport, CudaProgram, Library, ProgramFiles, ProgramStep, StateKind,
+                CudaExport, CudaProgram, Library, ProgramArtifact, ProgramStep, StateKind,
                 program::BufferKind,
                 writer::{LIBRARY_VERSIONS, fill_template},
             },
-            tuning::{TunedChoice, TunedRecord, TuningRecords, dependent_launch_key},
+            tuning::{TunedChoice, TunedRecord, TuningRecordSet, dependent_launch_key},
         },
         registry::Operation,
     },
@@ -105,11 +105,11 @@ fn check(
     program
 }
 
-fn manifest_of(files: &ProgramFiles) -> Value {
+fn manifest_of(files: &ProgramArtifact) -> Value {
     serde_json::from_str(&files.manifest).unwrap()
 }
 
-fn compile_command(files: &ProgramFiles) -> String {
+fn compile_command(files: &ProgramArtifact) -> String {
     manifest_of(files)["compile"].as_str().unwrap().to_owned()
 }
 
@@ -641,7 +641,7 @@ fn test_dependent_launch_is_safe_because_a_kernel_waits() {
     if architecture.compute_capability() < (9, 0) {
         return;
     }
-    let mut records = TuningRecords::new(None);
+    let mut records = TuningRecordSet::new(None);
     records.insert(
         dependent_launch_key(),
         TunedRecord {

@@ -23,7 +23,7 @@ use toml_edit::{DocumentMut, Item, Table};
 use crate::support::{Arguments, start_runtime};
 
 /// The cases file and what it sets for every case.
-struct Cases {
+struct CaseFile {
     document: DocumentMut,
     first_id: u64,
     id_span: u64,
@@ -31,7 +31,7 @@ struct Cases {
     runs: usize,
 }
 
-impl Cases {
+impl CaseFile {
     fn read(path: &Path) -> Result<Self> {
         let document = fs::read_to_string(path)
             .with_context(|| format!("read {}", path.display()))?
@@ -131,7 +131,7 @@ fn main() -> Result<()> {
         || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../comparisons/cases.toml"),
         PathBuf::from,
     );
-    let cases = Cases::read(&path)?;
+    let cases = CaseFile::read(&path)?;
     let models = cases.tables("models")?;
     let entry = models
         .iter()

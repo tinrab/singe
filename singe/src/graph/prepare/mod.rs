@@ -52,7 +52,7 @@ pub struct GraphPrepareOptions {
 
 // Replay buffers several executors share, which must run one at a time; only CUDA has any.
 #[derive(Debug, Clone, Default)]
-pub struct SharedBuffers {
+pub struct SharedArena {
     #[cfg(feature = "cuda")]
     arena: GraphArena,
 }
@@ -60,13 +60,13 @@ pub struct SharedBuffers {
 impl GraphPrepareOptions {
     // Prepares an executor whose buffers are `buffers`.
     #[cfg(feature = "cuda")]
-    pub(crate) fn sharing_buffers(mut self, buffers: &SharedBuffers) -> Self {
+    pub(crate) fn sharing_buffers(mut self, buffers: &SharedArena) -> Self {
         self.cuda.shared_arena = Some(buffers.arena.clone());
         self
     }
 
     #[cfg(not(feature = "cuda"))]
-    pub(crate) fn sharing_buffers(self, _buffers: &SharedBuffers) -> Self {
+    pub(crate) fn sharing_buffers(self, _buffers: &SharedArena) -> Self {
         self
     }
 }

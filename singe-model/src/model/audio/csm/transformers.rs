@@ -7,7 +7,7 @@ use crate::{
     assembly::llama_block_rules,
     error::Result,
     format::{
-        Rules,
+        RuleSet,
         transformers::{DecoderDefaults, DecoderFields},
     },
     head::SamplingFields,
@@ -103,8 +103,8 @@ fn with_identity(weight: &Tensor) -> SingeResult<Tensor> {
 }
 
 /// The backbone part, skipping the depth decoder, whose part reads the audio embeddings, and the codec.
-pub(crate) fn backbone_rules() -> Rules {
-    Rules::new()
+pub(crate) fn backbone_rules() -> RuleSet {
+    RuleSet::new()
         .skip("depth_decoder")
         .skip("codec_model")
         .rename("embed_text_tokens", "embeddings.tokens")
@@ -114,8 +114,8 @@ pub(crate) fn backbone_rules() -> Rules {
 }
 
 /// The depth part: the audio embeddings, stored as the depth decoder's, which the backbone's frames tie to, its projector, blocks, norm, and per-codebook head.
-pub(crate) fn depth_rules() -> Rules {
-    Rules::new()
+pub(crate) fn depth_rules() -> RuleSet {
+    RuleSet::new()
         .rename("depth_decoder.model.embed_tokens.weight", "audio")
         .rename("depth_decoder.model.inputs_embeds_projector", "projector")
         .then(llama_block_rules(

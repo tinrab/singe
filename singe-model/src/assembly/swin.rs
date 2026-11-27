@@ -12,7 +12,7 @@ use crate::{
     assembly::{
         PYTORCH_NORM_EPS, merge_heads, merge_windows, partition_windows, split_heads, to_tokens,
     },
-    format::{Rules, join},
+    format::{RuleSet, join},
     schema::Schema,
 };
 
@@ -410,9 +410,9 @@ impl Layer for Swin {
 
 /// Imports a Swin stored as `transformers` names it, its stages under `{from}.layers` and its patch projection and norm at `patches` and `patch_norm`, to the schema's names under `to`.
 #[must_use]
-pub fn swin_rules(from: &str, patches: &str, patch_norm: &str, to: &str) -> Rules {
+pub fn swin_rules(from: &str, patches: &str, patch_norm: &str, to: &str) -> RuleSet {
     let blocks = join(from, "layers.*.blocks.*");
-    Rules::new()
+    RuleSet::new()
         .rename(patches, &join(to, "embeddings.patches"))
         .rename(patch_norm, &join(to, "embeddings.norm"))
         .rename_each(

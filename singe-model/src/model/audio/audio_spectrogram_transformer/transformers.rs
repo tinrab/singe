@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     error::Result,
-    format::{Rules, transformers::classifier_config},
+    format::{RuleSet, transformers::classifier_config},
     model::{
         audio::audio_spectrogram_transformer::AstConfig,
         vision::vit::transformers::{VitFields, encoder_rules},
@@ -38,7 +38,7 @@ pub(crate) fn config(source: &Source) -> Result<AstConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     encoder_rules("audio_spectrogram_transformer", "")
         .rename(
             "audio_spectrogram_transformer.embeddings.distillation_token",

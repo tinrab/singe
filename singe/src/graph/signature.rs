@@ -4,7 +4,7 @@ use crate::{
     error::{Error, Result},
     graph::{
         Graph, InputDimensionGuard,
-        guards::{GraphGuards, InputGuard, storage::static_input_storage_guard},
+        guards::{GraphGuardSet, InputGuard, storage::static_input_storage_guard},
     },
     tensor::Tensor,
     value::ValueSpec,
@@ -16,7 +16,7 @@ use crate::{
 /// An optimized-away input still requires the same name, metadata, and override policy.
 #[derive(Debug, Clone)]
 pub struct GraphSignature {
-    guards: GraphGuards,
+    guards: GraphGuardSet,
     outputs: Vec<GraphSignatureOutput>,
 }
 
@@ -112,7 +112,7 @@ impl GraphSignature {
             })
             .collect::<Result<Vec<_>>>()?;
         Ok(Self {
-            guards: GraphGuards {
+            guards: GraphGuardSet {
                 inputs,
                 #[cfg(test)]
                 constants: Vec::new(),

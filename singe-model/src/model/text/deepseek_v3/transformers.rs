@@ -7,7 +7,7 @@ use crate::{
     assembly::{DecoderConfig, ExpertRouting, ExpertsConfig, expert_rules, llama_rules},
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{DecoderDefaults, DecoderFields, default_true},
     },
     model::text::deepseek_v3::{DeepseekV3Config, LatentAttentionConfig},
@@ -189,8 +189,8 @@ pub(crate) fn config(source: &Source) -> Result<DeepseekV3Config> {
 
 /// Returns the rules that import a checkpoint.
 /// Rules for latent attention, routers, and shared experts go before the experts' and Llama's, which import the rest.
-pub(crate) fn rules(config: &DeepseekV3Config) -> Rules {
-    Rules::new()
+pub(crate) fn rules(config: &DeepseekV3Config) -> RuleSet {
+    RuleSet::new()
         // The checkpoints store a multi-token-prediction layer after the last block, which `transformers` leaves unread.
         .skip(&format!("model.layers.{}", config.decoder.layers))
         .rename_each(

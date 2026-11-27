@@ -5,7 +5,7 @@ use serde::Deserialize;
 use crate::{
     assembly::vit_layer_rules,
     error::{Error, Result},
-    format::{Rules, transformers::classifier_config},
+    format::{RuleSet, transformers::classifier_config},
     model::{video::videomae::VideoMaeConfig, vision::vit::transformers::VitFields},
     source::Source,
 };
@@ -42,8 +42,8 @@ pub(crate) fn config(source: &Source) -> Result<VideoMaeConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename(
             "videomae.embeddings.patch_embeddings.projection",
             "embeddings.tubelets",

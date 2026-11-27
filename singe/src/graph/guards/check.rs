@@ -4,13 +4,13 @@ use crate::{
     error::Result,
     graph::{
         Graph, InputDimensionGuard, ValueId,
-        guards::{GraphGuardFailure, GraphGuards, validation::check_tensor_metadata},
+        guards::{GraphGuardFailure, GraphGuardSet, validation::check_tensor_metadata},
         symbolic::SymbolicDimension,
     },
     tensor::Tensor,
 };
 
-impl GraphGuards {
+impl GraphGuardSet {
     /// Validates reachable graph input initializers and passes each input name and tensor to `validate`.
     ///
     /// # Errors
@@ -78,7 +78,7 @@ impl GraphGuards {
     }
 }
 
-impl GraphGuards {
+impl GraphGuardSet {
     /// Validates a tensor against IR value metadata and optional symbolic dimension guards.
     /// Symbol values are checked within this tensor, without sharing bindings with another call.
     ///

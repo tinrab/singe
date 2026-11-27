@@ -11,7 +11,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub enum IndexBounds {
+pub enum IndexMode {
     Nonnegative,
     WrapNegative,
 }
@@ -21,7 +21,7 @@ pub fn indexing_problem(
     attributes: &OperationAttributes,
     input: &Shape,
     indices: &Shape,
-) -> Result<(IndexingProblem, IndexBounds)> {
+) -> Result<(IndexingProblem, IndexMode)> {
     let dim = || {
         attributes
             .index_select_dimension()
@@ -30,17 +30,17 @@ pub fn indexing_problem(
     match operation {
         Operation::Take => Ok((
             spec::gather_problem(input, indices, dim()?, "gather")?,
-            IndexBounds::WrapNegative,
+            IndexMode::WrapNegative,
         )),
         Operation::IndexSelect => Ok((
             spec::index_select_problem(input, indices, dim()?, "index select")?,
-            IndexBounds::Nonnegative,
+            IndexMode::Nonnegative,
         )),
         Operation::Embedding => {
             spec::embedding_problem(input, indices, "embedding")?;
             Ok((
                 spec::gather_problem(input, indices, 0, "embedding")?,
-                IndexBounds::Nonnegative,
+                IndexMode::Nonnegative,
             ))
         }
         _ => Err(Error::invalid_argument("indexing operation")),
@@ -52,7 +52,7 @@ pub fn indexing_problem(
 pub fn normalized_indices(
     indices: &Tensor,
     dimension: usize,
-    bounds: IndexBounds,
+    bounds: IndexMode,
 ) -> Result<Vec<usize>> {
     let values = match indices.data_type() {
         DataType::I64 => indices.to_vec::<i64>()?,
@@ -71,7 +71,7 @@ pub fn normalized_indices(
     values
         .into_iter()
         .map(|index| {
-            let index = if index < 0 && matches!(bounds, IndexBounds::WrapNegative) {
+            let index = if index < 0 && matches!(bounds, IndexMode::WrapNegative) {
                 index + dimension
             } else {
                 index

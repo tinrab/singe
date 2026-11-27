@@ -7,10 +7,10 @@ use crate::{
         cuda::{
             codegen::plan_kernel,
             kernel_plan::source::{
-                KernelInput, KernelPlan, KernelPlanner, LoadedKernels, describe, kernel_name,
+                KernelInput, KernelPlan, KernelPlanner, LoadedKernelCache, describe, kernel_name,
             },
         },
-        kernel_lowering::{ElementWiseKernel, FusedOperand, FusedStep, FusedStores, LoweredKernel},
+        kernel_lowering::{ElementWiseKernel, FusedOperand, FusedStep, FusedStore, LoweredKernel},
         registry::{Operation, OperationAttributes, OperationRequest},
     },
     data_type::DataType,
@@ -60,7 +60,7 @@ impl KernelPlanner {
         shape: &Shape,
         inputs: &[KernelInput],
         steps: &[FusedStep<'_>],
-        stores: &FusedStores,
+        stores: &FusedStore,
     ) -> Result<KernelPlan> {
         if steps.is_empty() {
             return Err(Error::invalid_argument("cuda fused kernel"));
@@ -74,8 +74,8 @@ impl KernelPlanner {
             .map(|input| (input.data_type, &input.layout))
             .collect::<Vec<_>>();
         let (output, layout) = match stores {
-            FusedStores::Last | FusedStores::Steps(_) => (shape.clone(), Layout::from_shape(shape)),
-            FusedStores::Concat { axis, values } => {
+            FusedStore::Last | FusedStore::Steps(_) => (shape.clone(), Layout::from_shape(shape)),
+            FusedStore::Concat { axis, values } => {
                 let mut dimensions = shape.dimensions().to_vec();
                 let slice = dimensions
                     .get_mut(*axis)
@@ -91,14 +91,14 @@ impl KernelPlanner {
         let computed = kernel.steps(&loaded, steps)?;
         let mut outputs = Vec::new();
         match stores {
-            FusedStores::Last => {
+            FusedStore::Last => {
                 let last = *computed
                     .last()
                     .ok_or_else(|| Error::missing_node("fused"))?;
                 kernel.store(last, last.data_type)?;
                 outputs.push(ValueSpec::new(last.data_type, output));
             }
-            FusedStores::Steps(steps) => {
+            FusedStore::Steps(steps) => {
                 for &step in steps {
                     let value = *computed
                         .get(step)
@@ -107,7 +107,7 @@ impl KernelPlanner {
                     outputs.push(ValueSpec::new(value.data_type, output.clone()));
                 }
             }
-            FusedStores::Concat { axis, values } => {
+            FusedStore::Concat { axis, values } => {
                 // Slice `k` starts `k` slice extents along the axis into the output.
                 let step = to_u64(
                     shape.dimensions()[*axis] * layout.strides()[*axis],
@@ -133,9 +133,9 @@ impl KernelPlanner {
 
         let operations = steps.iter().map(|step| step.operation).collect::<Vec<_>>();
         let producers = match stores {
-            FusedStores::Last => Vec::new(),
-            FusedStores::Steps(indices) => indices.iter().map(|&step| operations[step]).collect(),
-            FusedStores::Concat { .. } => vec![Operation::Concat],
+            FusedStore::Last => Vec::new(),
+            FusedStore::Steps(indices) => indices.iter().map(|&step| operations[step]).collect(),
+            FusedStore::Concat { .. } => vec![Operation::Concat],
         };
         self.emitted(kernel, outputs, inputs, &operations, &producers)
     }
@@ -191,7 +191,7 @@ impl KernelPlanner {
                 &self.context,
             )?,
             outputs: lowered.outputs,
-            loaded: LoadedKernels::default(),
+            loaded: LoadedKernelCache::default(),
         })
     }
 
@@ -215,7 +215,7 @@ impl KernelPlanner {
                 &self.context,
             )?,
             outputs,
-            loaded: LoadedKernels::default(),
+            loaded: LoadedKernelCache::default(),
         })
     }
 }

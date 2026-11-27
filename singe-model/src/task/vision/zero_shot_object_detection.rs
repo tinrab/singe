@@ -7,11 +7,11 @@ use crate::{
     error::Result,
     head::{OpenVocabularyDetector, ScoreFunction},
     host, model,
-    processor::{image::ImageTransforms, text::TextTokenizer},
+    processor::{image::ImagePreprocessor, text::TextTokenizer},
     source::{LoadOptions, Source},
     task::{
         Pipeline,
-        inputs::ImageCandidates,
+        inputs::ZeroShotImageInput,
         vision::object_detection::{BoundingBox, DetectedObject},
     },
 };
@@ -19,7 +19,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ZeroShotObjectDetectionPipeline {
     model: OpenVocabularyDetector,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     tokenizer: TextTokenizer,
     options: LoadOptions,
 }
@@ -43,7 +43,7 @@ impl Default for ZeroShotObjectDetectionParameters {
 }
 
 impl Pipeline for ZeroShotObjectDetectionPipeline {
-    type Input = ImageCandidates;
+    type Input = ZeroShotImageInput;
 
     type Parameters = ZeroShotObjectDetectionParameters;
 
@@ -52,7 +52,7 @@ impl Pipeline for ZeroShotObjectDetectionPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             tokenizer: TextTokenizer::load(source)?,
             options,
         })

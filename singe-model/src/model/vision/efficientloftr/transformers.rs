@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     error::{Error, Result},
-    format::Rules,
+    format::RuleSet,
     model::vision::efficientloftr::{EfficientLoftrConfig, RepVggBlock},
     source::Source,
 };
@@ -96,8 +96,8 @@ pub(crate) fn config(source: &Source) -> Result<EfficientLoftrConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         // A batch norm's count of the batches it saw in training, which evaluation never reads.
         .skip("efficientloftr.backbone.stages.*.blocks.*.conv1.norm.num_batches_tracked")
         .skip("efficientloftr.backbone.stages.*.blocks.*.conv2.norm.num_batches_tracked")

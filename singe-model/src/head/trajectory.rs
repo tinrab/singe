@@ -17,7 +17,7 @@ pub struct Trajectory {
 
 /// Each step's predictions, named as `transformers`' `DecisionTransformerOutput` names them.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct TrajectoryPredictions {
+pub struct TrajectoryOutput {
     /// Each step's predicted next state, after its state and action.
     pub state_preds: Vec<Vec<f32>>,
     /// Each step's predicted action, after its state.
@@ -27,5 +27,5 @@ pub struct TrajectoryPredictions {
 }
 
 pub trait TrajectoryModel: Debug {
-    fn predict(&self, trajectory: &Trajectory) -> Result<TrajectoryPredictions>;
+    fn predict(&self, trajectory: &Trajectory) -> Result<TrajectoryOutput>;
 }

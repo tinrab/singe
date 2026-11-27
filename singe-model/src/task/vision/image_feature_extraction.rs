@@ -10,7 +10,7 @@ use crate::{
     function::forward::{External, Forward},
     head::{Boxed, ImageEncoder, PooledLayer},
     host, model,
-    processor::image::{Image, ImageTransforms},
+    processor::image::{Image, ImagePreprocessor},
     source::{LoadOptions, Source},
     task::Pipeline,
 };
@@ -19,7 +19,7 @@ use crate::{
 pub struct ImageFeatureExtractionPipeline {
     model: Forward<Boxed<dyn PooledLayer>>,
     pooled: Option<External>,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     options: LoadOptions,
 }
 
@@ -54,7 +54,7 @@ impl Pipeline for ImageFeatureExtractionPipeline {
         Ok(Self {
             model,
             pooled,
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             options,
         })
     }

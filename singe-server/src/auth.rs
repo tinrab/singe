@@ -14,11 +14,11 @@ use crate::error::ApiError;
 
 /// The digests of the keys a server accepts.
 #[derive(Debug, Clone)]
-pub struct ApiKeys {
+pub struct ApiKeySet {
     digests: Arc<Vec<[u8; 32]>>,
 }
 
-impl ApiKeys {
+impl ApiKeySet {
     /// Creates the set from keys in plain text, keeping only their digests.
     #[must_use]
     pub fn new(keys: &[String]) -> Self {
@@ -50,7 +50,7 @@ fn digest(key: &str) -> [u8; 32] {
 }
 
 /// Passes a request whose `Authorization: Bearer` header carries an accepted key on to `next`, and answers any other with [`ApiError::unauthorized`].
-pub async fn require_key(State(keys): State<ApiKeys>, request: Request, next: Next) -> Response {
+pub async fn require_key(State(keys): State<ApiKeySet>, request: Request, next: Next) -> Response {
     let key = request
         .headers()
         .get(header::AUTHORIZATION)

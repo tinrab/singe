@@ -17,7 +17,7 @@ use singe::{
 
 use crate::{
     assembly::{PYTORCH_NORM_EPS, relative_sinusoids},
-    format::{Rules, join},
+    format::{RuleSet, join},
     schema::Schema,
 };
 
@@ -659,11 +659,11 @@ impl Layer for ConformerEncoder {
 /// Imports the Conformer encoder `transformers` stores for `NeMo`'s models, such as Parakeet's `encoder`, from `from` into `to`.
 /// It reads `dw_striding` subsampling, whose layers `transformers` keeps at the indices of `NeMo`'s `nn.Sequential`: a convolution at 0, then a depthwise one at `2 + 3n` and a pointwise one at `3 + 3n`.
 #[must_use]
-pub fn conformer_rules(from: &str, to: &str) -> Rules {
+pub fn conformer_rules(from: &str, to: &str) -> RuleSet {
     let layers = join(from, "subsampling.layers");
     let subsampling = join(to, "subsampling");
     let target = subsampling.clone();
-    Rules::new()
+    RuleSet::new()
         .rename(&join(&layers, "0"), &join(&subsampling, "input"))
         .custom(&join(&layers, "*"), move |found| {
             let index = found.number(0)?;

@@ -8,8 +8,8 @@ use singe::{
 
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
-    head::{ClassifierLayout, EncoderBody, EncoderModel, Head, HeadLayouts},
+    format::{RuleSet, transformers::activation_field},
+    head::{ClassifierLayout, EncoderBody, EncoderHeadLayout, EncoderModel, Head},
     model::text::deberta_v2::{DebertaV2, DebertaV2Config, body},
     schema::Schema,
     source::Source,
@@ -50,7 +50,7 @@ impl EncoderModel for DebertaV2 {
     type Config = DebertaV2Config;
 
     /// A classifier reads the context pooler, a GELU projection of the first token's state.
-    const LAYOUTS: HeadLayouts = HeadLayouts {
+    const LAYOUTS: EncoderHeadLayout = EncoderHeadLayout {
         classifier: ClassifierLayout {
             pooling: PoolingMode::Cls,
             projection: Some(Activation::GeluExact),
@@ -102,8 +102,8 @@ impl EncoderModel for DebertaV2 {
         body(schema, config)
     }
 
-    fn encoder_rules() -> Rules {
-        Rules::new()
+    fn encoder_rules() -> RuleSet {
+        RuleSet::new()
             // The positions an input leaves out, which v3 never reads.
             .skip("deberta.embeddings.position_ids")
             .rename("deberta.embeddings.word_embeddings", "embeddings.tokens")
@@ -126,12 +126,12 @@ impl EncoderModel for DebertaV2 {
             )
     }
 
-    fn head_rules(head: Head) -> Rules {
+    fn head_rules(head: Head) -> RuleSet {
         match head {
-            Head::SequenceClassification => Rules::new()
+            Head::SequenceClassification => RuleSet::new()
                 .rename("pooler.dense", "classifier.projection")
                 .rename("classifier", "classifier.output"),
-            _ => Rules::new(),
+            _ => RuleSet::new(),
         }
     }
 }

@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     error::{Error, Result},
-    format::Rules,
+    format::RuleSet,
     model::tabular::mitra::{MitraConfig, MitraTask},
     source::Source,
 };
@@ -33,14 +33,14 @@ pub(crate) fn config(source: &Source) -> Result<MitraConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     let projections = [
         ("q", "query"),
         ("k", "key"),
         ("v", "value"),
         ("o", "output"),
     ];
-    Rules::new()
+    RuleSet::new()
         .rename("x_embedding.x_embedding", "cells")
         .rename("y_embedding.y_mask", "unknown")
         .rename_each(

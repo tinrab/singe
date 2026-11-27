@@ -9,7 +9,7 @@ use singe::{
 use crate::{
     assembly::{PadMode, SeanetConfig, seanet_rules},
     error::{Error, Result},
-    format::{Rules, join, transformers::activation},
+    format::{RuleSet, join, transformers::activation},
     model::audio::mimi::{CodecTransformerConfig, MimiConfig},
     source::Source,
 };
@@ -128,9 +128,9 @@ pub(crate) fn fields_config(fields: Fields) -> Result<MimiConfig> {
     })
 }
 
-fn transformer_rules(prefix: &str, part: &str) -> Rules {
+fn transformer_rules(prefix: &str, part: &str) -> RuleSet {
     let layers = join(prefix, &format!("{part}.layers.*"));
-    Rules::new().rename_each(
+    RuleSet::new().rename_each(
         &layers,
         &layers,
         &[
@@ -148,11 +148,11 @@ fn transformer_rules(prefix: &str, part: &str) -> Rules {
     )
 }
 
-fn quantizer_rules(prefix: &str, from: &str, to: &str) -> Rules {
+fn quantizer_rules(prefix: &str, from: &str, to: &str) -> RuleSet {
     let from = join(prefix, &format!("quantizer.{from}"));
     let to = join(prefix, to);
     let entries = format!("{to}.codebooks.*");
-    Rules::new()
+    RuleSet::new()
         .rename(&format!("{from}.input_proj"), &format!("{to}.project_in"))
         .rename(&format!("{from}.output_proj"), &format!("{to}.project_out"))
         .custom(
@@ -179,7 +179,7 @@ fn quantizer_rules(prefix: &str, from: &str, to: &str) -> Rules {
 }
 
 /// Imports Mimi stored under `prefix`, empty for Mimi's own checkpoint, to the same names under `prefix`.
-pub(crate) fn rules(config: &MimiConfig, prefix: &str) -> Rules {
+pub(crate) fn rules(config: &MimiConfig, prefix: &str) -> RuleSet {
     seanet_rules(
         &config.seanet,
         [&join(prefix, "encoder"), &join(prefix, "decoder")],

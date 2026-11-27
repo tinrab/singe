@@ -391,14 +391,14 @@ impl TemporalTransformer {
 
 /// A `MotionAdapter`'s temporal transformers, one after each of the U-Net's down and up blocks' layers and, where it has one, after the middle's attention.
 #[derive(Debug, Clone)]
-pub struct MotionModules {
+pub struct MotionAdapter {
     input: Option<Conv2d>,
     down: Vec<Vec<TemporalTransformer>>,
     middle: Vec<TemporalTransformer>,
     up: Vec<Vec<TemporalTransformer>>,
 }
 
-impl MotionModules {
+impl MotionAdapter {
     /// Creates the modules for a U-Net whose own input convolution reads `latents` channels.
     pub fn create(
         schema: &mut Schema<'_>,
@@ -450,7 +450,7 @@ impl MotionModules {
 /// The motion modules a U-Net reads, their state, and the frames of each clip in its batch.
 #[derive(Debug, Clone, Copy)]
 pub struct Motion<'a> {
-    pub modules: &'a MotionModules,
+    pub modules: &'a MotionAdapter,
     pub state: &'a ModelState,
     pub frames: i64,
 }
@@ -459,7 +459,7 @@ pub struct Motion<'a> {
 #[derive(Debug)]
 pub struct UnetMotion {
     pub unet: Unet2dCondition,
-    pub motion: Model<MotionModules>,
+    pub motion: Model<MotionAdapter>,
 }
 
 impl UnetMotion {
@@ -528,7 +528,7 @@ pub fn load_motion(unet: &Source, adapter: &Source, options: LoadOptions) -> Res
     let mut loader = Loader::new(adapter, options);
     let config: MotionConfig = loader.config(diffusers::motion_config)?;
     let motion = Schema::model(options.data_type, |schema| {
-        MotionModules::create(schema, &config, latents)
+        MotionAdapter::create(schema, &config, latents)
     })?;
     let motion = loader.load_whole(&motion, &diffusers::motion_rules(latents))?;
     Ok(UnetMotion { unet, motion })

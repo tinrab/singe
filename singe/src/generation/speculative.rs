@@ -4,8 +4,8 @@ use crate::{
     data_type::DataType,
     device::Device,
     error::{Error, Result},
-    generation::{DecoderOptions, GenerationOptions, compiled::CompiledSteps},
-    graph::{GraphPrepareOptions, SharedBuffers},
+    generation::{DecoderOptions, GenerationOptions, compiled::CompiledStepCache},
+    graph::{GraphPrepareOptions, SharedArena},
     nn::{CacheSize, DecodeCache, DecodeStep, DecoderModel, Model, ModelState, PageTable},
     shape::Shape,
     tensor::Tensor,
@@ -64,8 +64,8 @@ pub struct SpeculativeDecoder<L: DraftingModel> {
     draft_caches: Vec<L::Cache>,
     sizes: Vec<usize>,
     size: CacheSize,
-    decoder_steps: CompiledSteps,
-    draft_steps: CompiledSteps,
+    decoder_steps: CompiledStepCache,
+    draft_steps: CompiledStepCache,
 }
 
 fn pair(outputs: Vec<Tensor>) -> Result<(Tensor, Tensor)> {
@@ -126,20 +126,20 @@ impl<L: DraftingModel> SpeculativeDecoder<L> {
                     .state()
                     .with_buffers(layer.draft_buffers(model.state())?)?,
             )?,
-            decoder_steps: CompiledSteps::default(),
-            draft_steps: CompiledSteps::default(),
+            decoder_steps: CompiledStepCache::default(),
+            draft_steps: CompiledStepCache::default(),
         })
     }
 
     pub fn compile(&mut self) -> Result<()> {
         let options =
-            GraphPrepareOptions::new(self.device).sharing_buffers(&SharedBuffers::default());
+            GraphPrepareOptions::new(self.device).sharing_buffers(&SharedArena::default());
         let layer = self.model.layer();
         let data_type = self.model.state().floating_type()?;
         let size = self.size;
         let meta = layer.caches(data_type, Device::Meta, size)?;
         let draft_meta = vec![layer.draft_cache(data_type, Device::Meta, size)?];
-        let (mut decoder, mut draft) = (CompiledSteps::default(), CompiledSteps::default());
+        let (mut decoder, mut draft) = (CompiledStepCache::default(), CompiledStepCache::default());
         for &rows in &self.sizes {
             decoder.compile(
                 &self.model,

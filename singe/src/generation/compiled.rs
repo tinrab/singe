@@ -5,7 +5,7 @@ use crate::backend::cuda::nvtx::CudaNvtxRange;
 use crate::{
     device::Device,
     error::{Error, Result},
-    graph::{Graph, GraphExecutor, GraphPrepareOptions, SharedBuffers},
+    graph::{Graph, GraphExecutor, GraphPrepareOptions, SharedArena},
     nn::{
         DecodeCache, DecodeStep, DecoderModel, Model, ModelState, PageTable, TensorGroup,
         caches_from_inputs, named_cache_inputs,
@@ -14,11 +14,11 @@ use crate::{
 };
 
 #[derive(Debug, Default)]
-pub struct CompiledSteps {
+pub struct CompiledStepCache {
     executors: BTreeMap<usize, GraphExecutor>,
 }
 
-impl CompiledSteps {
+impl CompiledStepCache {
     pub fn is_empty(&self) -> bool {
         self.executors.is_empty()
     }
@@ -109,7 +109,7 @@ impl CompiledSteps {
 
     pub fn shared_with<C: DecodeCache>(&self, caches: &[C]) -> Result<Self> {
         // The new decoder's steps run one at a time too, though not with these.
-        let buffers = SharedBuffers::default();
+        let buffers = SharedArena::default();
         Ok(Self {
             executors: self
                 .executors

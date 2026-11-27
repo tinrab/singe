@@ -1,9 +1,9 @@
 //! Imports a `transformers` OWL-ViT checkpoint, CLIP's with its towers under `owlvit`, whose config is CLIP's.
 
-use crate::{format::Rules, model::multimodal::clip::transformers::clip_rules};
+use crate::{format::RuleSet, model::multimodal::clip::transformers::clip_rules};
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename("layer_norm", "norm")
         .rename_each(
             "box_head",

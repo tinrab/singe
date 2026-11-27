@@ -17,7 +17,7 @@ use crate::{
             kernel_plan::{KernelParameters, KernelPlanner},
             runtime::runtime_for_device,
             tuning::{
-                GraphTuneOptions, Measurement, TunedChoice, TunedRecord, TunedWay, TuningRecords,
+                GraphTuneOptions, Measurement, TunedChoice, TunedRecord, TunedWay, TuningRecordSet,
                 group_key, tune_graph,
             },
         },
@@ -159,7 +159,7 @@ fn step(inputs: &[Tensor]) -> Result<Vec<Tensor>> {
 fn compile(
     graph: &Graph,
     policy: LoweringPolicy,
-    records: Option<TuningRecords>,
+    records: Option<TuningRecordSet>,
 ) -> CudaCompiledGraph {
     let mut options = GraphCudaOptions::new().with_lowering_policy(policy);
     if let Some(records) = records {
@@ -438,7 +438,7 @@ fn test_a_policy_and_a_record_keep_a_module_off() {
         .find(|group| matches!(group.kind, GroupKind::Module(_)))
         .unwrap();
     let key = group_key(on.ir(), &group.members).unwrap();
-    let mut records = TuningRecords::new(None);
+    let mut records = TuningRecordSet::new(None);
     records.insert(
         key,
         TunedRecord {
@@ -564,7 +564,7 @@ fn test_every_module_parameter_computes_what_the_default_does() {
         let KernelParameters::RotaryCache(_) = parameters else {
             panic!("{parameters:?}");
         };
-        let mut records = TuningRecords::new(None);
+        let mut records = TuningRecordSet::new(None);
         records.insert(
             key.clone(),
             TunedRecord {

@@ -9,13 +9,13 @@ use crate::{
 };
 
 // Where each sequence's rows sit in a step, read from its query offsets, real token counts, and positions.
-struct Spans {
+struct HostSequenceLayout {
     offsets: Vec<i64>,
     real: Vec<i64>,
     positions: Vec<i64>,
 }
 
-impl Spans {
+impl HostSequenceLayout {
     fn read(offsets: &Tensor, real: &Tensor, positions: &Tensor) -> Result<Self> {
         let indices = |tensor: &Tensor| tensor.cast(DataType::I64)?.to_vec::<i64>();
         Ok(Self {
@@ -52,11 +52,11 @@ fn tensor_like(values: Vec<f64>, like: &Tensor, data_type: DataType) -> Result<T
 pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Vec<Tensor>> {
     match (operation, inputs) {
         (Operation::CausalConv1d, [input, weight, state, offsets, real, positions]) => {
-            let spans = Spans::read(offsets, real, positions)?;
+            let spans = HostSequenceLayout::read(offsets, real, positions)?;
             Ok(vec![causal_conv1d(input, Some(weight), state, &spans)?])
         }
         (Operation::CausalConv1dState, [input, state, offsets, real, positions]) => {
-            let spans = Spans::read(offsets, real, positions)?;
+            let spans = HostSequenceLayout::read(offsets, real, positions)?;
             Ok(vec![causal_conv1d(input, None, state, &spans)?])
         }
         (
@@ -75,7 +75,7 @@ pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Vec<T
                 positions,
             ],
         ) => {
-            let spans = Spans::read(offsets, real, positions)?;
+            let spans = HostSequenceLayout::read(offsets, real, positions)?;
             let (output, state) =
                 gated_delta_rule([query, key, value, decay, strength, state], &spans)?;
             Ok(match operation {
@@ -101,7 +101,7 @@ pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Vec<T
                 positions,
             ],
         ) => {
-            let spans = Spans::read(offsets, real, positions)?;
+            let spans = HostSequenceLayout::read(offsets, real, positions)?;
             let (output, state) = selective_scan(
                 [
                     input,
@@ -129,7 +129,7 @@ fn causal_conv1d(
     input: &Tensor,
     weight: Option<&Tensor>,
     state: &Tensor,
-    spans: &Spans,
+    spans: &HostSequenceLayout,
 ) -> Result<Tensor> {
     let &[_, channels, history] = state.shape().dimensions() else {
         return Err(Error::invalid_argument("causal convolution state rank"));
@@ -175,7 +175,10 @@ fn causal_conv1d(
 }
 
 // Returns the rule's output and the state it leaves.
-fn gated_delta_rule(operands: [&Tensor; 6], spans: &Spans) -> Result<(Tensor, Tensor)> {
+fn gated_delta_rule(
+    operands: [&Tensor; 6],
+    spans: &HostSequenceLayout,
+) -> Result<(Tensor, Tensor)> {
     let [query, key, value, decay, strength, state] = operands;
     let &[_, heads, key_dim, value_dim] = state.shape().dimensions() else {
         return Err(Error::invalid_argument("gated delta rule state rank"));
@@ -237,7 +240,7 @@ fn gated_delta_rule(operands: [&Tensor; 6], spans: &Spans) -> Result<(Tensor, Te
     ))
 }
 
-fn selective_scan(operands: [&Tensor; 7], spans: &Spans) -> Result<(Tensor, Tensor)> {
+fn selective_scan(operands: [&Tensor; 7], spans: &HostSequenceLayout) -> Result<(Tensor, Tensor)> {
     let [
         input,
         decay,

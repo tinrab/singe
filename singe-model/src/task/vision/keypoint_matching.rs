@@ -10,7 +10,7 @@ use crate::{
     error::Result,
     head::KeypointMatcher,
     host, model,
-    processor::image::{Image, ImageTransforms},
+    processor::image::{Image, ImagePreprocessor},
     source::{LoadOptions, Source},
     task::{Pipeline, vision::pixels::rescaled_point},
 };
@@ -18,7 +18,7 @@ use crate::{
 #[derive(Debug)]
 pub struct KeypointMatchingPipeline {
     model: KeypointMatcher,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     options: LoadOptions,
 }
 
@@ -64,7 +64,7 @@ impl Pipeline for KeypointMatchingPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             options,
         })
     }

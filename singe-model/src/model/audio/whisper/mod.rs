@@ -7,7 +7,9 @@ use std::{collections::HashMap, slice};
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    generation::{CachedDecoder, DecoderOptions, GenerationOptions, PromptChunks, generate_batch},
+    generation::{
+        CachedDecoder, DecoderOptions, GenerationOptions, PromptChunking, generate_batch,
+    },
     graph::Graph,
     nn::{
         Activation, AttentionInput, CacheSize, Conv1d, Conv1dConfig, CrossAttention, DecodeCache,
@@ -26,7 +28,7 @@ use crate::{
     decoder_cache::cached_decoder,
     error::Result,
     format::Loader,
-    head::{HeadLoader, LoopLimits, LoopSteps, SpeechToText, Transcription},
+    head::{HeadLoader, LoopLimits, LoopStepSet, SpeechToText, Transcription},
     model::{ModelEntry, audio::speech::SpeechModel},
     processor::text::TextTokenizer,
     schema::Schema,
@@ -361,7 +363,7 @@ impl Whisper {
             .collect::<SingeResult<Vec<_>>>()?;
         let encoded = self.encode(&Tensor::concat(&features, 0)?)?;
         // Every sequence reads the same prefix, so one prompt step of its extra tokens is all a compiled decoder needs.
-        let chunks = PromptChunks {
+        let chunks = PromptChunking {
             smallest: prefix.len().saturating_sub(1),
             largest: prefix.len().saturating_sub(1),
         };
@@ -410,7 +412,7 @@ impl SpeechToText for Whisper {
         &self,
         _limits: &LoopLimits,
         generation: &GenerationOptions,
-    ) -> Result<LoopSteps> {
+    ) -> Result<LoopStepSet> {
         let generation = GenerationOptions {
             sampling: generation.sampling,
             ..self.generation_options(1)
@@ -423,7 +425,7 @@ impl SpeechToText for Whisper {
             Shape::create([self.samples()])?,
         )?;
         let (encode, _) = self.encode_step_graph(&decoder, &samples)?;
-        LoopSteps::create(&decoder, Some(encode), &generation, None)
+        LoopStepSet::create(&decoder, Some(encode), &generation, None)
     }
 
     /// Transcribes one clip in `language`, a Whisper language code, or in English without one.

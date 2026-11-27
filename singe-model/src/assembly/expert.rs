@@ -9,7 +9,7 @@ use singe::{
 };
 
 use crate::{
-    format::{Matched, Rules, join},
+    format::{Matched, RuleSet, join},
     schema::Schema,
 };
 
@@ -93,7 +93,7 @@ pub fn mixture_of_experts(
 
 /// Imports experts stored one by one (`mlp.experts.E.gate_proj`) or packed as `transformers` 5 holds them (`mlp.experts.gate_up_proj`), of a decoder under `model` whose experts are `inner` wide.
 #[must_use]
-pub fn expert_rules(model: &str, inner: i64) -> Rules {
+pub fn expert_rules(model: &str, inner: i64) -> RuleSet {
     let piece = move |matched: &Matched<'_>, packed: &str, row: i64| {
         let expert = matched.number(1)?;
         Ok(vec![(
@@ -105,7 +105,7 @@ pub fn expert_rules(model: &str, inner: i64) -> Rules {
         )])
     };
     let experts = join(model, "layers.*.mlp.experts");
-    Rules::new()
+    RuleSet::new()
         .custom(&format!("{experts}.*.gate_proj.weight"), move |matched| {
             piece(matched, "gate_up", 0)
         })

@@ -71,19 +71,19 @@ impl SamplingRequest {
                 temperature: self.temperature.unwrap_or(sampling.temperature),
                 top_k: self.top_k.or(sampling.top_k),
             },
-            uniforms: Uniforms::new(self.seed),
+            uniforms: UniformSource::new(self.seed),
         }
     }
 }
 
 /// Uniform draws in `(0, 1)`, one Philox block's first word each, from a seed.
 #[derive(Debug, Clone)]
-pub struct Uniforms {
+pub struct UniformSource {
     seed: u64,
     counter: u64,
 }
 
-impl Uniforms {
+impl UniformSource {
     #[must_use]
     pub const fn new(seed: u64) -> Self {
         Self { seed, counter: 0 }
@@ -132,7 +132,7 @@ impl Uniforms {
 #[derive(Debug, Clone)]
 pub struct Sampler {
     sampling: Sampling,
-    uniforms: Uniforms,
+    uniforms: UniformSource,
 }
 
 impl Sampler {

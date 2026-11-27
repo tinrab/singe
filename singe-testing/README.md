@@ -7,7 +7,7 @@ This crate provides:
 
 - **References:** `reference!` loads a reference that `scripts/references` wrote under the calling crate's `tests/references`, and `Reference` returns its tensors on a chosen device and type, and its JSON metadata.
 - **Comparison:** `assert_matches` compares two `f32` slices under a `Tolerance`, which is exact, absolute, or relative, and states why that bound holds; `host` reads a tensor back as `f32` values.
-- **Benchmarks:** `Benches` runs each named closure for a warm-up and a measured period, prints the median and spread, and saves or compares results under `benchmarks/<name>.json`.
+- **Benchmarks:** `BenchSuite` runs each named closure for a warm-up and a measured period, prints the median and spread, and saves or compares results under `benchmarks/<name>.json`.
 - **Inputs and snapshots:** `pattern_image` and `tone_and_chirp` build deterministic test inputs, and `snapshot_if_set` reads a model snapshot directory from `SINGE_SNAPSHOT_<NAME>`.
 - **Measuring:** `wait` reads a tensor back so the work behind it finishes, `decode_step` steps a decoder one token per sequence, and `decode_step_or_restart` starts the decoder over when the step would fill it.
 
@@ -32,13 +32,13 @@ fn test_layer_matches_pytorch() {
 
 `just prepare-tests` writes the references; `reference!` panics with that hint when one is missing.
 
-A benchmark target with `harness = false` drives `Benches` from its arguments:
+A benchmark target with `harness = false` drives `BenchSuite` from its arguments:
 
 ```rust,ignore
-use singe_testing::Benches;
+use singe_testing::BenchSuite;
 
 fn main() {
-    let mut benches = Benches::from_args();
+    let mut benches = BenchSuite::from_args();
     benches.run("matmul 1024", || {
         // Run the operation and wait for the device.
     });

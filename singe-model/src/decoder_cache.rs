@@ -13,12 +13,12 @@ use singe::{
 };
 
 /// Decoders a model or pipeline keeps across its runs, by `K`, since preparing a compiled decoder costs far more than a run of it.
-/// [`Decoders::run`] resets a kept decoder before it reuses it.
-pub(crate) struct Decoders<K, D> {
+/// [`DecoderCache::run`] resets a kept decoder before it reuses it.
+pub(crate) struct DecoderCache<K, D> {
     held: Mutex<HashMap<K, D>>,
 }
 
-impl<K, D> Default for Decoders<K, D> {
+impl<K, D> Default for DecoderCache<K, D> {
     fn default() -> Self {
         Self {
             held: Mutex::new(HashMap::new()),
@@ -27,23 +27,23 @@ impl<K, D> Default for Decoders<K, D> {
 }
 
 /// A clone starts empty and prepares decoders of its own.
-impl<K, D> Clone for Decoders<K, D> {
+impl<K, D> Clone for DecoderCache<K, D> {
     fn clone(&self) -> Self {
         Self::default()
     }
 }
 
-impl<K, D> Debug for Decoders<K, D> {
+impl<K, D> Debug for DecoderCache<K, D> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         let held = self.held.lock().map_or(0, |held| held.len());
         formatter
-            .debug_struct("Decoders")
+            .debug_struct("DecoderCache")
             .field("held", &held)
             .finish()
     }
 }
 
-impl<K: Hash + Eq, D: Decoder> Decoders<K, D> {
+impl<K: Hash + Eq, D: Decoder> DecoderCache<K, D> {
     /// Runs `run` on the decoder kept for `key`, made by `create` the first time and reset before each later run.
     #[expect(
         clippy::significant_drop_tightening,

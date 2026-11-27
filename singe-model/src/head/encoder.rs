@@ -10,7 +10,7 @@ use singe::{
 use crate::{
     assembly::{PostNormEncoder, PostNormEncoderConfig},
     error::Result,
-    format::{Loader, Rules},
+    format::{Loader, RuleSet},
     head::{
         ClassifierLayout, Head, HeadLoader, LoadHead, MaskedLm, QuestionAnswerer,
         SequenceClassifier, TextEncoder, TokenClassifier,
@@ -21,7 +21,7 @@ use crate::{
 
 /// How a model lays out the shared heads it serves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HeadLayouts {
+pub struct EncoderHeadLayout {
     pub classifier: ClassifierLayout,
     /// The activation of the masked language model's projection, or the encoder's when absent.
     pub masked_lm_activation: Option<Activation>,
@@ -76,7 +76,7 @@ pub trait EncoderHead: LoadHead {
         schema: &mut Schema<'_>,
         encoder: EncoderBody,
         config: &Self::Config,
-        layouts: &HeadLayouts,
+        layouts: &EncoderHeadLayout,
     ) -> SingeResult<Self::Layers>;
 
     fn new(model: Model<Self::Layers>, config: Self::Config) -> Self;
@@ -86,7 +86,7 @@ pub trait EncoderHead: LoadHead {
 pub trait EncoderModel {
     type Config: Serialize + DeserializeOwned;
 
-    const LAYOUTS: HeadLayouts;
+    const LAYOUTS: EncoderHeadLayout;
 
     /// Reads the encoder's config from a `transformers` snapshot.
     fn config(source: &Source) -> Result<Self::Config>;
@@ -95,10 +95,10 @@ pub trait EncoderModel {
     fn create(schema: &mut Schema<'_>, config: &Self::Config) -> SingeResult<EncoderBody>;
 
     /// Returns the rules of the encoder's tensors, which skip every head's.
-    fn encoder_rules() -> Rules;
+    fn encoder_rules() -> RuleSet;
 
     /// Returns the rules of `head`'s tensors, which go before the encoder's.
-    fn head_rules(head: Head) -> Rules;
+    fn head_rules(head: Head) -> RuleSet;
 }
 
 /// An encoder's config with its head's, as a native config stores them.
@@ -127,11 +127,11 @@ pub fn load_encoder_head<M: EncoderModel, H: EncoderHead>(loader: &mut Loader<'_
     Ok(H::new(model, config.head))
 }
 
-fn shared_head_rules(head: Head) -> Rules {
+fn shared_head_rules(head: Head) -> RuleSet {
     match head {
-        Head::TokenClassification => Rules::new().rename("classifier", "classifier.output"),
-        Head::QuestionAnswering => Rules::new().rename("qa_outputs", "span.output"),
-        _ => Rules::new(),
+        Head::TokenClassification => RuleSet::new().rename("classifier", "classifier.output"),
+        Head::QuestionAnswering => RuleSet::new().rename("qa_outputs", "span.output"),
+        _ => RuleSet::new(),
     }
 }
 

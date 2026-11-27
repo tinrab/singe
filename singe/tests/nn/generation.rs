@@ -11,7 +11,9 @@ use std::{
 use singe::{
     Device, Shape, Tensor,
     backend::cuda::export::{CudaExport, Decoding},
-    generation::{CachedDecoder, DecoderOptions, GenerationOptions, PromptChunks, generate_batch},
+    generation::{
+        CachedDecoder, DecoderOptions, GenerationOptions, PromptChunking, generate_batch,
+    },
     nn::{
         Activation, CausalLm, CausalLmParts, Embedding, GatedMlp, GroupedQueryAttention,
         GroupedQueryLayers, HeadProjection, KvCacheSpec, Linear, Model, PreNormBlock, RmsNorm,
@@ -42,12 +44,12 @@ fn weights(shape: &[i64], seed: f32, scale: f32) -> Tensor {
 }
 
 // Registers a model's parameters, each with weights of its own.
-struct Weights {
+struct WeightBuilder {
     builder: StateBuilder,
     seed: f32,
 }
 
-impl Weights {
+impl WeightBuilder {
     fn tensor(&mut self, name: &str, shape: &[i64]) -> StateKey {
         self.seed += 1.0;
         self.builder
@@ -70,7 +72,7 @@ impl Weights {
 
 // A causal model of two blocks of grouped-query attention and a gated feed-forward layer, on CUDA.
 fn tiny_model() -> Model<TinyDecoder> {
-    let mut weights = Weights {
+    let mut weights = WeightBuilder {
         builder: StateBuilder::new(),
         seed: 0.0,
     };
@@ -135,7 +137,7 @@ fn tiny_model() -> Model<TinyDecoder> {
 fn options() -> DecoderOptions {
     DecoderOptions::new(2, 32)
         .with_page_size(4)
-        .with_prompt_chunks(PromptChunks {
+        .with_prompt_chunks(PromptChunking {
             smallest: 3,
             largest: 3,
         })

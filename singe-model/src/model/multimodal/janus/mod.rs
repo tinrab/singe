@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
     generation::{
-        CachedDecoder, Decoder, DecoderOptions, GenerationOptions, PromptChunks, generate_batch,
+        CachedDecoder, Decoder, DecoderOptions, GenerationOptions, PromptChunking, generate_batch,
     },
     graph::capture,
     nn::{
@@ -27,17 +27,17 @@ use crate::{
         DecoderConfig, FinalNorm, LinearStack, PreNormEncoder, VisionTowerConfig, causal,
         grouped_attention, grouped_decoder, patch_embedding, pre_norm_block,
     },
-    decoder_cache::{DecoderKey, Decoders, bucketed_capacity, cached_decoder},
+    decoder_cache::{DecoderCache, DecoderKey, bucketed_capacity, cached_decoder},
     error::{Error, Result},
     format::Loader,
     head::{
-        HeadLoader, ImageGenerator, ImageTextToText, LoopLimits, LoopSteps, Sampler, Sampling,
+        HeadLoader, ImageGenerator, ImageTextToText, LoopLimits, LoopStepSet, Sampler, Sampling,
         SamplingRequest,
     },
     model::ModelEntry,
     processor::{
         chat::{ChatTemplate, Content, Message, Part},
-        image::{Image, ImageTransforms, Normalization},
+        image::{Image, ImagePreprocessor, Normalization},
         text::TextTokenizer,
     },
     schema::Schema,
@@ -149,9 +149,9 @@ pub struct Janus {
     config: JanusConfig,
     vision: Model<JanusVision>,
     decoder: Model<JanusDecoder>,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     device: Device,
-    decoders: Decoders<DecoderKey, CachedDecoder<JanusDecoder>>,
+    decoders: DecoderCache<DecoderKey, CachedDecoder<JanusDecoder>>,
 }
 
 impl Janus {
@@ -227,8 +227,12 @@ impl Janus {
 }
 
 impl ImageTextToText for Janus {
-    fn loop_steps(&self, limits: &LoopLimits, generation: &GenerationOptions) -> Result<LoopSteps> {
-        LoopSteps::one_sequence(&self.decoder, limits, generation, |_| Ok(None))
+    fn loop_steps(
+        &self,
+        limits: &LoopLimits,
+        generation: &GenerationOptions,
+    ) -> Result<LoopStepSet> {
+        LoopStepSet::one_sequence(&self.decoder, limits, generation, |_| Ok(None))
     }
 
     fn image_token(&self) -> i64 {
@@ -403,7 +407,7 @@ pub struct JanusImageGenerator {
     /// The normalization the processor gives pixels, which post-processing undoes.
     normalization: Normalization,
     /// Kept by their capacity.
-    decoders: Decoders<i64, CachedDecoder<JanusImageDecoder>>,
+    decoders: DecoderCache<i64, CachedDecoder<JanusImageDecoder>>,
 }
 
 impl JanusImageGenerator {
@@ -495,7 +499,7 @@ impl ImageGenerator for JanusImageGenerator {
             capacity,
             || {
                 let options =
-                    DecoderOptions::new(2, capacity).with_prompt_chunks(PromptChunks::NONE);
+                    DecoderOptions::new(2, capacity).with_prompt_chunks(PromptChunking::NONE);
                 Ok::<_, Error>(cached_decoder(&self.decoder, options, false)?)
             },
             |decoder| {
@@ -544,14 +548,14 @@ pub fn load(loader: &mut Loader<'_>) -> Result<Janus> {
     })?;
     let decoder = loader.load("decoder", &decoder, &transformers::decoder_rules())?;
     loader.finish()?;
-    let processor = ImageTransforms::load(loader.source())?;
+    let processor = ImagePreprocessor::load(loader.source())?;
     Ok(Janus {
         config,
         vision,
         decoder,
         processor,
         device: loader.options().device,
-        decoders: Decoders::default(),
+        decoders: DecoderCache::default(),
     })
 }
 
@@ -571,7 +575,7 @@ pub fn load_generator(loader: &mut Loader<'_>) -> Result<JanusImageGenerator> {
     let vq = loader.load("vq", &vq, &transformers::vq_rules())?;
     loader.finish()?;
     let source = loader.source();
-    let normalization = ImageTransforms::load(source)?
+    let normalization = ImagePreprocessor::load(source)?
         .normalization
         .ok_or_else(|| Error::unsupported("a Janus processor that does not normalize"))?;
     Ok(JanusImageGenerator {
@@ -582,6 +586,6 @@ pub fn load_generator(loader: &mut Loader<'_>) -> Result<JanusImageGenerator> {
         config,
         decoder,
         vq,
-        decoders: Decoders::default(),
+        decoders: DecoderCache::default(),
     })
 }

@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     assembly::{HifiGanConfig, attention_rules, hifigan_rules},
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{RuleSet, transformers::activation_field},
     model::audio::vits::VitsConfig,
     source::Source,
 };
@@ -127,8 +127,8 @@ pub(crate) fn config(source: &Source) -> Result<VitsConfig> {
     })
 }
 
-fn conv_flow_rules(from: &str, to: &str) -> Rules {
-    Rules::new().rename_each(
+fn conv_flow_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new().rename_each(
         from,
         to,
         &[
@@ -142,9 +142,9 @@ fn conv_flow_rules(from: &str, to: &str) -> Rules {
     )
 }
 
-pub(crate) fn rules(config: &VitsConfig) -> Rules {
+pub(crate) fn rules(config: &VitsConfig) -> RuleSet {
     let layers = "text_encoder.encoder.layers.*";
-    let mut rules = Rules::new()
+    let mut rules = RuleSet::new()
         // The posterior encoder and the duration predictor's posterior flows serve only training.
         .skip("posterior_encoder")
         .skip("duration_predictor.post_conv_pre")

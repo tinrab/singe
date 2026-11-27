@@ -22,7 +22,7 @@ pub use self::{
     epilogue::{EpilogueNode, EpilogueValue, RowEpilogue},
     gather::{Selection, gather, resample_linear, scatter},
     group::{
-        ElementGroup, FusedOperand, FusedStep, FusedStores, is_fusible, is_row_opcode,
+        ElementGroup, FusedOperand, FusedStep, FusedStore, is_fusible, is_row_opcode,
         is_row_operation,
     },
     matmul::{Epilogue, Lhs, Weight, contraction, matmul},

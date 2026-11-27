@@ -7,8 +7,8 @@ use crate::{
         program::{BufferKind, CudaProgram, CudaProgramSet, ProgramEntry, StateKind},
         writer::{
             CONFIGURATION_REFUSED, CUBLAS_BASE, CUDNN_BASE, CUFFT_BASE, CUTENSOR_BASE,
-            LIBRARY_VERSION, ProgramFiles, Renderer,
-            generate::{LoopStep, LoopSteps, generation_loop_source},
+            LIBRARY_VERSION, ProgramArtifact, Renderer,
+            generate::{LoopStep, LoopStepSet, generation_loop_source},
             tokenizer::tokenizer_file,
         },
     },
@@ -18,7 +18,7 @@ use crate::{
 
 // The files of a program of several steps, by name.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProgramSetFiles {
+pub struct ProgramSetArtifact {
     pub files: Vec<(String, String)>,
     pub weights: Vec<u8>,
 }
@@ -33,7 +33,7 @@ impl CudaProgramSet {
     // # Errors
     //
     // Returns an error if a step has no C++ form or `prefix` is not a C++ identifier.
-    pub fn render(&self, prefix: &str) -> Result<ProgramSetFiles> {
+    pub fn render(&self, prefix: &str) -> Result<ProgramSetArtifact> {
         if self.entries.is_empty() {
             return Err(Error::invalid_argument(
                 "a program of several steps has at least one",
@@ -57,7 +57,7 @@ impl CudaProgramSet {
             let name = &entry.name;
             let step = entry_prefix(prefix, entry);
             let shared = entry.shared.iter().map(Option::is_some).collect::<Vec<_>>();
-            let ProgramFiles {
+            let ProgramArtifact {
                 header,
                 source,
                 weights: own_weights,
@@ -204,7 +204,7 @@ impl CudaProgramSet {
                 let source = generation_loop_source(
                     prefix,
                     decoding,
-                    LoopSteps {
+                    LoopStepSet {
                         decode: LoopStep {
                             program,
                             types: &types,
@@ -246,7 +246,7 @@ impl CudaProgramSet {
         files.push((format!("{prefix}.h"), header));
         files.push((format!("{prefix}.cu"), source));
         files.push((format!("{prefix}.json"), manifest));
-        Ok(ProgramSetFiles { files, weights })
+        Ok(ProgramSetArtifact { files, weights })
     }
 }
 

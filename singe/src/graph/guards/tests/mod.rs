@@ -8,6 +8,6 @@ use crate::{
     graph::{CompiledGraph, test_support::*},
 };
 
-fn create_guards_from_ir(compiled: &CompiledGraph) -> GraphGuards {
-    GraphGuards::create_from_ir(compiled.ir()).unwrap()
+fn create_guards_from_ir(compiled: &CompiledGraph) -> GraphGuardSet {
+    GraphGuardSet::create_from_ir(compiled.ir()).unwrap()
 }

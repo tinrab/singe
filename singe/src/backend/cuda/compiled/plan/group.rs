@@ -16,7 +16,7 @@ use crate::{
         },
         kernel_lowering::{
             ElementGroup, Epilogue, EpilogueNode, EpilogueValue, FusedOperand, FusedStep,
-            FusedStores, Lhs, RowEpilogue, Weight,
+            FusedStore, Lhs, RowEpilogue, Weight,
         },
         registry::{
             Operation, OperationAttributes, QuantizationAttributes,
@@ -291,11 +291,11 @@ fn plan_elementwise(
     });
     let (stores, last) = match &concat {
         None if pointwise_outputs.is_some() => (
-            FusedStores::Steps(pointwise_outputs.clone().unwrap_or_default()),
+            FusedStore::Steps(pointwise_outputs.clone().unwrap_or_default()),
             chain[chain.len() - 1],
         ),
         None => (
-            FusedStores::Last,
+            FusedStore::Last,
             epilogue_members
                 .last()
                 .copied()
@@ -303,7 +303,7 @@ fn plan_elementwise(
                 .unwrap_or_else(|| chain[chain.len() - 1]),
         ),
         Some((id, axis)) => (
-            FusedStores::Concat {
+            FusedStore::Concat {
                 axis: *axis,
                 values: concat_values(ir, *id, &chain, &mut external)?,
             },

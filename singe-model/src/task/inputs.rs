@@ -22,7 +22,7 @@ pub struct SeededImagePrompt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct ImageCandidates {
+pub struct ZeroShotImageInput {
     pub image: Image,
     pub candidate_labels: Vec<String>,
 }

@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::default_true},
+    format::{RuleSet, transformers::default_true},
     model::vision::{
         depth_anything::DepthAnythingConfig,
         dinov2::transformers::{Fields as Dinov2Fields, encoder_rules, fields_config},
@@ -110,7 +110,7 @@ pub(crate) fn config(source: &Source) -> Result<DepthAnythingConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     encoder_rules("backbone", "backbone")
         .rename("neck.reassemble_stage.layers", "reassemble")
         .rename("neck.convs", "convolutions")

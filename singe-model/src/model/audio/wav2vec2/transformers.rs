@@ -7,7 +7,7 @@ use crate::{
     assembly::attention_rules,
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{SampleExtractor, activation_field},
     },
     model::audio::wav2vec2::{FeatureConvolution, Wav2Vec2Config},
@@ -94,9 +94,9 @@ pub(crate) fn config(source: &Source) -> Result<Wav2Vec2Config> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     let layers = "wav2vec2.encoder.layers.*";
-    Rules::new()
+    RuleSet::new()
         .rename(
             "wav2vec2.feature_extractor.conv_layers.*.conv",
             "convolutions.*",

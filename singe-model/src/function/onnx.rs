@@ -23,7 +23,7 @@ use std::hash::BuildHasher;
 use singe::{
     backend::cuda::{
         LoweringPolicy,
-        tuning::{GraphTuneOptions, Measurement, TuningRecords, tune_graph},
+        tuning::{GraphTuneOptions, Measurement, TuningRecordSet, tune_graph},
     },
     graph::{ComputePrecision, GraphCudaOptions},
 };
@@ -511,8 +511,8 @@ pub fn tune_steps<S: BuildHasher>(
     inputs: &[HashMap<String, Tensor, S>],
     device: Device,
     options: &GraphTuneOptions,
-) -> Result<TuningRecords> {
-    let mut merged: Option<TuningRecords> = None;
+) -> Result<TuningRecordSet> {
+    let mut merged: Option<TuningRecordSet> = None;
     for (imported, inputs) in imported.iter().zip(inputs) {
         let records = tune_graph(&imported.model.graph()?, inputs, device, options)?;
         match &mut merged {
@@ -583,12 +583,12 @@ pub struct Declared {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DeclaredValues {
+pub struct DeclaredSignature {
     pub inputs: Vec<Declared>,
     pub outputs: Vec<Declared>,
 }
 
-pub fn declared_values(path: &Path) -> Result<DeclaredValues> {
+pub fn declared_values(path: &Path) -> Result<DeclaredSignature> {
     let file = Model::from_path(path).map_err(OnnxError::from)?;
     let describe = |info: &ValueInfo| {
         let data_type = match info.value_type.as_ref().map(|value| &value.value) {
@@ -610,7 +610,7 @@ pub fn declared_values(path: &Path) -> Result<DeclaredValues> {
             axes,
         }
     };
-    Ok(DeclaredValues {
+    Ok(DeclaredSignature {
         inputs: fed_inputs(&file).into_iter().map(describe).collect(),
         outputs: file.graph.outputs.iter().map(describe).collect(),
     })

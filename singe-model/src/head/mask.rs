@@ -141,7 +141,7 @@ pub trait ConceptLayers: Debug + Send + Sync {
 
 /// Each query's score, the probability that it is an instance of the concept, and its mask logits, `[Q, h, w]`.
 #[derive(Debug, Clone)]
-pub struct ConceptQueries {
+pub struct ConceptPrediction {
     pub scores: Vec<f32>,
     pub masks: Tensor,
 }
@@ -162,7 +162,7 @@ impl ConceptSegmenter {
     /// # Errors
     ///
     /// Returns an error if the model fails.
-    pub fn segment(&self, pixels: &Tensor, tokens: &TokenBatch) -> Result<ConceptQueries> {
+    pub fn segment(&self, pixels: &Tensor, tokens: &TokenBatch) -> Result<ConceptPrediction> {
         let (logits, presence, masks) =
             self.model
                 .layer()
@@ -170,7 +170,7 @@ impl ConceptSegmenter {
         let probability = |logit: f32| 1.0 / (1.0 + (-logit).exp());
         let presence = presence.cast(DataType::F32)?.to_vec::<f32>()?;
         let presence = presence.first().map_or(1.0, |&logit| probability(logit));
-        Ok(ConceptQueries {
+        Ok(ConceptPrediction {
             scores: logits
                 .cast(DataType::F32)?
                 .contiguous()?

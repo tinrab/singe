@@ -7,7 +7,7 @@ use crate::{
     assembly::{PreNormEncoderConfig, VisionTowerConfig, clip_layer_rules, llama_rules},
     error::{Error, Result},
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{DecoderDefaults, DecoderFields, activation_field, default_channels},
     },
     head::SamplingFields,
@@ -193,8 +193,8 @@ pub(crate) fn config(source: &Source) -> Result<JanusConfig> {
 }
 
 /// Imports `from`'s `fc1` and `hidden_layers.N` as `LinearStack` layers `0` and `N + 1` under `to`.
-fn aligner_rules(from: &str, to: &str, depth: i64) -> Rules {
-    let mut rules = Rules::new().rename(&join(from, "fc1"), &join(to, "0"));
+fn aligner_rules(from: &str, to: &str, depth: i64) -> RuleSet {
+    let mut rules = RuleSet::new().rename(&join(from, "fc1"), &join(to, "0"));
     for index in 0..depth - 1 {
         rules = rules.rename(
             &join(from, &format!("hidden_layers.{index}")),
@@ -205,9 +205,9 @@ fn aligner_rules(from: &str, to: &str, depth: i64) -> Rules {
 }
 
 /// The understanding part's vision tower and aligner, skipping what only image generation reads.
-pub(crate) fn vision_rules(config: &JanusConfig) -> Rules {
+pub(crate) fn vision_rules(config: &JanusConfig) -> RuleSet {
     let vision = |name: &str| join("model.vision_model", name);
-    let mut rules = Rules::new()
+    let mut rules = RuleSet::new()
         .rename(&vision("embeddings.patch_embedding"), "embeddings.patches")
         .derive(
             &vision("embeddings.position_embedding.weight"),
@@ -237,14 +237,14 @@ pub(crate) fn vision_rules(config: &JanusConfig) -> Rules {
     rules
 }
 
-pub(crate) fn decoder_rules() -> Rules {
+pub(crate) fn decoder_rules() -> RuleSet {
     llama_rules("model.language_model")
 }
 
 /// The image generation part: the decoder with the generation embeddings, aligner, and head, skipping what only understanding and image encoding read.
-pub(crate) fn generation_rules(config: &JanusConfig) -> Rules {
+pub(crate) fn generation_rules(config: &JanusConfig) -> RuleSet {
     // Skipped first, since `llama_rules` would take `lm_head` as the head.
-    let mut rules = Rules::new();
+    let mut rules = RuleSet::new();
     for unread in [
         "model.vision_model",
         "model.aligner",
@@ -267,8 +267,8 @@ pub(crate) fn generation_rules(config: &JanusConfig) -> Rules {
 }
 
 /// Imports `JanusVQVAEAttnBlock` at `from` as a `SpatialAttention` at `to`, its 1 × 1 convolutions as linear layers.
-fn spatial_attention_rules(from: &str, to: &str) -> Rules {
-    let mut rules = Rules::new().rename(&join(from, "norm"), &join(to, "norm"));
+fn spatial_attention_rules(from: &str, to: &str) -> RuleSet {
+    let mut rules = RuleSet::new().rename(&join(from, "norm"), &join(to, "norm"));
     for (convolution, linear) in [
         ("q", "query"),
         ("k", "key"),
@@ -286,7 +286,7 @@ fn spatial_attention_rules(from: &str, to: &str) -> Rules {
 }
 
 /// The VQ decoder part, skipping the VQ encoder and everything else.
-pub(crate) fn vq_rules() -> Rules {
+pub(crate) fn vq_rules() -> RuleSet {
     let decoder = |name: &str| join("model.vqmodel.decoder", name);
     let resnet = [
         ("norm1", "norm1"),
@@ -295,7 +295,7 @@ pub(crate) fn vq_rules() -> Rules {
         ("conv2", "conv2"),
         ("nin_shortcut", "shortcut"),
     ];
-    let mut rules = Rules::new()
+    let mut rules = RuleSet::new()
         .rename("model.vqmodel.quantize.embedding.weight", "codebook")
         .rename("model.vqmodel.post_quant_conv", "post_quant")
         .then(spatial_attention_rules(

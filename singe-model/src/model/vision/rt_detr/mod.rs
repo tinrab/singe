@@ -14,7 +14,7 @@ use singe::{
 use crate::{
     assembly::{
         Attention, AttentionSpec, ConvNorm, DeformableAttentionSpec, DeformableDecoderLayer,
-        FeatureLevels, LinearStack, ResNetConfig, ResNetVd, anchor_proposals, gather_rows,
+        FeaturePyramid, LinearStack, ResNetConfig, ResNetVd, anchor_proposals, gather_rows,
         inverse_sigmoid, to_map, to_tokens,
     },
     error::Result,
@@ -423,7 +423,7 @@ impl Layer for RtDetrLayers {
         }
 
         let memory = Tensor::concat(&tokens, 1)?;
-        let levels = FeatureLevels::create(device, sizes)?;
+        let levels = FeaturePyramid::create(device, sizes)?;
 
         let (anchors, valid) = anchor_proposals(device, &extents, f32::MAX)?;
         let proposals = memory

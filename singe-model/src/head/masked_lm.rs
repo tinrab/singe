@@ -15,7 +15,7 @@ use crate::{
         TensorFunction,
         forward::{External, ExternalHead, Forward},
     },
-    head::{EncoderBody, EncoderHead, HeadLayouts},
+    head::{EncoderBody, EncoderHead, EncoderHeadLayout},
     schema::Schema,
     source::Source,
 };
@@ -101,7 +101,7 @@ impl EncoderHead for MaskedLm {
         schema: &mut Schema<'_>,
         encoder: EncoderBody,
         config: &MaskedLmConfig,
-        layouts: &HeadLayouts,
+        layouts: &EncoderHeadLayout,
     ) -> SingeResult<MaskedLmLayers> {
         let encoder_config = encoder.sizes;
         let (width, vocab_size) = (encoder_config.width, encoder_config.vocab_size);

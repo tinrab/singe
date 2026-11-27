@@ -5,7 +5,7 @@ use singe::nn::Activation;
 
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{RuleSet, transformers::activation_field},
     model::vision::swin2sr::Swin2SrConfig,
     source::Source,
 };
@@ -128,8 +128,8 @@ pub(crate) fn config(source: &Source) -> Result<Swin2SrConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         // One convolution before each doubling, numbered in its name.
         .rename_each(
             "upsample.upsample",

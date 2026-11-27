@@ -9,7 +9,7 @@ use crate::{
     head::{MaskTracker, TrackingPrompt},
     model,
     processor::{
-        image::{Image, ImageTransforms},
+        image::{Image, ImagePreprocessor},
         video::Video,
     },
     source::{LoadOptions, Source},
@@ -19,7 +19,7 @@ use crate::{
 #[derive(Debug)]
 pub struct MaskTrackingPipeline {
     model: MaskTracker,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     options: LoadOptions,
 }
 
@@ -51,7 +51,7 @@ pub struct MaskTrackingParameters {
 
 /// The tracked frames, from the prompted one on, or back in reverse, with each one's mask and the probability that the object is in it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct TrackedMasks {
+pub struct MaskTrackingOutput {
     pub frames: Vec<usize>,
     pub masks: Vec<Image>,
     pub scores: Vec<f32>,
@@ -62,12 +62,12 @@ impl Pipeline for MaskTrackingPipeline {
 
     type Parameters = MaskTrackingParameters;
 
-    type Output = TrackedMasks;
+    type Output = MaskTrackingOutput;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             options,
         })
     }
@@ -130,7 +130,7 @@ impl Pipeline for MaskTrackingPipeline {
             Shape::create([1, 1, 1, 1])?,
             vec![parameters.mask_threshold],
         )?;
-        let mut masks = TrackedMasks {
+        let mut masks = MaskTrackingOutput {
             frames: Vec::with_capacity(tracked.len()),
             masks: Vec::with_capacity(tracked.len()),
             scores: Vec::with_capacity(tracked.len()),

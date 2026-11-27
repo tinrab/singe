@@ -23,12 +23,12 @@ pub fn check(file: &File, context: &Context<'_>) -> Vec<Diagnostic> {
 
     impl Check<'_> {
         fn contract(&mut self, ty: &Type, allow_boxed: bool) {
-            struct Errors<'a, 'ctx> {
+            struct ErrorVisitor<'a, 'ctx> {
                 check: &'a mut Check<'ctx>,
                 allow_boxed: bool,
             }
 
-            impl<'ast> Visit<'ast> for Errors<'_, '_> {
+            impl<'ast> Visit<'ast> for ErrorVisitor<'_, '_> {
                 fn visit_type_path(&mut self, ty: &'ast TypePath) {
                     if let Some(error) = opaque_error(ty, self.allow_boxed) {
                         self.check.findings.push(self.check.context.report(
@@ -40,7 +40,7 @@ pub fn check(file: &File, context: &Context<'_>) -> Vec<Diagnostic> {
                     visit::visit_type_path(self, ty);
                 }
             }
-            Errors {
+            ErrorVisitor {
                 check: self,
                 allow_boxed,
             }

@@ -78,7 +78,7 @@ pub fn softmax(
         .strides()
         .to_vec();
     let columns = epilogue
-        .map(|epilogue| EpilogueColumns::create(epilogue, &dimensions, &mut strides))
+        .map(|epilogue| EpilogueLayout::create(epilogue, &dimensions, &mut strides))
         .transpose()?;
     let output = columns
         .as_ref()
@@ -226,7 +226,7 @@ pub fn normalization(
     }
 
     let columns = epilogue
-        .map(|epilogue| EpilogueColumns::create(epilogue, dimensions, &mut strides))
+        .map(|epilogue| EpilogueLayout::create(epilogue, dimensions, &mut strides))
         .transpose()?;
     let output = columns
         .as_ref()
@@ -329,7 +329,7 @@ pub fn normalization(
 }
 
 // The kernel columns an epilogue reads, and the strides its last value is stored with.
-struct EpilogueColumns {
+struct EpilogueLayout {
     // The column of each step's input operand, by step and operand position.
     columns: HashMap<(usize, usize), usize>,
     // The stride along the row of each of those columns.
@@ -337,7 +337,7 @@ struct EpilogueColumns {
     output: Vec<i64>,
 }
 
-impl EpilogueColumns {
+impl EpilogueLayout {
     // Appends a column to `strides` for each of the epilogue's inputs, in input order, so the kernel reads each input through one operand.
     fn create(
         epilogue: &RowEpilogue<'_>,

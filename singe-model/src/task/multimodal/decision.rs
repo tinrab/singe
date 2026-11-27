@@ -96,9 +96,9 @@ pub enum Answer {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Answers(pub Vec<(String, Answer)>);
+pub struct DecisionOutput(pub Vec<(String, Answer)>);
 
-impl Serialize for Answers {
+impl Serialize for DecisionOutput {
     fn serialize<S: Serializer>(&self, serializer: S) -> StdResult<S::Ok, S::Error> {
         serializer.collect_map(self.0.iter().map(|(name, answer)| (name, answer)))
     }
@@ -281,7 +281,7 @@ impl Pipeline for DecisionPipeline {
 
     type Parameters = ();
 
-    type Output = Answers;
+    type Output = DecisionOutput;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
@@ -304,6 +304,6 @@ impl Pipeline for DecisionPipeline {
                 Ok((question.name, answer))
             })
             .collect::<Result<Vec<_>>>()
-            .map(Answers)
+            .map(DecisionOutput)
     }
 }

@@ -6,7 +6,7 @@ use std::{
 
 use crate::backend::cuda::tuning::{
     comparison::Comparison,
-    records::{TunedChoice, TunedRecord, TunedWay, TuningEnvironment, TuningRecords},
+    records::{TunedChoice, TunedRecord, TunedWay, TuningEnvironment, TuningRecordSet},
     report::{
         CandidateFailure, CandidateOutcome, CandidateReport, ChoiceReport, ComparisonReport,
         DropReason, DroppedChoice, FailureStage, PlanCheckReport, PlanSearchReport,
@@ -289,7 +289,7 @@ pub trait PlanRunner {
     // # Errors
     //
     // Returns why the plan could not be written or compiled.
-    fn fingerprint(&mut self, records: &TuningRecords) -> Result<String, CandidateFailure>;
+    fn fingerprint(&mut self, records: &TuningRecordSet) -> Result<String, CandidateFailure>;
 
     // Runs the graph under `records`, stopping its timing early if its first time passes `abandon_above`.
     //
@@ -298,7 +298,7 @@ pub trait PlanRunner {
     // Returns why the plan could not be built or run.
     fn run(
         &mut self,
-        records: &TuningRecords,
+        records: &TuningRecordSet,
         abandon_above: Option<Duration>,
     ) -> Result<Measured, CandidateFailure>;
 
@@ -309,8 +309,8 @@ pub trait PlanRunner {
     // Returns why either could not be built or run.
     fn compare(
         &mut self,
-        baseline: &TuningRecords,
-        candidate: &TuningRecords,
+        baseline: &TuningRecordSet,
+        candidate: &TuningRecordSet,
     ) -> Result<Comparison, CandidateFailure>;
 }
 
@@ -320,8 +320,8 @@ pub fn plan_records(
     points: &[ChoicePoint],
     plan: &[Option<usize>],
     environment: Option<&TuningEnvironment>,
-) -> TuningRecords {
-    let mut records = TuningRecords::new(environment.cloned());
+) -> TuningRecordSet {
+    let mut records = TuningRecordSet::new(environment.cloned());
     for (point, chosen) in points.iter().zip(plan) {
         let Some(alternative) = chosen.and_then(|index| point.alternatives.get(index)) else {
             continue;

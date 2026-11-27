@@ -7,7 +7,7 @@ use crate::{
     assembly::{DecoderConfig, llama_rules},
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{DecoderDefaults, DecoderFields, LayerType, activation_field},
     },
     model::text::gemma2::Gemma2Config,
@@ -112,8 +112,8 @@ pub(crate) fn config(source: &Source) -> Result<Gemma2Config> {
 
 /// Returns the rules that import a checkpoint.
 /// Gemma 2's `post_attention_layernorm` norms what attention returns, where Llama's norms the feed-forward layer's input, so these rules go before Llama's.
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename_each(
             "model.layers.*",
             "blocks.*",

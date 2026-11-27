@@ -11,7 +11,7 @@ use crate::{
     error::Result,
     head::MaskGenerator,
     host, model,
-    processor::image::{Image, ImageTransforms, Resize},
+    processor::image::{Image, ImagePreprocessor, Resize},
     source::{LoadOptions, Source},
     task::{Pipeline, vision::pixels::mask},
 };
@@ -19,7 +19,7 @@ use crate::{
 #[derive(Debug)]
 pub struct MaskGenerationPipeline {
     model: MaskGenerator,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     options: LoadOptions,
 }
 
@@ -57,7 +57,7 @@ impl Default for MaskGenerationParameters {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct GeneratedMasks {
+pub struct MaskGenerationOutput {
     pub masks: Vec<Image>,
     pub scores: Vec<f32>,
 }
@@ -177,12 +177,12 @@ impl Pipeline for MaskGenerationPipeline {
 
     type Parameters = MaskGenerationParameters;
 
-    type Output = GeneratedMasks;
+    type Output = MaskGenerationOutput;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             options,
         })
     }
@@ -239,7 +239,7 @@ impl Pipeline for MaskGenerationPipeline {
         }
 
         let kept = suppress(&boxes, &scores, parameters.crops_nms_thresh);
-        Ok(GeneratedMasks {
+        Ok(MaskGenerationOutput {
             masks: kept
                 .iter()
                 .map(|&index| mask(image.width, image.height, masks[index].iter().copied()))

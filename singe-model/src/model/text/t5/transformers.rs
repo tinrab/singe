@@ -6,10 +6,10 @@ use singe::nn::Activation;
 use crate::{
     error::{Error, Result},
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{activation, default_true},
     },
-    model::text::t5::{StackRole, SwitchExperts, T5Config, TransientGlobal},
+    model::text::t5::{StackRole, SwitchSpec, T5Config, TransientGlobal},
     source::Source,
 };
 
@@ -92,7 +92,7 @@ pub(crate) fn fields_config(fields: &Fields) -> Result<T5Config> {
                 ));
             }
 
-            Some(SwitchExperts {
+            Some(SwitchSpec {
                 count,
                 encoder_step: fields.encoder_sparse_step,
                 decoder_step: fields.decoder_sparse_step,
@@ -140,8 +140,8 @@ pub(crate) fn fields_config(fields: &Fields) -> Result<T5Config> {
     })
 }
 
-fn projection_rules(from: &str, to: &str) -> Rules {
-    Rules::new().rename_each(
+fn projection_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new().rename_each(
         from,
         to,
         &[
@@ -153,12 +153,12 @@ fn projection_rules(from: &str, to: &str) -> Rules {
     )
 }
 
-fn stack_rules(stack: &str, role: StackRole) -> Rules {
+fn stack_rules(stack: &str, role: StackRole) -> RuleSet {
     let blocks = format!("{stack}.blocks.*");
     let part = |index: usize| format!("{stack}.block.*.layer.{index}");
     // A decoder block's cross-attention is its part 1, which moves its feed-forward layer to part 2.
     let (cross, feed_forward) = match role {
-        StackRole::Encoder => (Rules::new(), part(1)),
+        StackRole::Encoder => (RuleSet::new(), part(1)),
         StackRole::Decoder => (
             projection_rules(
                 &join(&part(1), "EncDecAttention"),
@@ -173,7 +173,7 @@ fn stack_rules(stack: &str, role: StackRole) -> Rules {
     };
     // LongT5's encoder names its attention `TransientGlobalSelfAttention`, with a global table beside the position table and a norm of the global tokens in each block.
     let global = join(&part(0), "TransientGlobalSelfAttention");
-    Rules::new()
+    RuleSet::new()
         .rename(
             &format!("{stack}.block.0.layer.0.SelfAttention.relative_attention_bias.weight"),
             &format!("{stack}.position_bias"),
@@ -225,15 +225,15 @@ fn stack_rules(stack: &str, role: StackRole) -> Rules {
 }
 
 /// Imports the encoder of a T5 stored under `prefix`, its embeddings `shared`, to [`T5Encoder`](crate::model::text::t5::T5Encoder)'s names under the same prefix.
-pub(crate) fn encoder_rules(prefix: &str) -> Rules {
-    Rules::new()
+pub(crate) fn encoder_rules(prefix: &str) -> RuleSet {
+    RuleSet::new()
         .rename(&join(prefix, "shared"), &join(prefix, "tokens"))
         .skip(&join(prefix, "encoder.embed_tokens"))
         .then(stack_rules(&join(prefix, "encoder"), StackRole::Encoder))
 }
 
-pub(crate) fn rules(tied: bool) -> Rules {
-    let rules = Rules::new()
+pub(crate) fn rules(tied: bool) -> RuleSet {
+    let rules = RuleSet::new()
         .rename("shared", "tokens")
         // Each stack's copy of the shared embedding.
         .skip("encoder.embed_tokens")

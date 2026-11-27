@@ -14,7 +14,7 @@ use crate::{
                 fusion::Planner,
                 lowering::{CudaGraphProvider, ModuleKernel},
             },
-            tuning::{TunedChoice, TunedWay, TuningRecords, fused_attention_key, group_key},
+            tuning::{TunedChoice, TunedWay, TuningRecordSet, fused_attention_key, group_key},
         },
         registry::{Operation, OperationAttributes, SliceAttributes},
     },
@@ -98,7 +98,7 @@ impl<S: BuildHasher, T: BuildHasher> Planner<'_, S, T> {
     pub fn recognize(
         &self,
         execution_order: &[ValueId],
-        records: Option<&TuningRecords>,
+        records: Option<&TuningRecordSet>,
     ) -> Result<Vec<RecognizedModule>> {
         let fused_attention = records.is_some_and(|records| {
             records.get(&fused_attention_key()) == Some(TunedChoice::FusedAttention)

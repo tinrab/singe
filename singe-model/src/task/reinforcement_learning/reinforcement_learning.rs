@@ -2,7 +2,7 @@
 
 use crate::{
     error::Result,
-    head::{Trajectory, TrajectoryModel, TrajectoryPredictions},
+    head::{Trajectory, TrajectoryModel, TrajectoryOutput},
     model,
     source::{LoadOptions, Source},
     task::Pipeline,
@@ -18,7 +18,7 @@ impl Pipeline for ReinforcementLearningPipeline {
 
     type Parameters = ();
 
-    type Output = TrajectoryPredictions;
+    type Output = TrajectoryOutput;
 
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {

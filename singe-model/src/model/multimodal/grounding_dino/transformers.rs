@@ -9,7 +9,7 @@ use crate::{
         post_norm_encoder_rules, swin_rules,
     },
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{RuleSet, transformers::activation_field},
     model::multimodal::grounding_dino::GroundingDinoConfig,
     source::Source,
 };
@@ -212,8 +212,8 @@ pub(crate) fn config(source: &Source) -> Result<GroundingDinoConfig> {
 }
 
 /// Renames `GroundingDinoMultiheadAttention`'s projections under `from` to [`Attention`](crate::assembly::Attention)'s under `to`.
-fn multihead_rules(from: &str, to: &str) -> Rules {
-    Rules::new().rename_each(
+fn multihead_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new().rename_each(
         from,
         to,
         &[
@@ -226,7 +226,7 @@ fn multihead_rules(from: &str, to: &str) -> Rules {
 }
 
 /// Returns the rules that import a checkpoint whose backbone gives `config`'s last stages, whose norms `transformers` names after their stages from one.
-pub(crate) fn rules(config: &GroundingDinoConfig) -> Rules {
+pub(crate) fn rules(config: &GroundingDinoConfig) -> RuleSet {
     let backbone = "model.backbone.conv_encoder.model";
     let encoder = "model.encoder.layers.*";
     let decoder = "model.decoder.layers.*";

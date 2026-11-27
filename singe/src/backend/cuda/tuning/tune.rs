@@ -21,7 +21,7 @@ use crate::{
                     lowering::{CudaGraphProvider, LoweringPlan, LoweringPolicy},
                 },
             },
-            graph_binding::{InPlaceWrites, WritableInputs, graph_users},
+            graph_binding::{InPlaceWritePlan, WritableInputs, graph_users},
             kernel_plan::{KernelInput, KernelParameters, KernelPlanner},
             kernel_tuning::{self, Outcome},
             runtime::runtime_for_device,
@@ -41,7 +41,7 @@ use crate::{
                 },
                 records::{
                     Measurement, TunedChoice, TunedRecord, TunedWay, TuningEnvironment,
-                    TuningRecords,
+                    TuningRecordSet,
                 },
                 reference::{Evaluated, evaluate},
                 report::{
@@ -125,7 +125,7 @@ pub fn held_record(choice: &TunedChoice) -> TunedRecord {
     }
 }
 
-fn holding(mut records: TuningRecords, choices: &[(String, TunedChoice)]) -> TuningRecords {
+fn holding(mut records: TuningRecordSet, choices: &[(String, TunedChoice)]) -> TuningRecordSet {
     for (key, choice) in choices {
         records.insert(key.clone(), held_record(choice));
     }
@@ -133,16 +133,16 @@ fn holding(mut records: TuningRecords, choices: &[(String, TunedChoice)]) -> Tun
 }
 
 // The records that force `candidate`.
-pub fn forced_records(candidate: &Candidate, environment: &TuningEnvironment) -> TuningRecords {
+pub fn forced_records(candidate: &Candidate, environment: &TuningEnvironment) -> TuningRecordSet {
     holding(
-        TuningRecords::new(Some(environment.clone())),
+        TuningRecordSet::new(Some(environment.clone())),
         &candidate.choices,
     )
 }
 
 // Which libraries' own configurations a choice point lists, and the key their records go under.
 #[derive(Default)]
-struct LibraryChoices {
+struct ProviderChoice {
     providers: Vec<CudaGraphProvider>,
     key: String,
 }
@@ -154,7 +154,7 @@ struct Found<'a, 'o> {
     measurer: &'a mut Measurer<'o>,
     ir: &'a IrGraph,
     evaluated: &'a Evaluated,
-    in_place: &'a InPlaceWrites,
+    in_place: &'a InPlaceWritePlan,
     environment: &'a TuningEnvironment,
     device: Device,
     options: &'a GraphTuneOptions,
@@ -172,7 +172,7 @@ impl Found<'_, '_> {
         members: &[ValueId],
         outputs: &[ValueId],
         candidates: Vec<Candidate>,
-        libraries: &LibraryChoices,
+        libraries: &ProviderChoice,
     ) {
         let small = subgraph(
             self.ir,
@@ -299,7 +299,7 @@ fn find_choices(
                 &group.members,
                 &group.outputs,
                 candidates,
-                &LibraryChoices::default(),
+                &ProviderChoice::default(),
             );
         }
     }
@@ -391,7 +391,7 @@ fn find_choices(
             members
         };
         // A library's own configurations are choices too, for those the policy enables.
-        let tunable = LibraryChoices {
+        let tunable = ProviderChoice {
             providers: libraries
                 .iter()
                 .copied()
@@ -433,7 +433,7 @@ fn tune_for_choice(
 
 // Measures what `graph` can choose on `device`, on `inputs`, and returns records that compiling and exporting read.
 // Each choice point is timed alone, as its records will be read, against the values the graph evaluates to, and identical choice points are timed once.
-// The whole plan is then checked and searched, and what it returns loses whatever failed, disagreed, or did not fit, which `TuningRecords::report` explains.
+// The whole plan is then checked and searched, and what it returns loses whatever failed, disagreed, or did not fit, which `TuningRecordSet::report` explains.
 //
 // # Errors
 //
@@ -443,7 +443,7 @@ pub fn tune_graph<S: BuildHasher>(
     inputs: &HashMap<String, Tensor, S>,
     device: Device,
     options: &GraphTuneOptions,
-) -> Result<TuningRecords> {
+) -> Result<TuningRecordSet> {
     let tuning_started = Instant::now();
     if options.measurement == Measurement::Program {
         remove_abandoned_candidates(&options.build_directory);
@@ -474,7 +474,7 @@ pub fn tune_graph<S: BuildHasher>(
 
     let users = graph_users(&ir, &order)?;
     let outputs = ir.output_value_set();
-    let in_place = InPlaceWrites::analyze(&ir, &order, &users, &outputs, WritableInputs::Every)?;
+    let in_place = InPlaceWritePlan::analyze(&ir, &order, &users, &outputs, WritableInputs::Every)?;
     let mut measurer = Measurer::for_choice_points(device, options);
     let mut found = Found {
         assumed: Vec::new(),
@@ -518,7 +518,7 @@ pub fn tune_graph<S: BuildHasher>(
         let merged_evaluated = evaluate(&merged_ir, &merged_order, inputs, device)?;
         let merged_users = graph_users(&merged_ir, &merged_order)?;
         let merged_outputs = merged_ir.output_value_set();
-        let merged_in_place = InPlaceWrites::analyze(
+        let merged_in_place = InPlaceWritePlan::analyze(
             &merged_ir,
             &merged_order,
             &merged_users,
@@ -566,7 +566,7 @@ pub fn tune_graph<S: BuildHasher>(
     }
 
     // Attention fused with its query's rotation, wherever a graph has one to fuse.
-    let mut fused = TuningRecords::new(None);
+    let mut fused = TuningRecordSet::new(None);
     fused.insert(
         fused_attention_key(),
         held_record(&TunedChoice::FusedAttention),

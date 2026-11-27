@@ -18,9 +18,9 @@ use singe::{
 use crate::{
     assembly::{
         Attention, AttentionSpec, ConvGroupNorm, DeformableAttention, DeformableAttentionSpec,
-        DeformableEncoderLayer, FeatureLevels, LinearStack, PostNormEncoderConfig, SinePositions,
-        Swin, SwinConfig, anchor_proposals, gather_rows, logit, merge_heads, sine_positions,
-        split_heads, to_map, to_tokens,
+        DeformableEncoderLayer, FeaturePyramid, LinearStack, PostNormEncoderConfig,
+        SinePositionSpec, Swin, SwinConfig, anchor_proposals, gather_rows, logit, merge_heads,
+        sine_positions, split_heads, to_map, to_tokens,
     },
     error::Result,
     format::Loader,
@@ -314,7 +314,7 @@ impl EncoderLayer {
         vision: &Tensor,
         vision_positions: &Tensor,
         references: &Tensor,
-        levels: &FeatureLevels,
+        levels: &FeaturePyramid,
         text: &Tensor,
         text_positions: &Tensor,
         text_mask: &Tensor,
@@ -400,7 +400,7 @@ impl DecoderLayer {
         positions: &Tensor,
         references: &Tensor,
         memory: &Tensor,
-        levels: &FeatureLevels,
+        levels: &FeaturePyramid,
         text: &Tensor,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
@@ -585,7 +585,7 @@ impl Layer<GroundingInput> for GroundingDinoLayers {
             let sines = sine_positions(
                 map,
                 self.width,
-                SinePositions {
+                SinePositionSpec {
                     offset: 0.0,
                     temperature: self.temperature,
                 },
@@ -597,7 +597,7 @@ impl Layer<GroundingInput> for GroundingDinoLayers {
         }
 
         let positions = Tensor::concat(&positions, 1)?;
-        let levels = FeatureLevels::create(input.pixels.device(), sizes)?;
+        let levels = FeaturePyramid::create(input.pixels.device(), sizes)?;
         let references = levels.reference_points()?.cast(data_type)?;
         let mut vision = Tensor::concat(&tokens, 1)?;
         let mut text = text;

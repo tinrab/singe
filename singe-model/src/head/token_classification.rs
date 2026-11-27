@@ -15,7 +15,7 @@ use crate::{
         TensorFunction,
         forward::{External, ExternalHead, Forward},
     },
-    head::{ClassifierConfig, EncoderBody, EncoderHead, HeadLayouts},
+    head::{ClassifierConfig, EncoderBody, EncoderHead, EncoderHeadLayout},
     host,
     schema::Schema,
     source::Source,
@@ -108,7 +108,7 @@ impl EncoderHead for TokenClassifier {
         schema: &mut Schema<'_>,
         encoder: EncoderBody,
         config: &ClassifierConfig,
-        _layouts: &HeadLayouts,
+        _layouts: &EncoderHeadLayout,
     ) -> SingeResult<TokenScoreLayers> {
         TokenScoreLayers::create(schema, "classifier", encoder, config.label_count()?)
     }

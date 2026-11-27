@@ -37,14 +37,14 @@ pub use self::{
     convnext::{ConvNext, ConvNextBlock, ConvNextConfig, ConvNextScaling, convnext_rules},
     convolution::{ConvGroupNorm, same_1d, same_2d},
     decoder::{
-        CausalLmSpec, DecoderConfig, DraftLayer, GroupedAttentionSpec, GroupedDecoder, HeadNorms,
-        causal, causal_lm, gated_mlp, grouped_attention, grouped_attention_layers, grouped_decoder,
-        kv_caches, llama_block_rules, llama_rules, pre_norm_block, pre_norm_block_with,
-        rename_scaled,
+        CausalLmSpec, DecoderConfig, DraftLayer, GroupedAttentionSpec, GroupedDecoder,
+        HeadNormKind, causal, causal_lm, gated_mlp, grouped_attention, grouped_attention_layers,
+        grouped_decoder, kv_caches, llama_block_rules, llama_rules, pre_norm_block,
+        pre_norm_block_with, rename_scaled,
     },
     deformable::{
         DeformableAttention, DeformableAttentionSpec, DeformableDecoderLayer,
-        DeformableEncoderLayer, FeatureLevels, anchor_proposals, deformable_attention_rules,
+        DeformableEncoderLayer, FeaturePyramid, anchor_proposals, deformable_attention_rules,
         deformable_decoder_rules, deformable_encoder_rules, gather_rows, inverse_sigmoid, logit,
     },
     encoder_decoder::{
@@ -69,7 +69,7 @@ pub use self::{
     resnet::{ConvNorm, ResNet, ResNetConfig, ResNetVd},
     seanet::{PadMode, PaddedConv, Seanet, SeanetConfig, TrimmedTranspose, seanet_rules},
     sinusoid::{
-        SinePositions, SinusoidArithmetic, SinusoidOrder, relative_sinusoids, sine_positions,
+        SinePositionSpec, SinusoidArithmetic, SinusoidOrder, relative_sinusoids, sine_positions,
         sinusoids,
     },
     state_space::{Mamba2Layout, mamba2_mixer},
@@ -79,7 +79,7 @@ pub use self::{
         TransducerStep, greedy_decode, transducer_rules,
     },
     unet::{
-        MiddleBlock, Norms, ResnetBlock, SpatialAttention, Unet, UnetConfig, UnetSite,
+        GroupNormSpec, MiddleBlock, ResnetBlock, SpatialAttention, Unet, UnetConfig, UnetSite,
         UpsampleBlock, downsample, resnet_stack, timestep_input, unet_block_rules,
     },
     vision_tower::{VisionTowerConfig, patch_embedding},

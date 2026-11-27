@@ -35,9 +35,9 @@ impl Layer for Pool {
 }
 
 #[derive(Debug)]
-struct FloatLogits;
+struct CastToFloat;
 
-impl Layer for FloatLogits {
+impl Layer for CastToFloat {
     fn forward(&self, input: &Tensor, _state: &ModelState) -> Result<Tensor> {
         call_one(
             Operation::Cast,
@@ -103,7 +103,7 @@ fn model(name: &str) -> Model<Sequential> {
         ))
         .with(Pool)
         .with(linear("head"))
-        .with(FloatLogits);
+        .with(CastToFloat);
     Model::new(module, builder.finish().unwrap())
 }
 

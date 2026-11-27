@@ -35,7 +35,7 @@ pub struct YolosConfig {
 
 /// The class token, the patches, and the detection tokens, with learned positions whose patch part is resized bicubically to the image's grid, as `InterpolateInitialPositionEmbeddings` resizes it.
 #[derive(Debug, Clone)]
-struct YolosTokens {
+struct YolosEmbedding {
     patches: PatchEmbedding,
     class: StateKey,
     detection: StateKey,
@@ -45,7 +45,7 @@ struct YolosTokens {
     patch_size: i64,
 }
 
-impl YolosTokens {
+impl YolosEmbedding {
     fn create(schema: &mut Schema<'_>, config: &YolosConfig) -> SingeResult<Self> {
         let width = config.encoder.width;
         let grid = config.image_size.map(|side| side / config.patch_size);
@@ -67,7 +67,7 @@ impl YolosTokens {
     }
 }
 
-impl Layer for YolosTokens {
+impl Layer for YolosEmbedding {
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let patches = input.apply(&self.patches, state)?;
         let &[_, _, width] = patches.shape().dimensions() else {
@@ -124,7 +124,7 @@ impl Layer for YolosTokens {
 /// YOLOS and its heads: from images to each detection token's label scores and box, `[B, Q, labels + 1 + 4]`.
 #[derive(Debug, Clone)]
 pub struct YolosDetectorLayers {
-    embeddings: YolosTokens,
+    embeddings: YolosEmbedding,
     encoder: PreNormEncoder,
     classes: LinearStack,
     boxes: LinearStack,
@@ -134,7 +134,7 @@ pub struct YolosDetectorLayers {
 impl YolosDetectorLayers {
     pub fn create(schema: &mut Schema<'_>, config: &YolosConfig) -> SingeResult<Self> {
         let width = config.encoder.width;
-        let embeddings = YolosTokens::create(&mut schema.scope("embeddings"), config)?;
+        let embeddings = YolosEmbedding::create(&mut schema.scope("embeddings"), config)?;
         let encoder =
             PreNormEncoder::create(schema, &config.encoder, config.layers, FinalNorm::Included)?;
         let labels = config.classifier.label_count()?;

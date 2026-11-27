@@ -7,11 +7,11 @@ use crate::{
         cuda::{
             compiled::plan::lowering::{CudaGraphProvider, LoweringPolicy},
             export::{CudaExport, ProgramStep, compiled::CompiledProgram},
-            graph_binding::{InPlaceWrites, WritableInputs, graph_users},
+            graph_binding::{InPlaceWritePlan, WritableInputs, graph_users},
             runtime::runtime_for_device,
             tuning::{
                 GraphTuneOptions, Measurement, TunedChoice, TunedWay, TuningEnvironment,
-                TuningRecords, group_key, library_key,
+                TuningRecordSet, group_key, library_key,
                 measure::{Measurer, WholeGraphRunner, export_program, listed_library_choices},
                 merged_projections_key,
                 plan::{
@@ -46,7 +46,7 @@ const DEVICE: Device = Device::Cuda(0);
 
 fn measure(
     small: &SmallGraph,
-    records: &TuningRecords,
+    records: &TuningRecordSet,
     device: Device,
     options: &GraphTuneOptions,
     refuse_over: Option<u64>,
@@ -121,7 +121,7 @@ fn options(policy: LoweringPolicy) -> GraphTuneOptions {
 fn run_with(
     graph: &Graph,
     inputs: &HashMap<String, Tensor>,
-    records: TuningRecords,
+    records: TuningRecordSet,
 ) -> (Vec<Vec<f32>>, String) {
     let mut prepared = graph
         .prepare(
@@ -161,7 +161,7 @@ fn test_a_record_chooses_how_a_node_runs_and_one_that_cannot_hold_is_an_error() 
         .unwrap();
     let key = way_key(ir, attention).unwrap();
     let with_way = |way| {
-        let mut records = TuningRecords::new(None);
+        let mut records = TuningRecordSet::new(None);
         records.insert(key.clone(), held_record(&TunedChoice::Way(way)));
         records
     };
@@ -214,11 +214,11 @@ fn test_a_tuned_graph_reads_back_from_its_file_and_exports_only_its_winners() {
         .join("../target")
         .join(format!("tuning-records-{}.json", process::id()));
     records.write(&path).unwrap();
-    let read = TuningRecords::read(&path).unwrap();
+    let read = TuningRecordSet::read(&path).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(read, records);
 
-    let (expected, _) = run_with(&graph, &named_inputs, TuningRecords::new(None));
+    let (expected, _) = run_with(&graph, &named_inputs, TuningRecordSet::new(None));
     assert_eq!(read.report(), records.report());
     let (actual, report) = run_with(&graph, &named_inputs, read.clone());
     assert!(report.contains("tuning records:"), "{report}");
@@ -234,7 +234,7 @@ fn test_a_tuned_graph_reads_back_from_its_file_and_exports_only_its_winners() {
     // A generated winner leaves no library call in the program.
     let mut environment = read.environment().unwrap().clone();
     environment.measurement = Measurement::Program;
-    let mut generated = TuningRecords::new(Some(environment.clone()));
+    let mut generated = TuningRecordSet::new(Some(environment.clone()));
     let compiled = graph
         .compile_with_options(
             GraphCompileOptions::new()
@@ -284,7 +284,7 @@ fn test_a_record_can_keep_a_fusion_group_apart() {
     })
     .unwrap();
     let named_inputs = named(&inputs);
-    let (expected, report) = run_with(&graph, &named_inputs, TuningRecords::new(None));
+    let (expected, report) = run_with(&graph, &named_inputs, TuningRecordSet::new(None));
     assert!(report.contains("group"), "{report}");
     let compiled = graph
         .compile_with_options(
@@ -298,7 +298,7 @@ fn test_a_record_can_keep_a_fusion_group_apart() {
         .iter()
         .filter_map(|operation| operation.result_values().next())
         .collect::<Vec<_>>();
-    let mut records = TuningRecords::new(None);
+    let mut records = TuningRecordSet::new(None);
     records.insert(
         group_key(compiled.ir(), &members).unwrap(),
         held_record(&TunedChoice::Way(TunedWay::Separate)),
@@ -322,7 +322,7 @@ fn test_records_are_read_only_where_they_were_measured() {
     };
     let target = runtime_for_device(DEVICE).unwrap().architecture();
     let records_of = |environment| {
-        let mut records = TuningRecords::new(Some(environment));
+        let mut records = TuningRecordSet::new(Some(environment));
         records.insert(
             "unused".to_owned(),
             held_record(&TunedChoice::Way(TunedWay::Generated)),
@@ -522,8 +522,8 @@ fn test_agreement_reads_every_chunk_of_a_tensor() {
     assert!(!agrees(DataType::F32, 1.0, &shorter, &expected).unwrap());
 }
 
-fn every_write(ir: &IrGraph, order: &[ValueId]) -> InPlaceWrites {
-    InPlaceWrites::analyze(
+fn every_write(ir: &IrGraph, order: &[ValueId]) -> InPlaceWritePlan {
+    InPlaceWritePlan::analyze(
         ir,
         order,
         &graph_users(ir, order).unwrap(),
@@ -672,7 +672,7 @@ fn test_a_plan_the_whole_graph_disagrees_with_loses_its_records() {
         assert_ne!(
             print,
             runner
-                .fingerprint(&TuningRecords::new(Some(environment.clone())))
+                .fingerprint(&TuningRecordSet::new(Some(environment.clone())))
                 .unwrap()
         );
         assert_eq!(print, runner.fingerprint(&records).unwrap());
@@ -728,7 +728,7 @@ fn check_library_choices(
         .unwrap();
     let forced = |measurement, choice: Option<TunedChoice>| {
         let environment = TuningEnvironment::current(DEVICE, measurement).unwrap();
-        let mut records = TuningRecords::new(Some(environment));
+        let mut records = TuningRecordSet::new(Some(environment));
         records.insert(
             way_key(&ir, id).unwrap(),
             held_record(&TunedChoice::Way(TunedWay::Library(provider))),
@@ -795,7 +795,7 @@ fn check_library_choices(
     assert!(runner.run(&refused, None).is_err(), "{provider:?}");
 
     // Configurations of one library at one choice point share a build, reading a table where what ships has literals.
-    let export = |records: &TuningRecords, library_table| {
+    let export = |records: &TuningRecordSet, library_table| {
         let program = export_program(&whole, records, &options, library_table).unwrap();
         let files = program.render("model").unwrap();
         (program, files)
@@ -957,7 +957,7 @@ fn test_merged_projections_are_a_choice_for_a_whole_graph() {
     let named_inputs = named(&inputs);
     for measurement in [Measurement::GraphReplay, Measurement::Program] {
         let environment = TuningEnvironment::current(DEVICE, measurement).unwrap();
-        let mut records = TuningRecords::new(Some(environment));
+        let mut records = TuningRecordSet::new(Some(environment));
         records.insert(
             merged_projections_key(),
             held_record(&TunedChoice::MergedProjections),

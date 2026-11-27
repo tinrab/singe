@@ -5,7 +5,7 @@ use std::iter;
 use crate::{
     backend::{
         cuda::kernel_plan::source::{KernelInput, KernelPlan, KernelPlanner},
-        index_problem::{IndexBounds, indexing_problem},
+        index_problem::{IndexMode, indexing_problem},
         kernel_lowering::{self, Selection},
         registry::{Operation, OperationAttributes},
         spec::{MultiIndexProblem, multi_index_problem},
@@ -43,7 +43,7 @@ pub fn plan(
         extents: &[extent],
         index_shape: indices.layout.shape(),
         indices: &[(indices.data_type, &indices.layout)],
-        wrap: matches!(bounds, IndexBounds::WrapNegative),
+        wrap: matches!(bounds, IndexMode::WrapNegative),
     };
     planner.lowered(
         kernel_lowering::gather(

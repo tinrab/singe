@@ -7,7 +7,7 @@ mod transformers;
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    generation::{CachedDecoder, Decoder, DecoderOptions, PromptChunks},
+    generation::{CachedDecoder, Decoder, DecoderOptions, PromptChunking},
     nn::{
         CausalLm, CausalLmParts, DenseAttentionInput, Embedding, GatedMlp, GroupedQueryAttention,
         Layer, Linear, Model, ModelState, PreNormBlock, RmsNorm, RotarySpec, SourcedCausalLm,
@@ -17,7 +17,7 @@ use singe::{
 
 use crate::{
     assembly::{DecoderConfig, causal, grouped_attention, pre_norm_block},
-    decoder_cache::{Decoders, bucketed_capacity, cached_decoder},
+    decoder_cache::{DecoderCache, bucketed_capacity, cached_decoder},
     error::{Error, Result},
     format::Loader,
     head::{
@@ -175,7 +175,7 @@ pub struct CsmSpeaker {
     depth: Model<CsmDepth>,
     codec: Model<MimiLayers>,
     /// The backbone's cached decoders, by capacity.
-    decoders: Decoders<i64, CachedDecoder<CsmBackbone>>,
+    decoders: DecoderCache<i64, CachedDecoder<CsmBackbone>>,
 }
 
 impl CsmSpeaker {
@@ -203,7 +203,7 @@ impl CsmSpeaker {
             capacity,
             || {
                 let options =
-                    DecoderOptions::new(1, capacity).with_prompt_chunks(PromptChunks::NONE);
+                    DecoderOptions::new(1, capacity).with_prompt_chunks(PromptChunking::NONE);
                 Ok::<_, Error>(cached_decoder(&self.backbone, options, false)?)
             },
             |decoder| {
@@ -447,6 +447,6 @@ pub fn load(loader: &mut Loader<'_>) -> Result<CsmSpeaker> {
         backbone,
         depth,
         codec,
-        decoders: Decoders::default(),
+        decoders: DecoderCache::default(),
     })
 }

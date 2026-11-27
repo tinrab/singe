@@ -65,7 +65,7 @@ struct Position {
 }
 
 #[derive(Clone, Copy)]
-enum Bounds {
+enum WindowBound {
     Input,
     PaddedInput,
 }
@@ -204,13 +204,13 @@ impl Window {
         Ok(self.builder.convert(value, element.compute()))
     }
 
-    fn inside(&mut self, bounds: Bounds) -> Option<NodeId> {
+    fn inside(&mut self, bounds: WindowBound) -> Option<NodeId> {
         let kernel = &mut self.builder.kernel;
         self.positions
             .iter()
             .map(|position| match bounds {
-                Bounds::Input => position.inside,
-                Bounds::PaddedInput => position.inside_padding,
+                WindowBound::Input => position.inside,
+                WindowBound::PaddedInput => position.inside_padding,
             })
             .reduce(|lhs, rhs| kernel.binary(BinaryOp::And, lhs, rhs))
     }
@@ -329,7 +329,7 @@ pub fn pool2d(
     let element = element_type(data_type)?;
     let compute = element.compute();
     let value = window.load_input(data_type)?;
-    let inside = window.inside(Bounds::Input);
+    let inside = window.inside(WindowBound::Input);
     let taps = window.taps();
     let result = if reduction == PoolReduction::Average {
         let zero = window.builder.constant(compute, 0.0);
@@ -344,7 +344,7 @@ pub fn pool2d(
         // The divisor counts the window's taps inside the input, or inside the padded input when padding counts, which ceil-mode windows can still overhang.
         let counted = if attributes.count_include_pad.unwrap_or(true) {
             if rows.reaches_past_padding() || columns.reaches_past_padding() {
-                window.inside(Bounds::PaddedInput)
+                window.inside(WindowBound::PaddedInput)
             } else {
                 None
             }
@@ -467,7 +467,7 @@ pub fn conv2d(
     let element = element_type(data_type)?;
     let compute = element.compute();
     let value = window.load_input(data_type)?;
-    let value = match window.inside(Bounds::Input) {
+    let value = match window.inside(WindowBound::Input) {
         Some(inside) => {
             let zero = window.builder.constant(compute, 0.0);
             window.builder.kernel.select(inside, value, zero)

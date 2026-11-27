@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{activation_field, classifier_config},
     },
     model::video::timesformer::TimesformerConfig,
@@ -53,9 +53,9 @@ pub(crate) fn config(source: &Source) -> Result<TimesformerConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     let layers = "timesformer.encoder.layer.*";
-    let mut rules = Rules::new()
+    let mut rules = RuleSet::new()
         .rename("timesformer.embeddings.cls_token", "class_token")
         .rename("timesformer.embeddings.position_embeddings", "positions")
         .rename("timesformer.embeddings.time_embeddings", "times")

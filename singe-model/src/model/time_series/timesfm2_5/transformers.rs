@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{RotaryFields, activation_field},
     },
     model::time_series::timesfm2_5::TimesFmConfig,
@@ -65,7 +65,7 @@ pub(crate) fn config(source: &Source) -> Result<TimesFmConfig> {
 }
 
 /// Returns the rules that import the model, folding each attention's stored scaling into the scale its queries are multiplied by: its softplus times `1.442695041 / √D`.
-pub(crate) fn rules(head_dim: i64) -> Rules {
+pub(crate) fn rules(head_dim: i64) -> RuleSet {
     const RESIDUAL: &[(&str, &str)] = &[
         ("input_layer", "input"),
         ("output_layer", "output"),
@@ -76,7 +76,7 @@ pub(crate) fn rules(head_dim: i64) -> Rules {
         reason = "TimesFM scales by this truncated `log2(e)`"
     )]
     let factor = 1.442_695_041 / (head_dim as f64).sqrt();
-    Rules::new()
+    RuleSet::new()
         .rename_each("model.input_ff_layer", "tokenizer", RESIDUAL)
         .rename_each(
             "model.layers.*",

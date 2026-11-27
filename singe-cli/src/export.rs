@@ -43,7 +43,7 @@ enum Target {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
-enum Weights {
+enum WeightPlacementArgument {
     Inline,
     Beside,
 }
@@ -97,7 +97,7 @@ pub struct ExportArguments {
     data_type: Option<ExportType>,
     /// `--target onnx`: weights in `model.onnx` or beside it.
     #[arg(long, value_enum)]
-    weights: Option<Weights>,
+    weights: Option<WeightPlacementArgument>,
     /// Fixes a named dimension, as `batch_size=8`; several values, as `sequence_length=128,512`, export a step per combination.
     #[arg(long = "dim", value_parser = parse_dim)]
     dims: Vec<(String, Vec<i64>)>,
@@ -438,8 +438,8 @@ fn export_onnx(arguments: &ExportArguments) -> Result<()> {
 
     let weights = match arguments.weights {
         None => WeightPlacement::Automatic,
-        Some(Weights::Inline) => WeightPlacement::Inline,
-        Some(Weights::Beside) => WeightPlacement::Beside,
+        Some(WeightPlacementArgument::Inline) => WeightPlacement::Inline,
+        Some(WeightPlacementArgument::Beside) => WeightPlacement::Beside,
     };
     let output = &arguments.output.directory;
     if let Some(file) = &arguments.file {

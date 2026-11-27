@@ -5,7 +5,7 @@ use serde::Deserialize;
 use crate::{
     assembly::{PadMode, SeanetConfig, seanet_rules},
     error::{Error, Result},
-    format::{Rules, join},
+    format::{RuleSet, join},
     model::audio::encodec::EncodecConfig,
     source::Source,
 };
@@ -103,7 +103,7 @@ pub(crate) fn fields_config(fields: Fields) -> Result<EncodecConfig> {
 }
 
 /// Imports an `EnCodec` stored under `prefix` to [`EncodecLayers`](crate::model::audio::encodec::EncodecLayers)' names under the same prefix.
-pub(crate) fn rules(config: &EncodecConfig, prefix: &str) -> Rules {
+pub(crate) fn rules(config: &EncodecConfig, prefix: &str) -> RuleSet {
     let mut rules = seanet_rules(
         &config.seanet,
         [&join(prefix, "encoder"), &join(prefix, "decoder")],

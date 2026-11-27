@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::Result,
-    head::{Draws, Forecast, Forecaster, Series},
+    head::{Forecast, Forecaster, PathSampling, Series},
     model,
     source::{LoadOptions, Source},
     task::Pipeline,
@@ -57,7 +57,7 @@ impl Pipeline for TimeSeriesForecastingPipeline {
     }
 
     fn run_one(&self, input: &Self::Input, parameters: &Self::Parameters) -> Result<Self::Output> {
-        let draws = parameters.num_parallel_samples.map(|count| Draws {
+        let draws = parameters.num_parallel_samples.map(|count| PathSampling {
             count,
             seed: parameters.seed,
         });

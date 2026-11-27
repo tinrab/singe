@@ -85,9 +85,9 @@ pub fn flatten(item: &ItemUse, source: &str) -> Vec<Import> {
 /// Attributed imports and all non-use items/statements delimit lexical runs.
 pub fn runs(file: &File) -> Vec<Vec<&ItemUse>> {
     #[derive(Default)]
-    struct Runs<'a>(Vec<Vec<&'a ItemUse>>);
+    struct RunCollector<'a>(Vec<Vec<&'a ItemUse>>);
 
-    impl<'a> Runs<'a> {
+    impl<'a> RunCollector<'a> {
         fn collect(&mut self, items: impl IntoIterator<Item = Option<&'a ItemUse>>) {
             let mut run = Vec::new();
             for item in items {
@@ -122,7 +122,7 @@ pub fn runs(file: &File) -> Vec<Vec<&ItemUse>> {
         }
     }
 
-    impl<'a> Visit<'a> for Runs<'a> {
+    impl<'a> Visit<'a> for RunCollector<'a> {
         fn visit_file(&mut self, file: &'a File) {
             self.collect(file.items.iter().map(as_use));
             visit::visit_file(self, file);
@@ -144,7 +144,7 @@ pub fn runs(file: &File) -> Vec<Vec<&ItemUse>> {
             visit::visit_block(self, block);
         }
     }
-    let mut runs = Runs::default();
+    let mut runs = RunCollector::default();
     runs.visit_file(file);
     runs.0.sort_by_key(|run| run[0].span().byte_range().start);
     runs.0

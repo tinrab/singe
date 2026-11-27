@@ -26,7 +26,7 @@ use crate::{
     backend::{
         cuda::{
             compiled::plan::lowering::LoweringPlan,
-            tuning::{TunedChoice, TunedWay, TuningRecords, group_key},
+            tuning::{TunedChoice, TunedWay, TuningRecordSet, group_key},
         },
         registry::{Operation, OperationAttributes},
     },
@@ -196,7 +196,7 @@ pub fn plan_fusion<S: BuildHasher, T: BuildHasher>(
     graph_outputs: &HashSet<ValueId, T>,
     lowering_plan: &LoweringPlan,
     library_matmuls: Option<&HashSet<ValueId>>,
-    records: Option<&TuningRecords>,
+    records: Option<&TuningRecordSet>,
 ) -> Result<FusionPlan> {
     let weights = dequantized_weights(
         ir,

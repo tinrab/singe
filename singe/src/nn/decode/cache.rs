@@ -6,9 +6,9 @@ use crate::{
     error::{Error, Result},
     graph::capture,
     index::TensorIndex,
-    nn::{DecodeStep, InputGroup, SourcePages, TensorGroup, decode::input_group, pages_for},
+    nn::{DecodeStep, InputGroup, SourcePageLayout, TensorGroup, decode::input_group, pages_for},
     shape::{Shape, spatial::Padding},
-    tensor::{SequenceSpans, Tensor},
+    tensor::{SequenceLayout, Tensor},
 };
 
 // A cache a decoder's blocks read and extend, whose tensors a compiled step takes as inputs.
@@ -282,7 +282,7 @@ impl EncoderDecoderCache {
                 "cross-attention source lengths are [sequences]",
             ));
         };
-        let layout = SourcePages::create(&self.cross_keys, sequences)?;
+        let layout = SourcePageLayout::create(&self.cross_keys, sequences)?;
         if !(1..=layout.capacity()).contains(&sources) {
             return Err(Error::out_of_range("cross-attention sources"));
         }
@@ -431,10 +431,10 @@ impl StateCache {
     // Writes what a step over `spans` leaves, as `write` does, and with a trail, the states `rerun` leaves over each sequence's first rows alone, one trail row per count of them, so a check of drafted tokens keeps the state its accepted rows leave.
     pub fn write_step(
         &self,
-        spans: SequenceSpans<'_>,
+        spans: SequenceLayout<'_>,
         convolution: &Tensor,
         recurrent: &Tensor,
-        rerun: impl Fn(SequenceSpans<'_>) -> Result<(Tensor, Tensor)>,
+        rerun: impl Fn(SequenceLayout<'_>) -> Result<(Tensor, Tensor)>,
     ) -> Result<()> {
         let trail = self.trail_rows()?;
         if trail > 0 {
@@ -446,7 +446,7 @@ impl StateCache {
                     .minimum(&capture::literal(spans.real_tokens.device(), |device| {
                         Tensor::from_vec(device, Shape::create([1])?, vec![rows])
                     })?)?;
-                let (convolution, state) = rerun(SequenceSpans {
+                let (convolution, state) = rerun(SequenceLayout {
                     real_tokens: &real,
                     ..spans
                 })?;

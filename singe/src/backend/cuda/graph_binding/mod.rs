@@ -12,7 +12,7 @@ pub use self::{
         graph_native_dependencies, graph_node_positions, graph_users, operation_dependencies,
         push_unique_cuda_graph_dependency,
     },
-    in_place::{InPlaceWrites, ScatterTarget, WritableInputs},
+    in_place::{InPlaceWritePlan, ScatterTarget, WritableInputs},
     transfer::copy_cuda_tensor_data_on,
     validation::{
         graph_matmul_is_zero_work, validate_graph_input_value_tensor, validate_graph_matmul,

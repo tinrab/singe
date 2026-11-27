@@ -22,7 +22,7 @@ struct TopKKey {
 }
 
 #[derive(Default)]
-struct TopKResults {
+struct TopKResult {
     values: [Option<ValueId>; 2],
     operation: Option<OperationId>,
 }
@@ -31,7 +31,7 @@ impl Graph {
     /// Construction still permits individual result projections.
     /// Lower them into one schema invocation before any execution or provider analysis.
     pub(crate) fn normalize_results(&mut self) -> Result<()> {
-        let mut groups = Vec::<TopKResults>::new();
+        let mut groups = Vec::<TopKResult>::new();
         let mut candidates = HashMap::<TopKKey, Vec<usize>>::new();
         let mut operation_groups = HashMap::new();
         for operation in &self.operations {
@@ -66,7 +66,7 @@ impl Graph {
                 .find(|&group| groups[group].values[slot].is_none())
                 .unwrap_or_else(|| {
                     let group = groups.len();
-                    groups.push(TopKResults::default());
+                    groups.push(TopKResult::default());
                     candidates.push(group);
                     group
                 });

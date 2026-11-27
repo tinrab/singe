@@ -25,9 +25,9 @@ use crate::{
     shape::spatial::Padding2d,
 };
 
-struct ResetCaches(Arc<CudaRuntime>);
+struct CacheReset(Arc<CudaRuntime>);
 
-impl Drop for ResetCaches {
+impl Drop for CacheReset {
     fn drop(&mut self) {
         self.0
             .set_provider_cache_limits(CudaRuntimeCacheLimits::default())
@@ -36,7 +36,7 @@ impl Drop for ResetCaches {
     }
 }
 
-fn bounded_runtime() -> ResetCaches {
+fn bounded_runtime() -> CacheReset {
     let runtime = runtime_for_device(Device::Cuda(0)).unwrap();
     runtime.clear_cache().unwrap();
     let mut limits = CudaRuntimeCacheLimits::default();
@@ -44,7 +44,7 @@ fn bounded_runtime() -> ResetCaches {
     limits.cutensor.entries = 2;
     limits.generated_kernels.entries = 2;
     runtime.set_provider_cache_limits(limits).unwrap();
-    ResetCaches(runtime)
+    CacheReset(runtime)
 }
 
 #[test]

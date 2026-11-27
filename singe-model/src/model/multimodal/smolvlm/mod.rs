@@ -24,10 +24,10 @@ use crate::{
         DecoderConfig, FinalNorm, PreNormEncoder, VisionTowerConfig, causal, grouped_decoder,
         patch_embedding,
     },
-    decoder_cache::{DecoderKey, Decoders},
+    decoder_cache::{DecoderCache, DecoderKey},
     error::Result,
     format::Loader,
-    head::{HeadLoader, ImageTextToText, LoopLimits, LoopSteps},
+    head::{HeadLoader, ImageTextToText, LoopLimits, LoopStepSet},
     model::ModelEntry,
     processor::{image::Image, text::TextTokenizer, video::Video},
     schema::Schema,
@@ -123,7 +123,7 @@ pub struct SmolVlm {
     vision: Model<SmolVlmVision>,
     decoder: Model<SmolVlmDecoder>,
     device: Device,
-    decoders: Decoders<DecoderKey, CachedDecoder<SmolVlmDecoder>>,
+    decoders: DecoderCache<DecoderKey, CachedDecoder<SmolVlmDecoder>>,
 }
 
 impl SmolVlm {
@@ -188,8 +188,12 @@ impl SmolVlm {
 }
 
 impl ImageTextToText for SmolVlm {
-    fn loop_steps(&self, limits: &LoopLimits, generation: &GenerationOptions) -> Result<LoopSteps> {
-        LoopSteps::one_sequence(&self.decoder, limits, generation, |_| Ok(None))
+    fn loop_steps(
+        &self,
+        limits: &LoopLimits,
+        generation: &GenerationOptions,
+    ) -> Result<LoopStepSet> {
+        LoopStepSet::one_sequence(&self.decoder, limits, generation, |_| Ok(None))
     }
 
     fn image_token(&self) -> i64 {
@@ -275,6 +279,6 @@ pub fn load(loader: &mut Loader<'_>) -> Result<SmolVlm> {
         vision,
         decoder,
         device: loader.options().device,
-        decoders: Decoders::default(),
+        decoders: DecoderCache::default(),
     })
 }

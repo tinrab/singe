@@ -11,8 +11,8 @@ mod speculative;
 
 pub use self::{
     batch::{GeneratedToken, RunningBatch, TokenLogprobs},
-    cached::{CachedDecoder, DecoderOptions, DecoderStepGraph, PromptChunks},
-    choosing::{Bias, Choice, Chosen, ChosenLogprobs, Penalties, PenaltyCounts, choose},
+    cached::{CachedDecoder, DecoderOptions, DecoderStepGraph, PromptChunking},
+    choosing::{Bias, Choice, Chosen, ChosenLogprobs, PenaltyCounts, PenaltySet, choose},
     decoder::{Decoder, GenerationOptions, SequenceOptions, generate, generate_batch},
     speculative::{DraftingModel, Speculation, SpeculativeDecoder},
 };

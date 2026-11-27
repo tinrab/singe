@@ -33,10 +33,10 @@ pub use self::{
     algebra::BlockScaledFormat,
     elementwise::GeluApproximation,
     loss::LossReduction,
-    neural::{AttentionOptions, Paging, SequenceSpans},
+    neural::{AttentionOptions, Paging, SequenceLayout},
     reduction::NormOrder,
     resample::{InterpolateMode, Interpolation},
-    sampling::{Draws, SamplingOptions},
+    sampling::{DrawSource, SamplingOptions},
 };
 pub use crate::tensor::{
     creation::{TensorLinspaceElement, TensorRangeElement},

@@ -29,7 +29,7 @@ use crate::{
     error::{Error, Result},
     graph::{
         CompiledGraph, GraphFingerprintOptions,
-        guards::GraphGuards,
+        guards::GraphGuardSet,
         ir::{Graph, OperationNode, ValueId},
     },
     layout::Layout,
@@ -41,7 +41,7 @@ pub struct PreparedCudaGraphCompile {
     pub(crate) lowering_plan: LoweringPlan,
     pub(crate) ir: Arc<Graph>,
     pub(crate) device: Device,
-    pub(crate) guards: GraphGuards,
+    pub(crate) guards: GraphGuardSet,
     pub(crate) cache_key: GraphCacheKey,
     pub(crate) planning: PlanningContext,
     pub(crate) kernels: KernelFeasibility,
@@ -72,7 +72,7 @@ pub fn prepare_cuda_graph_compile(
         ));
     }
 
-    let guards = GraphGuards::create_from_ir(&ir)?;
+    let guards = GraphGuardSet::create_from_ir(&ir)?;
     let cache_key = GraphCacheKey::create_from_compiled_graph(
         compiled,
         &ir,

@@ -30,7 +30,7 @@ use tracing::Level;
 
 use crate::{
     api::now,
-    auth::{ApiKeys, require_key},
+    auth::{ApiKeySet, require_key},
     config::{ModelConfig, ModelSource, ServerConfig},
     error::error_chain,
     generation::{
@@ -386,7 +386,7 @@ pub fn app(served: Served, config: &ServerConfig) -> Result<Router, ServerError>
         .merge(tokenize_router());
     if !config.api_keys.is_empty() {
         api = api.layer(middleware::from_fn_with_state(
-            ApiKeys::new(&config.api_keys),
+            ApiKeySet::new(&config.api_keys),
             require_key,
         ));
     }

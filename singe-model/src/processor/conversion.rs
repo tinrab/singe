@@ -459,10 +459,10 @@ fn bpe_model(
 }
 
 /// A byte-level BPE snapshot's vocabulary and its merges' pairs.
-type BpeFiles = (Map<String, Value>, Vec<Vec<String>>);
+type BpeVocabulary = (Map<String, Value>, Vec<Vec<String>>);
 
 /// Reads a byte-level BPE snapshot's `vocab.json`, and the merges of its `merges.txt`, whose first line may name the format's version.
-fn bpe_files(source: &Source) -> Result<BpeFiles> {
+fn bpe_files(source: &Source) -> Result<BpeVocabulary> {
     let vocabulary = source
         .optional_json("vocab.json")?
         .ok_or_else(|| Error::unsupported("a BPE snapshot without vocab.json"))?;

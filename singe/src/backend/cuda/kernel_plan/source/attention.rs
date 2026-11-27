@@ -534,7 +534,7 @@ const unsigned int first_position = first_query / {queries}U == last_row / {quer
         }
         Ok(Some(combine_splits(
             attend,
-            &CombinedSplits {
+            &SplitCombiner {
                 data_type,
                 splits,
                 rows_total,
@@ -577,7 +577,7 @@ impl SinkRead {
 
 // What the kernel that combines split keys reads.
 #[derive(Debug, Clone)]
-struct CombinedSplits {
+struct SplitCombiner {
     data_type: DataType,
     splits: usize,
     rows_total: usize,
@@ -590,10 +590,10 @@ struct CombinedSplits {
 // Runs `attend`, which leaves each split's unnormalized output, maximum, and sum, before a kernel where each output element weighs its splits' outputs by their maxima, as the online softmax weighs tiles.
 fn combine_splits(
     attend: KernelPlan,
-    combined: &CombinedSplits,
+    combined: &SplitCombiner,
     inputs: &[KernelInput],
 ) -> Result<KernelPlan> {
-    let &CombinedSplits {
+    let &SplitCombiner {
         data_type,
         splits,
         rows_total,

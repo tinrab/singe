@@ -20,7 +20,7 @@ pub use crate::{
     graph::{
         Graph, GraphCompileOptions, GraphFingerprint, GraphFingerprintOptions,
         GraphOperationInputs, GraphOperationOutput, GraphOperationRequest,
-        guards::{GraphGuardFailure, GraphGuards},
+        guards::{GraphGuardFailure, GraphGuardSet},
         ir::*,
         passes::{GraphPassKind, GraphPassPipeline},
     },

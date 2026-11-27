@@ -14,7 +14,7 @@ use crate::{
             ArgumentLabels, LoweredKernel,
             domain::{static_size, strided_access},
             element_type,
-            expression::{ElementValue, Expressions},
+            expression::{ElementValue, ExpressionBuilder},
             gather::bits_type,
             group::FusedStep,
         },
@@ -137,7 +137,7 @@ impl ElementWiseKernel {
     ///
     /// # Errors
     ///
-    /// Returns an error if [`Expressions::apply`] does.
+    /// Returns an error if [`ExpressionBuilder::apply`] does.
     pub fn apply(
         &mut self,
         operation: Operation,
@@ -151,7 +151,7 @@ impl ElementWiseKernel {
     ///
     /// # Errors
     ///
-    /// Returns an error if [`Expressions::steps`] does.
+    /// Returns an error if [`ExpressionBuilder::steps`] does.
     pub fn steps(
         &mut self,
         loaded: &[ElementValue],
@@ -236,8 +236,8 @@ impl ElementWiseKernel {
         static_size(&mut self.kernel, &mut self.sizes, value)
     }
 
-    fn expressions(&mut self) -> Expressions<'_> {
-        Expressions {
+    fn expressions(&mut self) -> ExpressionBuilder<'_> {
+        ExpressionBuilder {
             kernel: &mut self.kernel,
             bindings: &mut self.bindings,
             labels: &mut self.labels,

@@ -21,7 +21,7 @@ use crate::{
                     LibraryResource,
                 },
                 plan::{
-                    kernel::NodeKernelPlans,
+                    kernel::NodeKernelPlan,
                     lowering::{
                         CudaGraphProvider, LoweringCandidate, LoweringDecisionRecord, LoweringPlan,
                         RealizedLoweringPlan,
@@ -62,7 +62,7 @@ pub struct GraphProviderLowering<'a> {
     pub(crate) private: &'a mut GraphPrivateBuffers,
     pub(crate) planner: &'a KernelPlanner,
     // Each node's kernels, planned before lowering so they compile together; lowering takes them as it reaches the node.
-    pub(crate) node_plans: &'a mut HashMap<ValueId, NodeKernelPlans>,
+    pub(crate) node_plans: &'a mut HashMap<ValueId, NodeKernelPlan>,
 }
 
 pub struct GraphProviderDiagnostics<'a> {

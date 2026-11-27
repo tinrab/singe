@@ -418,14 +418,14 @@ pub struct LoopEncoder {
     pub added: Vec<i64>,
     // Each merge of two tokens into a third, `[left, right, merged]`, from the first to apply.
     pub merges: Vec<[i64; 3]>,
-    pub classes: CharacterClasses,
+    pub classes: CharacterClassTable,
     pub marks_are_letters: bool,
     pub max_digits: u8,
     pub composition: Option<Composition>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CharacterClasses {
+pub struct CharacterClassTable {
     pub letters: Vec<[u32; 2]>,
     pub marks: Vec<[u32; 2]>,
     pub numbers: Vec<[u32; 2]>,

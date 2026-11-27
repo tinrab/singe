@@ -9,7 +9,7 @@ use crate::error::{Error, Result};
 /// A series' past values: one value per step, or one value per channel at each step, `[T][C]`.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]
-pub enum PastValues {
+pub enum PastSeries {
     Univariate(Vec<f32>),
     Multivariate(Vec<Vec<f32>>),
 }
@@ -17,7 +17,7 @@ pub enum PastValues {
 /// A series to forecast: its past values and, for models that read them, each past and future step's time features and the series' static features, as `transformers`' `generate` takes them, and its future values, as `forward` takes them.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Series {
-    pub past_values: PastValues,
+    pub past_values: PastSeries,
     #[serde(default)]
     pub past_time_features: Vec<Vec<f32>>,
     #[serde(default)]
@@ -31,7 +31,7 @@ pub struct Series {
     pub future_values: Option<Vec<f32>>,
     /// Which past values were observed, 1, or are missing, 0, shaped as `past_values`; every value is observed when `None`.
     #[serde(default)]
-    pub past_observed_mask: Option<PastValues>,
+    pub past_observed_mask: Option<PastSeries>,
 }
 
 impl Series {
@@ -59,8 +59,8 @@ impl Series {
         let observed = |value: &f32| (value - 1.0).abs() < f32::EPSILON;
         let complete = match &self.past_observed_mask {
             None => true,
-            Some(PastValues::Univariate(mask)) => mask.iter().all(observed),
-            Some(PastValues::Multivariate(mask)) => mask.iter().flatten().all(observed),
+            Some(PastSeries::Univariate(mask)) => mask.iter().all(observed),
+            Some(PastSeries::Multivariate(mask)) => mask.iter().flatten().all(observed),
         };
         if complete {
             Ok(())
@@ -91,7 +91,7 @@ pub enum Forecast {
 
 /// The paths a distributional forecast samples, as `num_parallel_samples` asks, and the seed of their draws.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Draws {
+pub struct PathSampling {
     pub count: usize,
     pub seed: u64,
 }
@@ -102,7 +102,7 @@ pub trait Forecaster: Debug {
     /// # Errors
     ///
     /// Returns an error if the series does not fit the model, if the model forecasts no distribution to draw from, or if a step fails.
-    fn forecast(&self, series: &Series, draws: Option<Draws>) -> Result<Forecast>;
+    fn forecast(&self, series: &Series, draws: Option<PathSampling>) -> Result<Forecast>;
 }
 
 /// Refuses `draws`, for a forecaster without a distribution to sample.
@@ -110,7 +110,7 @@ pub trait Forecaster: Debug {
 /// # Errors
 ///
 /// Returns an error if any draws are asked for.
-pub fn refuse_draws(draws: Option<Draws>, model: &str) -> Result<()> {
+pub fn refuse_draws(draws: Option<PathSampling>, model: &str) -> Result<()> {
     match draws {
         None => Ok(()),
         Some(_) => Err(Error::unsupported(format!(

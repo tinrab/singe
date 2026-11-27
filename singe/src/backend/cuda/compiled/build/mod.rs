@@ -39,12 +39,12 @@ use crate::{
                 executable::CudaCompiledGraph,
                 plan::{
                     fusion::plan_fusion,
-                    kernel::{NodeKernelPlans, node_kernel_plans},
+                    kernel::{NodeKernelPlan, node_kernel_plans},
                     lowering::CudaGraphProvider,
                 },
             },
             graph_binding::{
-                InPlaceWrites, WritableInputs, graph_node_positions, graph_users,
+                InPlaceWritePlan, WritableInputs, graph_node_positions, graph_users,
                 validate_graph_input_value_tensor,
             },
             kernel_plan::KernelPlanner,
@@ -143,7 +143,7 @@ pub fn compile(compiled: &CompiledGraph, options: &GraphCudaOptions) -> Result<C
                 Some((id, plans))
             })
             .collect::<HashMap<_, _>>();
-        runtime.prepare_kernels(node_plans.values().flat_map(NodeKernelPlans::artifacts))?;
+        runtime.prepare_kernels(node_plans.values().flat_map(NodeKernelPlan::artifacts))?;
     }
 
     let native_graph = runtime.context().create_graph()?;
@@ -172,7 +172,7 @@ pub fn compile(compiled: &CompiledGraph, options: &GraphCudaOptions) -> Result<C
         .private
         .library_recorder
         .clone_from(&options.library_recorder);
-    lowering_state.private.in_place_writes = InPlaceWrites::analyze(
+    lowering_state.private.in_place_writes = InPlaceWritePlan::analyze(
         &ir,
         &execution_order,
         &users,

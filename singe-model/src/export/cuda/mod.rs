@@ -21,14 +21,14 @@ use crate::{
     error::{Error, Result},
     export::image_size,
     head::{
-        Autoencoder, CausalLm, ImageEncoder, ImageTextToText, LoopLimits, LoopSteps, MaskedLm,
+        Autoencoder, CausalLm, ImageEncoder, ImageTextToText, LoopLimits, LoopStepSet, MaskedLm,
         QuestionAnswerer, SentenceEmbedder, SequenceClassifier, SpeechToText, TextEncoder,
         TokenClassifier,
     },
     model,
     processor::{
         chat::{ChatTemplate, Content, Message, Part},
-        image::ImageTransforms,
+        image::ImagePreprocessor,
     },
     source::{LoadOptions, Source},
     task::Task,
@@ -173,7 +173,7 @@ pub fn export(
         }
         Task::ImageFeatureExtraction => {
             let model: ImageEncoder = model::load(source, load)?;
-            let size = image_size(&ImageTransforms::load(source)?)?;
+            let size = image_size(&ImagePreprocessor::load(source)?)?;
             let images = Tensor::zeroed_on(
                 options.device,
                 options.data_type,
@@ -231,7 +231,7 @@ fn prompt_template(source: &Source, image: Option<i64>) -> Result<Option<PromptT
 }
 
 fn write_generator(
-    steps: &LoopSteps,
+    steps: &LoopStepSet,
     source: &Source,
     template: Option<PromptTemplate>,
     directory: &Path,

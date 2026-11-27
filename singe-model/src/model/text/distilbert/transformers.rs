@@ -9,8 +9,8 @@ use singe::{
 use crate::{
     assembly::PostNormEncoderConfig,
     error::Result,
-    format::{Rules, join, transformers::activation_field},
-    head::{ClassifierLayout, EncoderBody, EncoderModel, Head, HeadLayouts, post_norm_body},
+    format::{RuleSet, join, transformers::activation_field},
+    head::{ClassifierLayout, EncoderBody, EncoderHeadLayout, EncoderModel, Head, post_norm_body},
     model::text::distilbert::DistilBert,
     schema::Schema,
     source::Source,
@@ -32,8 +32,8 @@ struct Fields {
 }
 
 /// Returns the rules that import the encoder stored under `prefix`.
-fn prefixed_rules(prefix: &str) -> Rules {
-    Rules::new()
+fn prefixed_rules(prefix: &str) -> RuleSet {
+    RuleSet::new()
         .rename_each(
             &join(prefix, "embeddings"),
             "embeddings",
@@ -63,7 +63,7 @@ impl EncoderModel for DistilBert {
     type Config = PostNormEncoderConfig;
 
     /// A classifier reads the first token's state through `pre_classifier` and `ReLU`.
-    const LAYOUTS: HeadLayouts = HeadLayouts {
+    const LAYOUTS: EncoderHeadLayout = EncoderHeadLayout {
         classifier: ClassifierLayout {
             pooling: PoolingMode::Cls,
             projection: Some(Activation::Relu),
@@ -95,7 +95,7 @@ impl EncoderModel for DistilBert {
         post_norm_body(schema, config)
     }
 
-    fn encoder_rules() -> Rules {
+    fn encoder_rules() -> RuleSet {
         prefixed_rules("")
             .then(prefixed_rules("distilbert"))
             // The heads' tensors, which only their own head's rules read.
@@ -107,16 +107,16 @@ impl EncoderModel for DistilBert {
             .skip("vocab_projector")
     }
 
-    fn head_rules(head: Head) -> Rules {
+    fn head_rules(head: Head) -> RuleSet {
         match head {
-            Head::SequenceClassification => Rules::new()
+            Head::SequenceClassification => RuleSet::new()
                 .rename("pre_classifier", "classifier.projection")
                 .rename("classifier", "classifier.output"),
-            Head::MaskedLm => Rules::new()
+            Head::MaskedLm => RuleSet::new()
                 .rename("vocab_transform", "masked_lm.projection")
                 .rename("vocab_layer_norm", "masked_lm.norm")
                 .rename("vocab_projector", "masked_lm.output"),
-            _ => Rules::new(),
+            _ => RuleSet::new(),
         }
     }
 }

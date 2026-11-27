@@ -13,7 +13,7 @@ use crate::{
                 },
                 plan::{
                     group::{kernel_input, plan_group_kernel},
-                    kernel::{NodeKernelPlans, node_kernel_plans},
+                    kernel::{NodeKernelPlan, node_kernel_plans},
                     lowering::CudaGraphProvider,
                 },
             },
@@ -287,7 +287,7 @@ impl Builder<'_> {
         let operation = self.ir.required_operation_for_value(id)?;
         let opcode = operation.opcode();
         match plans {
-            NodeKernelPlans::Copies(copies) => {
+            NodeKernelPlan::Copies(copies) => {
                 let output = self.allocate(id)?;
                 self.views.insert(id, output.clone());
                 for (plan, input) in &copies {
@@ -295,7 +295,7 @@ impl Builder<'_> {
                     self.add_plan(plan, &[input], from_ref(&output));
                 }
             }
-            NodeKernelPlans::Kernel(plan) => {
+            NodeKernelPlan::Kernel(plan) => {
                 let mut inputs = operation
                     .inputs()
                     .iter()
@@ -364,7 +364,7 @@ impl Builder<'_> {
         known: Option<(ValueId, &BufferView)>,
         output: &BufferView,
     ) -> Result<bool> {
-        let Some(NodeKernelPlans::Kernel(plan)) = node_kernel_plans(self.planner, self.ir, id)
+        let Some(NodeKernelPlan::Kernel(plan)) = node_kernel_plans(self.planner, self.ir, id)
         else {
             return Ok(false);
         };

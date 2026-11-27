@@ -7,7 +7,7 @@ use crate::{
     assembly::{llama_rules, rename_scaled},
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{DecoderDefaults, DecoderFields, LayerType, default_true},
     },
     model::text::granite_moe_hybrid::GraniteMoeHybridConfig,
@@ -77,7 +77,7 @@ pub(crate) fn config(source: &Source) -> Result<GraniteMoeHybridConfig> {
     })
 }
 
-pub(crate) fn rules(residual_scale: f32) -> Rules {
+pub(crate) fn rules(residual_scale: f32) -> RuleSet {
     let layers = "model.layers.*";
     rename_scaled(
         &format!("{layers}.self_attn.o_proj.weight"),

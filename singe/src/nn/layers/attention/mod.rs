@@ -8,7 +8,7 @@ mod self_attention;
 mod state_space;
 
 pub use self::{
-    cross::{CrossAttention, CrossAttentionInput, SourcePages, pages_for},
+    cross::{CrossAttention, CrossAttentionInput, SourcePageLayout, pages_for},
     delta_net::{GatedDeltaNet, GatedDeltaNetLayers, GatedDeltaNetSpec},
     grouped::{GroupedQueryAttention, GroupedQueryLayers},
     latent::{LatentQuery, MultiHeadLatentAttention, MultiHeadLatentLayers},

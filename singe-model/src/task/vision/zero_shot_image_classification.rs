@@ -6,11 +6,11 @@ use crate::{
     error::Result,
     head::ContrastiveEncoder,
     model,
-    processor::{image::ImageTransforms, text::TextTokenizer},
+    processor::{image::ImagePreprocessor, text::TextTokenizer},
     source::{LoadOptions, Source},
     task::{
         Pipeline, hypotheses,
-        inputs::ImageCandidates,
+        inputs::ZeroShotImageInput,
         ranking::{LabelScore, ranked},
     },
 };
@@ -18,7 +18,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ZeroShotImageClassificationPipeline {
     model: ContrastiveEncoder,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     tokenizer: TextTokenizer,
     options: LoadOptions,
 }
@@ -39,7 +39,7 @@ impl Default for ZeroShotImageClassificationParameters {
 }
 
 impl Pipeline for ZeroShotImageClassificationPipeline {
-    type Input = ImageCandidates;
+    type Input = ZeroShotImageInput;
 
     type Parameters = ZeroShotImageClassificationParameters;
 
@@ -48,7 +48,7 @@ impl Pipeline for ZeroShotImageClassificationPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             tokenizer: TextTokenizer::load(source)?,
             options,
         })

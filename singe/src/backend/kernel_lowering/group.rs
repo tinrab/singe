@@ -18,7 +18,7 @@ pub enum FusedOperand {
 
 /// What a fused kernel stores.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FusedStores {
+pub enum FusedStore {
     /// The last step's value, into a new contiguous output of the kernel's shape.
     Last,
     /// The value of each of these steps, in order, into a new contiguous output of the kernel's shape each.

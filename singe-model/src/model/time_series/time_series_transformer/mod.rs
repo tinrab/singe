@@ -20,7 +20,9 @@ use crate::{
     assembly::{Attention, AttentionSpec, merge_heads, split_heads},
     error::{Error, Result},
     format::Loader,
-    head::{Draws, Forecast, Forecaster, HeadLoader, PastValues, Series, Uniforms, upload},
+    head::{
+        Forecast, Forecaster, HeadLoader, PastSeries, PathSampling, Series, UniformSource, upload,
+    },
     model::{
         ModelEntry,
         time_series::lagged::{self, StepEmbedding},
@@ -336,11 +338,11 @@ pub type TimeSeriesTransformer = Model<TimeSeriesTransformerLayers>;
 
 impl Forecaster for TimeSeriesTransformer {
     /// Forecasts one univariate series as the module describes, returning each step's Student-T distribution mapped back to the series' scale, or with `draws`, paths that feed back each step's draw, as `generate` samples them.
-    fn forecast(&self, series: &Series, draws: Option<Draws>) -> Result<Forecast> {
+    fn forecast(&self, series: &Series, draws: Option<PathSampling>) -> Result<Forecast> {
         series.refuse_missing("the time series transformer")?;
         let layers = self.layer();
         let config = &layers.config;
-        let PastValues::Univariate(values) = &series.past_values else {
+        let PastSeries::Univariate(values) = &series.past_values else {
             return Err(Error::unsupported(
                 "a time series transformer forecast of several channels",
             ));
@@ -450,8 +452,8 @@ impl Forecaster for TimeSeriesTransformer {
         }
 
         // Each step decodes every path's prefix, as `generate` does, and its last position's distribution gives the path's next value: a draw where paths are sampled, or else the location.
-        let (paths, mut uniforms) = draws.map_or((1, None), |Draws { count, seed }| {
-            (count, Some(Uniforms::new(seed)))
+        let (paths, mut uniforms) = draws.map_or((1, None), |PathSampling { count, seed }| {
+            (count, Some(UniformSource::new(seed)))
         });
         let mut sequences = vec![scaled; paths];
         let mut steps = [const { Vec::new() }; 3];

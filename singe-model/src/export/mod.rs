@@ -15,7 +15,7 @@ use singe::{DataType, Tensor};
 #[cfg(any(feature = "onnx", feature = "cuda_13_4"))]
 use crate::{
     error::{Error, Result},
-    processor::image::{ImageTransforms, Resize},
+    processor::image::{ImagePreprocessor, Resize},
 };
 
 #[cfg(feature = "onnx")]
@@ -75,7 +75,7 @@ fn matched_lines(comparisons: Vec<Compared>) -> Result<Vec<String>> {
 
 /// Returns the size an image processor gives every image, which an image encoder's program reads.
 #[cfg(any(feature = "onnx", feature = "cuda_13_4"))]
-fn image_size(processor: &ImageTransforms) -> Result<Spatial2dI64> {
+fn image_size(processor: &ImagePreprocessor) -> Result<Spatial2dI64> {
     match (processor.crop, processor.resize) {
         (Some(crop), _) => Ok(crop),
         (None, Some(Resize::Exact { height, width })) => Ok(Spatial2d::new(height, width)),

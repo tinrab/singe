@@ -8,7 +8,7 @@ use crate::{
     index::TensorIndex,
     nn::{CacheSize, TensorGroup},
     shape::Shape,
-    tensor::{Paging, SequenceSpans, Tensor},
+    tensor::{Paging, SequenceLayout, Tensor},
 };
 
 // One decode step's tokens, and where they fall in a paged cache.
@@ -165,8 +165,8 @@ impl DecodeStep {
 
     // Returns where each sequence's rows sit, as layers that carry a state per sequence read them.
     #[must_use]
-    pub const fn spans(&self) -> SequenceSpans<'_> {
-        SequenceSpans {
+    pub const fn spans(&self) -> SequenceLayout<'_> {
+        SequenceLayout {
             query_offsets: &self.query_offsets,
             real_tokens: &self.real_tokens,
             positions: &self.positions,
@@ -208,18 +208,18 @@ pub struct PageTable {
     // The most tokens a step may be padded by, which the step's page table makes room for.
     padding: i64,
     free: Vec<i64>,
-    sequences: Vec<SequencePages>,
+    sequences: Vec<SequencePaging>,
 }
 
 #[derive(Debug, Clone, Default)]
-struct SequencePages {
+struct SequencePaging {
     pages: Vec<i64>,
     length: i64,
 }
 
-impl SequencePages {
+impl SequencePaging {
     // Returns the page and slot of `position`, taking a free page when it starts a new one.
-    fn place(&mut self, position: i64, table: &mut PageSlots<'_>) -> Result<(i64, i64)> {
+    fn place(&mut self, position: i64, table: &mut PageAllocator<'_>) -> Result<(i64, i64)> {
         let page = usize::try_from(position / table.page_size)
             .map_err(|_| Error::out_of_range("decoder cache page"))?;
         if page == self.pages.len() {
@@ -233,7 +233,7 @@ impl SequencePages {
     }
 }
 
-struct PageSlots<'a> {
+struct PageAllocator<'a> {
     page_size: i64,
     free: &'a mut Vec<i64>,
 }
@@ -277,7 +277,7 @@ impl PageTable {
             pool,
             padding: 0,
             free: Vec::new(),
-            sequences: vec![SequencePages::default(); sequences],
+            sequences: vec![SequencePaging::default(); sequences],
         };
         plan.reset();
         plan
@@ -294,7 +294,7 @@ impl PageTable {
     pub fn reset(&mut self) {
         self.free = (0..self.pool).rev().collect();
         for sequence in &mut self.sequences {
-            *sequence = SequencePages::default();
+            *sequence = SequencePaging::default();
         }
     }
 
@@ -505,7 +505,7 @@ impl PageTable {
         let mut real_tokens = Vec::with_capacity(tokens.len());
         let mut sequence_ids = Vec::with_capacity(total);
         let mut visible = Vec::with_capacity(tokens.len());
-        let mut slots = PageSlots {
+        let mut slots = PageAllocator {
             page_size: self.page_size,
             free: &mut self.free,
         };

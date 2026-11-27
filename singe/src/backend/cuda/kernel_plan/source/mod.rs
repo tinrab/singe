@@ -113,12 +113,12 @@ pub struct KernelPlan {
     pub(crate) before: Vec<KernelArtifact>,
     pub(crate) kernel: KernelArtifact,
     // The plan's kernels as each device loaded them, under each precision, filled at their first launch.
-    pub(crate) loaded: LoadedKernels,
+    pub(crate) loaded: LoadedKernelCache,
 }
 
 // A plan's loaded functions by the device and precision they were loaded under, which a launch finds without rendering or hashing the code again.
 #[derive(Debug, Default)]
-pub struct LoadedKernels(Mutex<Vec<(LoadKey, Arc<[KernelFunction]>)>>);
+pub struct LoadedKernelCache(Mutex<Vec<(LoadKey, Arc<[KernelFunction]>)>>);
 
 // The device a plan's kernels were loaded on, and the precision they compiled under.
 type LoadKey = (Device, ComputePrecision);

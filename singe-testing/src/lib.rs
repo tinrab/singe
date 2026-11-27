@@ -14,7 +14,7 @@ pub use singe::testing::{maybe_lock_device as lock_device, program_target};
 pub use self::profile::{GpuWork, KernelWork, profiled};
 
 pub use self::{
-    bench::{Benches, Summary},
+    bench::{BenchSuite, Summary},
     compare::{Tolerance, assert_matches, host},
     inputs::{pattern_image, tone_and_chirp},
     measure::{decode_step, decode_step_or_restart, wait},

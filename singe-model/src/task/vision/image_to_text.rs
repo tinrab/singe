@@ -9,7 +9,7 @@ use crate::{
     model,
     model::multimodal::florence2::{Florence2Prompts, answers::ParsedAnswer},
     processor::{
-        image::{Image, ImageTransforms},
+        image::{Image, ImagePreprocessor},
         text::TextTokenizer,
     },
     source::{LoadOptions, Source},
@@ -19,7 +19,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ImageToTextPipeline {
     model: Seq2SeqLm,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     tokenizer: TextTokenizer,
     prompts: Option<Florence2Prompts>,
     options: LoadOptions,
@@ -55,7 +55,7 @@ impl Pipeline for ImageToTextPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             tokenizer: TextTokenizer::load(source)?,
             prompts: Florence2Prompts::load(source)?,
             options,

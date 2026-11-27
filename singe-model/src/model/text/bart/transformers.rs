@@ -7,7 +7,7 @@ use crate::{
     assembly::{BartStackConfig, PYTORCH_NORM_EPS, bart_stack_rules, embedding_scale},
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{activation_field, default_true},
     },
     model::text::bart::BartConfig,
@@ -70,8 +70,8 @@ pub(crate) fn config(source: &Source) -> Result<BartConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename("model.shared", "tokens")
         .rename("final_logits_bias", "logits_bias")
         // Copies of the shared embedding, which the output reads too.

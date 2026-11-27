@@ -245,9 +245,9 @@ impl ClipLayers {
 
 /// The patches' final states, `[B, N, W]`, before the post-norm, as `CLIPVisionModel`'s `last_hidden_state` past its class token is.
 #[derive(Debug, Clone)]
-struct ClipPatchStates(ClipVision);
+struct ClipPatchEncoder(ClipVision);
 
-impl Layer for ClipPatchStates {
+impl Layer for ClipPatchEncoder {
     fn forward(&self, input: &Tensor, state: &ModelState) -> SingeResult<Tensor> {
         let hidden = self.0.hidden(input, state)?;
         let &[_, length, _] = hidden.shape().dimensions() else {
@@ -313,7 +313,7 @@ pub fn load_vision_states(
     let config: VisionTowerConfig = loader.config(transformers::vision_model_config)?;
     let model = Schema::model(options.data_type, |schema| {
         ClipVision::create(&mut schema.scope("vision"), &config)
-            .map(|vision| Boxed::<dyn Layer>(Box::new(ClipPatchStates(vision))))
+            .map(|vision| Boxed::<dyn Layer>(Box::new(ClipPatchEncoder(vision))))
     })?;
     loader.load_whole(
         &model,

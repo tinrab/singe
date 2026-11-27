@@ -271,7 +271,7 @@ impl Source {
             return Ok(None);
         };
         // Only the added tokens are read, so the vocabulary and merges, most of the file, are skipped rather than built into values.
-        let Some(tokenizer) = self.optional_json::<AddedTokens>("tokenizer.json")? else {
+        let Some(tokenizer) = self.optional_json::<AddedTokenFields>("tokenizer.json")? else {
             return Ok(None);
         };
         Ok(tokenizer
@@ -284,7 +284,7 @@ impl Source {
 
 /// The added tokens of a `tokenizer.json`.
 #[derive(Deserialize)]
-struct AddedTokens {
+struct AddedTokenFields {
     #[serde(default)]
     added_tokens: Vec<AddedToken>,
 }

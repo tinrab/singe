@@ -34,14 +34,14 @@ pub struct ElementValue {
 /// Builds element-wise expressions over `shape` into `kernel`, adding the scalars they take to `bindings`.
 ///
 /// Values stay in their compute type between operations, as one kernel holds them in registers, and round only when stored.
-pub struct Expressions<'a> {
+pub struct ExpressionBuilder<'a> {
     pub kernel: &'a mut Kernel,
     pub bindings: &'a mut Bindings,
     pub labels: &'a mut ArgumentLabels,
     pub shape: &'a Shape,
 }
 
-impl Expressions<'_> {
+impl ExpressionBuilder<'_> {
     /// Applies element-wise `operation` with `attributes` to `inputs` and returns its value.
     ///
     /// Scalars the attributes carry, such as a scale or clamp bounds, become kernel scalars, so one compiled kernel serves every value.

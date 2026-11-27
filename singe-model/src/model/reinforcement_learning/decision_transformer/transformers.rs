@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     assembly::PreNormEncoderConfig,
     error::Result,
-    format::{Rules, transformers::activation_field},
+    format::{RuleSet, transformers::activation_field},
     model::{
         reinforcement_learning::decision_transformer::DecisionTransformerConfig,
         text::gpt2::transformers::{AttentionFields, model_rules},
@@ -57,8 +57,8 @@ pub(crate) fn config(source: &Source) -> Result<DecisionTransformerConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename("embed_return", "embeddings.return")
         .rename("embed_state", "embeddings.state")
         .rename("embed_action", "embeddings.action")

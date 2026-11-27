@@ -124,7 +124,7 @@ pub struct RecordCoverage {
 
 // What a compile or export has read so far.
 #[derive(Debug, Default)]
-struct Reads {
+struct ReadLog {
     coverage: RecordCoverage,
     used: BTreeSet<String>,
 }
@@ -138,15 +138,15 @@ struct RecordsFile {
 
 // What the tuning step measured, which compiling and exporting read and never add to.
 #[derive(Debug, Default)]
-pub struct TuningRecords {
+pub struct TuningRecordSet {
     environment: Option<TuningEnvironment>,
     entries: BTreeMap<String, TunedRecord>,
     report: Option<TuningReport>,
-    reads: Arc<Mutex<Reads>>,
+    reads: Arc<Mutex<ReadLog>>,
 }
 
 // A clone counts its own reads, since each compile or export reports what it read.
-impl Clone for TuningRecords {
+impl Clone for TuningRecordSet {
     fn clone(&self) -> Self {
         Self {
             environment: self.environment.clone(),
@@ -157,15 +157,15 @@ impl Clone for TuningRecords {
     }
 }
 
-impl PartialEq for TuningRecords {
+impl PartialEq for TuningRecordSet {
     fn eq(&self, other: &Self) -> bool {
         self.environment == other.environment && self.entries == other.entries
     }
 }
 
-impl Eq for TuningRecords {}
+impl Eq for TuningRecordSet {}
 
-impl TuningRecords {
+impl TuningRecordSet {
     #[must_use]
     pub fn new(environment: Option<TuningEnvironment>) -> Self {
         Self {

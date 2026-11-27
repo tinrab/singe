@@ -6,12 +6,12 @@ use std::{fmt::Debug, slice, sync::Arc};
 use serde::{Deserialize, Serialize};
 use singe::{
     DataType, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    generation::{CachedDecoder, DecoderOptions, PromptChunks},
+    generation::{CachedDecoder, DecoderOptions, PromptChunking},
     nn::{Model, ModelState, TokenBatch},
 };
 
 use crate::{
-    decoder_cache::{Decoders, bucketed_capacity, cached_decoder},
+    decoder_cache::{DecoderCache, bucketed_capacity, cached_decoder},
     error::{Error, Result},
     head::{
         Boxed, Sampler, Sampling, SamplingRequest, Seq2SeqDecoding,
@@ -69,7 +69,7 @@ type MusicKey = (usize, i64, i64);
 pub struct TextToMusic {
     model: Model<Boxed<dyn MusicLayers>>,
     generation: MusicGeneration,
-    decoders: Decoders<MusicKey, CachedDecoder<Seq2SeqDecoder>>,
+    decoders: DecoderCache<MusicKey, CachedDecoder<Seq2SeqDecoder>>,
 }
 
 impl TextToMusic {
@@ -78,7 +78,7 @@ impl TextToMusic {
         Self {
             model,
             generation,
-            decoders: Decoders::default(),
+            decoders: DecoderCache::default(),
         }
     }
 
@@ -116,7 +116,7 @@ impl TextToMusic {
             || {
                 let decoder = Seq2SeqDecoder::new(layers.decoder(), held);
                 let options =
-                    DecoderOptions::new(rows, capacity).with_prompt_chunks(PromptChunks::NONE);
+                    DecoderOptions::new(rows, capacity).with_prompt_chunks(PromptChunking::NONE);
                 Ok(cached_decoder(
                     &Model::new(decoder, state.clone()),
                     options,

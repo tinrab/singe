@@ -1,6 +1,6 @@
 use crate::{
     backend::{
-        cpu::utility::{LogicalValues, cpu_device_mismatch, get_f32_data},
+        cpu::utility::{LogicalView, cpu_device_mismatch, get_f32_data},
         spec,
     },
     data_type::DataType,
@@ -75,14 +75,14 @@ pub fn normalize(
 }
 
 pub struct PreparedBatchNorm<'a> {
-    pub(crate) input_data: LogicalValues<'a, f32>,
+    pub(crate) input_data: LogicalView<'a, f32>,
     pub(crate) output_shape: Shape,
     pub(crate) feature_count: usize,
     pub(crate) spatial_len: usize,
-    pub(crate) weight_data: Option<LogicalValues<'a, f32>>,
-    pub(crate) bias_data: Option<LogicalValues<'a, f32>>,
-    pub(crate) running_mean_data: LogicalValues<'a, f32>,
-    pub(crate) running_var_data: LogicalValues<'a, f32>,
+    pub(crate) weight_data: Option<LogicalView<'a, f32>>,
+    pub(crate) bias_data: Option<LogicalView<'a, f32>>,
+    pub(crate) running_mean_data: LogicalView<'a, f32>,
+    pub(crate) running_var_data: LogicalView<'a, f32>,
 }
 
 pub fn prepare_batch_norm<'a>(
@@ -109,11 +109,11 @@ pub fn prepare_batch_norm<'a>(
     let running_mean_data = running_mean
         .map(get_f32_data)
         .transpose()?
-        .unwrap_or_else(|| LogicalValues::Gathered(vec![0.0f32; problem.feature_count]));
+        .unwrap_or_else(|| LogicalView::Gathered(vec![0.0f32; problem.feature_count]));
     let running_var_data = running_var
         .map(get_f32_data)
         .transpose()?
-        .unwrap_or_else(|| LogicalValues::Gathered(vec![1.0f32; problem.feature_count]));
+        .unwrap_or_else(|| LogicalView::Gathered(vec![1.0f32; problem.feature_count]));
 
     Ok(PreparedBatchNorm {
         input_data,

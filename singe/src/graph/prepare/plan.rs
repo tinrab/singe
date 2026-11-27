@@ -21,7 +21,7 @@ use crate::{
         cuda::{self, CudaStream},
         registry::Operation,
     },
-    graph::{Determinism, fingerprint::StableHasher, prepare::SharedBuffers},
+    graph::{Determinism, fingerprint::StableHasher, prepare::SharedArena},
     tensor::Tensor,
 };
 
@@ -56,7 +56,7 @@ impl GraphExecutionPlan {
     pub(crate) fn create_instance_sharing(
         &self,
         inputs: impl IntoIterator<Item = (String, Tensor)>,
-        buffers: &SharedBuffers,
+        buffers: &SharedArena,
     ) -> Result<GraphExecutor> {
         let mut options = self.options.clone();
         options.cuda = options.cuda.with_only_inputs_in_place(inputs);

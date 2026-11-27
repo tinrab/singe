@@ -17,7 +17,7 @@ use crate::{
 
 /// Runtime invariants required by a compiled graph execution order.
 #[derive(Debug, Clone)]
-pub struct GraphGuards {
+pub struct GraphGuardSet {
     pub(crate) inputs: Vec<InputGuard>,
     #[cfg(test)]
     pub(crate) constants: Vec<ConstantGuard>,

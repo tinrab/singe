@@ -8,8 +8,8 @@ use singe::{
 
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
-    head::{ClassifierLayout, EncoderBody, EncoderModel, Head, HeadLayouts},
+    format::{RuleSet, transformers::activation_field},
+    head::{ClassifierLayout, EncoderBody, EncoderHeadLayout, EncoderModel, Head},
     model::text::esm::{Esm, EsmConfig, body},
     schema::Schema,
     source::Source,
@@ -42,7 +42,7 @@ impl EncoderModel for Esm {
     type Config = EsmConfig;
 
     /// A classifier reads ESM's head: a tanh projection of the first token's state.
-    const LAYOUTS: HeadLayouts = HeadLayouts {
+    const LAYOUTS: EncoderHeadLayout = EncoderHeadLayout {
         classifier: ClassifierLayout {
             pooling: PoolingMode::Cls,
             projection: Some(Activation::Tanh),
@@ -86,8 +86,8 @@ impl EncoderModel for Esm {
         body(schema, config)
     }
 
-    fn encoder_rules() -> Rules {
-        Rules::new()
+    fn encoder_rules() -> RuleSet {
+        RuleSet::new()
             // Rotary models never read the absolute table or its positions; each layer's frequencies are fixed.
             .skip("esm.embeddings.position_embeddings")
             .skip("esm.embeddings.position_ids")
@@ -112,9 +112,9 @@ impl EncoderModel for Esm {
             )
     }
 
-    fn head_rules(head: Head) -> Rules {
+    fn head_rules(head: Head) -> RuleSet {
         match head {
-            Head::MaskedLm => Rules::new().rename_each(
+            Head::MaskedLm => RuleSet::new().rename_each(
                 "lm_head",
                 "masked_lm",
                 &[
@@ -123,10 +123,10 @@ impl EncoderModel for Esm {
                     ("bias", "output.bias"),
                 ],
             ),
-            Head::SequenceClassification => Rules::new()
+            Head::SequenceClassification => RuleSet::new()
                 .rename("classifier.dense", "classifier.projection")
                 .rename("classifier.out_proj", "classifier.output"),
-            _ => Rules::new(),
+            _ => RuleSet::new(),
         }
     }
 }

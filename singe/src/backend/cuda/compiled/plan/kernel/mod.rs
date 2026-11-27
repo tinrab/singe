@@ -36,7 +36,7 @@ const GENERAL_CONVOLUTION_COST: u32 = 1000;
 pub struct KernelFeasibility {
     planner: KernelPlanner,
     reusable: bool,
-    plans: Mutex<HashMap<ValueId, NodeKernelPlans>>,
+    plans: Mutex<HashMap<ValueId, NodeKernelPlan>>,
 }
 
 impl KernelFeasibility {
@@ -69,7 +69,7 @@ impl KernelFeasibility {
     }
 
     // Takes the plans a compile can launch as they are, leaving none behind.
-    pub fn take_plans(&self) -> Result<HashMap<ValueId, NodeKernelPlans>> {
+    pub fn take_plans(&self) -> Result<HashMap<ValueId, NodeKernelPlan>> {
         Ok(mem::take(&mut *self.plans.locked("kernel feasibility")?))
     }
 }
@@ -133,12 +133,12 @@ impl LoweringProvider for KernelProvider<'_> {
 
 /// The generated kernels one node runs: copies into slices of its output, each with the input it reads, or one kernel over the node's inputs.
 #[derive(Debug)]
-pub enum NodeKernelPlans {
+pub enum NodeKernelPlan {
     Copies(Vec<(KernelPlan, ValueId)>),
     Kernel(Box<KernelPlan>),
 }
 
-impl NodeKernelPlans {
+impl NodeKernelPlan {
     pub fn artifacts(&self) -> impl Iterator<Item = &KernelArtifact> {
         let (copies, kernel) = match self {
             Self::Copies(copies) => (copies.as_slice(), None),
@@ -158,22 +158,22 @@ pub fn node_kernel_plans(
     planner: &KernelPlanner,
     ir: &Graph,
     id: ValueId,
-) -> Option<NodeKernelPlans> {
+) -> Option<NodeKernelPlan> {
     let operation = ir.required_operation_for_value(id).ok()?;
     let opcode = operation.opcode()?;
     if matches!(opcode, Operation::Concat | Operation::RepeatKv) {
         return copy_plans(planner, ir, id, operation)
             .ok()
-            .map(NodeKernelPlans::Copies);
+            .map(NodeKernelPlan::Copies);
     }
     node_kernel_plan(planner, ir, id, operation)
         .ok()
-        .map(|plan| NodeKernelPlans::Kernel(Box::new(plan)))
+        .map(|plan| NodeKernelPlan::Kernel(Box::new(plan)))
 }
 
 /// Builds the native graph for one node from its `prepared` kernels, or plans them with `planner` when they were not planned ahead, allocating the compiled graph's status word and scratch buffers in `private` as kernels need them.
 pub fn build_node_kernel_graph(
-    prepared: Option<NodeKernelPlans>,
+    prepared: Option<NodeKernelPlan>,
     planner: &KernelPlanner,
     ir: &Graph,
     id: ValueId,
@@ -190,7 +190,7 @@ pub fn build_node_kernel_graph(
     // Concatenation and repeated heads are generated copies into slices of the output.
     if matches!(opcode, Operation::Concat | Operation::RepeatKv) {
         let plans = match prepared {
-            Some(NodeKernelPlans::Copies(plans)) => plans,
+            Some(NodeKernelPlan::Copies(plans)) => plans,
             _ => copy_plans(planner, ir, id, operation)?,
         };
         let steps = plans
@@ -209,7 +209,7 @@ pub fn build_node_kernel_graph(
     }
 
     let plan = match prepared {
-        Some(NodeKernelPlans::Kernel(plan)) => *plan,
+        Some(NodeKernelPlan::Kernel(plan)) => *plan,
         _ => node_kernel_plan(planner, ir, id, operation)?,
     };
     let values = operation

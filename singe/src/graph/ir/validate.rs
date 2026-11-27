@@ -3,7 +3,7 @@ use crate::{
     data_type::DataType,
     error::{Error, Result},
     graph::{
-        guards::GraphGuards,
+        guards::GraphGuardSet,
         ir::{Graph, OperationNode},
         operation::view_output_layout,
     },
@@ -24,7 +24,7 @@ impl Graph {
             self.validate_operation(operation)
                 .map_err(|error| error.with_graph_source(operation.source_location()))?;
         }
-        GraphGuards::create_from_ir(self)?.validate_initializers_with(|_, _| Ok(()))
+        GraphGuardSet::create_from_ir(self)?.validate_initializers_with(|_, _| Ok(()))
     }
 
     fn validate_operation(&self, operation: &OperationNode) -> Result<()> {

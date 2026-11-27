@@ -7,7 +7,7 @@ use crate::{
     assembly::{PreNormEncoderConfig, VisionTowerConfig},
     error::{Error, Result},
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{activation_field, default_channels, default_true},
     },
     source::Source,
@@ -114,9 +114,9 @@ pub(crate) fn fields_config(fields: &Fields) -> Result<VisionTowerConfig> {
 }
 
 /// Returns the rules that import the encoder stored under `from` to the schema's names under `to`.
-pub(crate) fn encoder_rules(from: &str, to: &str) -> Rules {
+pub(crate) fn encoder_rules(from: &str, to: &str) -> RuleSet {
     let embeddings = join(from, "embeddings");
-    Rules::new()
+    RuleSet::new()
         .rename_each(
             &embeddings,
             &join(to, "embeddings"),
@@ -148,7 +148,7 @@ pub(crate) fn encoder_rules(from: &str, to: &str) -> Rules {
 }
 
 /// Returns the rules that import a checkpoint's encoder, stored at its root or, in a classifier's checkpoint, under `dinov2.`.
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     encoder_rules("", "")
         .then(encoder_rules("dinov2", ""))
         // The classifier serves image classification, which no head loads yet.

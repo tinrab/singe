@@ -5,7 +5,7 @@ use singe::{
 
 use crate::{
     error::Result,
-    head::{Boxed, EncoderBody, EncoderHead, HeadLayouts},
+    head::{Boxed, EncoderBody, EncoderHead, EncoderHeadLayout},
     schema::Schema,
     source::Source,
 };
@@ -26,7 +26,7 @@ impl EncoderHead for TextEncoder {
         _schema: &mut Schema<'_>,
         encoder: EncoderBody,
         (): &(),
-        _layouts: &HeadLayouts,
+        _layouts: &EncoderHeadLayout,
     ) -> SingeResult<Boxed<dyn Layer<TokenBatch>>> {
         Ok(Boxed(encoder.layers))
     }

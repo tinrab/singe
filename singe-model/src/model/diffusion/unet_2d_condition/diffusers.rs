@@ -8,7 +8,7 @@ use crate::{
     assembly::unet_block_rules,
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         diffusers::{AttentionHeadDim, UnetFields, default_kind, default_true, one, unit},
         join,
     },
@@ -163,9 +163,9 @@ pub(crate) fn config(source: &Source) -> Result<Unet2dConditionConfig> {
 }
 
 /// Returns the rules that import the transformers stored under `from` (such as `down_blocks.*.attentions.*`) into `to` (such as `down.*.attentions.*`).
-fn transformer_rules(from: &str, to: &str) -> Rules {
+fn transformer_rules(from: &str, to: &str) -> RuleSet {
     let (block, target) = (join(from, "transformer_blocks.*"), join(to, "blocks.*"));
-    Rules::new()
+    RuleSet::new()
         .rename_each(
             from,
             to,
@@ -205,8 +205,8 @@ fn transformer_rules(from: &str, to: &str) -> Rules {
         )
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename("conv_in", "input")
         .rename("time_embedding.linear_1", "time.up")
         .rename("time_embedding.linear_2", "time.down")
@@ -230,8 +230,8 @@ pub(crate) fn rules() -> Rules {
 }
 
 /// Returns the rules that import a `MotionAdapter`'s temporal transformers into the motion modules' `down.N.motions.M`, `middle.motions.0`, and `up.N.motions.M`, and, for an adapter with its own input convolution, its weights for the channels past the `latents` channels that the U-Net's input convolution reads.
-pub(crate) fn motion_rules(latents: i64) -> Rules {
-    Rules::new()
+pub(crate) fn motion_rules(latents: i64) -> RuleSet {
+    RuleSet::new()
         // PIA's input convolution: only its channels past the latents' are its own.
         .derive("conv_in.weight", "input.weight", move |weight| {
             let &[_, channels, ..] = weight.shape().dimensions() else {

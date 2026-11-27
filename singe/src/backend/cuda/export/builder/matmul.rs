@@ -66,13 +66,13 @@ pub enum AddendLayout {
 
 // Which allowed libraries can run a matmul.
 #[derive(Debug, Clone, Default)]
-pub struct MatmulLibraries {
+pub struct MatmulLibraryChoice {
     pub cublas: Option<GemmLayout>,
     pub cublaslt: Option<GemmLayout>,
     pub cudnn: bool,
 }
 
-impl MatmulLibraries {
+impl MatmulLibraryChoice {
     pub const fn any(&self) -> bool {
         self.cublas.is_some() || self.cublaslt.is_some() || self.cudnn
     }
@@ -112,7 +112,7 @@ pub fn matmul_libraries(
     way: Option<TunedWay>,
     lhs: ValueId,
     rhs: ValueId,
-) -> Result<MatmulLibraries> {
+) -> Result<MatmulLibraryChoice> {
     let operand = |value: ValueId| -> Result<Operand<'_>> {
         Ok(Operand {
             data_type: ir.required_value_data_type(value)?,
@@ -127,7 +127,7 @@ pub fn matmul_libraries(
             DataType::F16 | DataType::Bf16 | DataType::F32 | DataType::F64
         )
     {
-        return Ok(MatmulLibraries::default());
+        return Ok(MatmulLibraryChoice::default());
     }
 
     let allowed = |provider| {
@@ -160,7 +160,7 @@ pub fn matmul_libraries(
     });
     let cudnn = allowed(CudaGraphProvider::CudnnBackend)
         && cudnn_takes_matmul(data_type, left.layout, right.layout);
-    Ok(MatmulLibraries {
+    Ok(MatmulLibraryChoice {
         cublas,
         cublaslt,
         cudnn,

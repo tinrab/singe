@@ -7,7 +7,7 @@ use crate::{
     assembly::{DecoderConfig, llama_rules, pre_norm_encoder_rules},
     error::{Error, Result},
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{DecoderDefaults, DecoderFields, activation_field},
     },
     model::audio::qwen3_asr::{Qwen3AsrConfig, Qwen3AsrEncoderConfig},
@@ -106,9 +106,9 @@ pub(crate) fn config(source: &Source) -> Result<Qwen3AsrConfig> {
     })
 }
 
-pub(crate) fn encoder_rules() -> Rules {
+pub(crate) fn encoder_rules() -> RuleSet {
     let tower = "model.audio_tower";
-    Rules::new()
+    RuleSet::new()
         .rename_each(
             tower,
             "encoder",
@@ -131,6 +131,6 @@ pub(crate) fn encoder_rules() -> Rules {
         )
 }
 
-pub(crate) fn decoder_rules() -> Rules {
+pub(crate) fn decoder_rules() -> RuleSet {
     llama_rules("model.language_model")
 }

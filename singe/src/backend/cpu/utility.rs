@@ -82,7 +82,7 @@ pub fn broadcast_offset(indices: &[i64], dimensions: &[i64], strides: &[i64]) ->
 
 /// Logical-order values of a tensor: a locked view of contiguous storage, or a gathered copy.
 #[derive(Debug)]
-pub enum LogicalValues<'a, T> {
+pub enum LogicalView<'a, T> {
     Contiguous {
         values: CpuSlice<'a, T>,
         start: usize,
@@ -91,7 +91,7 @@ pub enum LogicalValues<'a, T> {
     Gathered(Vec<T>),
 }
 
-impl<T> Deref for LogicalValues<'_, T> {
+impl<T> Deref for LogicalView<'_, T> {
     type Target = [T];
 
     fn deref(&self) -> &[T] {
@@ -106,7 +106,7 @@ impl<T> Deref for LogicalValues<'_, T> {
     }
 }
 
-pub fn get_f32_data(tensor: &Tensor) -> Result<LogicalValues<'_, f32>> {
+pub fn get_f32_data(tensor: &Tensor) -> Result<LogicalView<'_, f32>> {
     logical_values(tensor)
 }
 
@@ -115,16 +115,16 @@ pub trait NativeFloat: Float + TensorDataType + Send + Sync {}
 
 impl<T: Float + TensorDataType + Send + Sync> NativeFloat for T {}
 
-pub fn logical_values<T: TensorDataType>(tensor: &Tensor) -> Result<LogicalValues<'_, T>> {
+pub fn logical_values<T: TensorDataType>(tensor: &Tensor) -> Result<LogicalView<'_, T>> {
     let values = typed_values::<T>(tensor)?;
     if tensor.is_contiguous() {
-        return Ok(LogicalValues::Contiguous {
+        return Ok(LogicalView::Contiguous {
             values,
             start: tensor.layout().storage_offset(),
             length: tensor.shape().element_count(),
         });
     }
-    Ok(LogicalValues::Gathered(
+    Ok(LogicalView::Gathered(
         (0..tensor.shape().element_count())
             .map(|linear| values[tensor.layout().linear_offset(linear)])
             .collect(),

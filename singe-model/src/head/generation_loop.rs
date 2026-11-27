@@ -25,14 +25,14 @@ pub struct LoopLimits {
 
 /// What an exported generation loop runs: an encode step that writes a prompt's sources, the one-token step, a prompt step, and how they choose tokens.
 #[derive(Debug)]
-pub struct LoopSteps {
+pub struct LoopStepSet {
     pub encode: Option<Graph>,
     pub step: DecoderStepGraph,
     pub prompt: Option<DecoderStepGraph>,
     pub generation: GenerationOptions,
 }
 
-impl LoopSteps {
+impl LoopStepSet {
     /// Captures `decoder`'s one-token step and, with `prompt_rows`, a step that reads that many rows at once, at least two, each choosing tokens as `generation` asks.
     pub fn create<L: DecoderModel>(
         decoder: &CachedDecoder<L>,

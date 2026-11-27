@@ -13,7 +13,7 @@ use singe::{
 
 use crate::{
     assembly::{
-        CausalLmSpec, DecoderConfig, DraftLayer, GroupedAttentionSpec, HeadNorms, causal,
+        CausalLmSpec, DecoderConfig, DraftLayer, GroupedAttentionSpec, HeadNormKind, causal,
         causal_lm, gated_mlp, grouped_attention_layers, mixture_of_experts,
     },
     model::text::qwen3_5::{Draft, Qwen35TextConfig},
@@ -35,7 +35,7 @@ fn gated_attention(
     config: &DecoderConfig,
 ) -> SingeResult<GroupedQueryAttention> {
     let spec = GroupedAttentionSpec {
-        head_norms: HeadNorms::OffsetRms(config.eps),
+        head_norms: HeadNormKind::OffsetRms(config.eps),
         output_gate: true,
         ..config.attention_spec()
     };

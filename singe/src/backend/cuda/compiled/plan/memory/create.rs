@@ -6,7 +6,7 @@ use crate::{
             GraphMemoryPlanner, graph_alias_group_root, union_cuda_graph_alias_group,
         },
         graph_binding::{
-            InPlaceWrites, ScatterTarget, WritableInputs, graph_users, operation_dependencies,
+            InPlaceWritePlan, ScatterTarget, WritableInputs, graph_users, operation_dependencies,
         },
     },
     error::{Error, Result},
@@ -178,7 +178,7 @@ pub fn record_alias_groups_and_last_uses(
 ) -> Result<()> {
     let users = graph_users(ir, execution_order)?;
     let graph_outputs = ir.output_value_set();
-    let writes = InPlaceWrites::analyze(
+    let writes = InPlaceWritePlan::analyze(
         ir,
         execution_order,
         &users,

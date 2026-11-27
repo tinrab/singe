@@ -1,7 +1,7 @@
 use crate::{
     backend::{
         registry::PackedFormat,
-        spec::{Extents, dimension_product_usize},
+        spec::{ExtentSign, dimension_product_usize},
     },
     data_type::DataType,
     error::{Error, Result},
@@ -85,7 +85,7 @@ pub fn quantization_problem(
     let inner_size = dimension_product_usize(
         "quantization inner size",
         &dimensions[axis + 1..],
-        Extents::NonNegative,
+        ExtentSign::NonNegative,
     )?;
     let Some(block_size) = block_size else {
         return Ok(QuantizationProblem {

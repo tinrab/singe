@@ -76,14 +76,14 @@ pub fn spatial_field<'de, D: Deserializer<'de>>(
 ) -> StdResult<Spatial2dI64, D::Error> {
     #[derive(Deserialize)]
     #[serde(untagged)]
-    enum Sides {
+    enum SideValue {
         Square(i64),
         Pair([i64; 2]),
     }
 
-    Ok(match Sides::deserialize(deserializer)? {
-        Sides::Square(side) => Spatial2d::square(side),
-        Sides::Pair([height, width]) => Spatial2d::new(height, width),
+    Ok(match SideValue::deserialize(deserializer)? {
+        SideValue::Square(side) => Spatial2d::square(side),
+        SideValue::Pair([height, width]) => Spatial2d::new(height, width),
     })
 }
 

@@ -56,7 +56,7 @@ pub use self::{
 pub(crate) use self::dimensions::{Arithmetic, DimensionExpression};
 #[cfg(feature = "cuda")]
 pub use self::prepare::GraphCudaOptions;
-pub(crate) use self::prepare::SharedBuffers;
+pub(crate) use self::prepare::SharedArena;
 use self::{ir::ValueId, outputs::GraphOutput};
 
 #[cfg(feature = "cuda")]

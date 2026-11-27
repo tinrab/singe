@@ -6,7 +6,7 @@ use crate::{
     backend::cuda::{
         DynamicShapePolicy, KernelLanguage, KernelRecorder, LoweringPolicy,
         compiled::plan::memory::GraphArena,
-        tuning::{LibraryRecorder, TuningRecords},
+        tuning::{LibraryRecorder, TuningRecordSet},
     },
     error::{Error, Result},
     tensor::Tensor,
@@ -20,7 +20,7 @@ pub struct GraphCudaOptions {
     pub(crate) lowering: LoweringPolicy,
     pub(crate) shapes: DynamicShapePolicy,
     // What the tuning step chose, which this compile reads and never measures.
-    pub(crate) tuning_records: Option<Arc<TuningRecords>>,
+    pub(crate) tuning_records: Option<Arc<TuningRecordSet>>,
     // The language generated kernels are emitted in.
     pub(crate) kernel_language: KernelLanguage,
     // Collects every generated kernel the graph plans, for printing or offline tuning.
@@ -69,7 +69,7 @@ impl GraphCudaOptions {
     }
 
     #[must_use]
-    pub fn with_tuning_records(mut self, records: TuningRecords) -> Self {
+    pub fn with_tuning_records(mut self, records: TuningRecordSet) -> Self {
         self.tuning_records = Some(Arc::new(records));
         self
     }

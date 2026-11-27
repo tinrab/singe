@@ -20,9 +20,9 @@ use singe_model::{
 use crate::support::{Runner, Session};
 
 // A `sentence-transformers` snapshot's pooled vector of each sentence, compared whole, since a similarity would hide its scale.
-struct SentenceEmbeddings(SentenceSimilarityPipeline);
+struct SentenceEmbedding(SentenceSimilarityPipeline);
 
-impl Runner for SentenceEmbeddings {
+impl Runner for SentenceEmbedding {
     const TASK: &'static str = "sentence-embeddings";
 
     type Input = String;
@@ -81,7 +81,7 @@ pub fn verify(session: &mut Session) {
     );
     session.check::<SentenceSimilarityPipeline>("similarity");
     session.check_onnx("similarity");
-    session.check::<SentenceEmbeddings>("embeddings-sqrt");
+    session.check::<SentenceEmbedding>("embeddings-sqrt");
     session.check::<FillMaskPipeline>("fill");
     session.check_onnx("fill");
     session.check_cuda::<FillMaskPipeline>("fill", &[("batch_size", 2), ("sequence_length", 64)]);

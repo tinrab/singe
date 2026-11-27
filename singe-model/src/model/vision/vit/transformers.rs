@@ -7,7 +7,7 @@ use crate::{
     assembly::{PreNormEncoderConfig, VisionTowerConfig, vit_layer_rules},
     error::{Error, Result},
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{activation_field, classifier_config, default_channels, default_true},
     },
     model::vision::vit::VitConfig,
@@ -78,8 +78,8 @@ pub(crate) fn config(source: &Source) -> Result<VitConfig> {
 }
 
 /// Returns the rules that import a `ViT` encoder stored under `from`, its embeddings, `encoder.layer.N`, and a final `layernorm`, to the schema's names under `to`.
-pub(crate) fn encoder_rules(from: &str, to: &str) -> Rules {
-    Rules::new()
+pub(crate) fn encoder_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new()
         .rename_each(
             &join(from, "embeddings"),
             &join(to, "embeddings"),
@@ -96,7 +96,7 @@ pub(crate) fn encoder_rules(from: &str, to: &str) -> Rules {
         .rename(&join(from, "layernorm"), &join(to, "norm"))
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     encoder_rules("vit", "")
         .rename("classifier", "classifier.output")
         // The pooler serves the base model's pooled output, which no head here reads.

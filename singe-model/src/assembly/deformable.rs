@@ -10,7 +10,7 @@ use singe::{
 
 use crate::{
     assembly::{Attention, AttentionSpec, PYTORCH_NORM_EPS, attention_rules},
-    format::{Rules, join},
+    format::{RuleSet, join},
     schema::Schema,
 };
 
@@ -26,7 +26,7 @@ pub struct DeformableAttentionSpec {
 /// The feature levels deformable attention samples, whose maps are flattened and concatenated into one sequence.
 /// Their sizes are a program's dimensions, so a program with run-time axes follows each image's.
 #[derive(Debug, Clone)]
-pub struct FeatureLevels {
+pub struct FeaturePyramid {
     sizes: Vec<[DimensionExpr; 2]>,
     /// Each level's height and width, `[L, 2]` in `I64`.
     shapes: Tensor,
@@ -36,7 +36,7 @@ pub struct FeatureLevels {
     normalizer: Tensor,
 }
 
-impl FeatureLevels {
+impl FeaturePyramid {
     /// Describes levels of `sizes`, each its height and width.
     pub fn create(device: Device, sizes: Vec<[DimensionExpr; 2]>) -> SingeResult<Self> {
         let count = i64::try_from(sizes.len()).map_err(|_| SingeError::out_of_range("levels"))?;
@@ -119,7 +119,7 @@ impl DeformableAttention {
         query: &Tensor,
         references: &Tensor,
         memory: &Tensor,
-        levels: &FeatureLevels,
+        levels: &FeaturePyramid,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let DeformableAttentionSpec {
@@ -175,8 +175,8 @@ impl DeformableAttention {
 
 /// Renames a checkpoint's deformable attention under `from` to [`DeformableAttention`]'s names under `to`.
 #[must_use]
-pub fn deformable_attention_rules(from: &str, to: &str) -> Rules {
-    Rules::new().rename_each(
+pub fn deformable_attention_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new().rename_each(
         from,
         to,
         &[
@@ -220,7 +220,7 @@ impl DeformableEncoderLayer {
         hidden: &Tensor,
         positions: &Tensor,
         references: &Tensor,
-        levels: &FeatureLevels,
+        levels: &FeaturePyramid,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let hidden = self
@@ -237,7 +237,7 @@ impl DeformableEncoderLayer {
 
 /// Renames a checkpoint's `DeformableDetrEncoderLayer`s under `from` to [`DeformableEncoderLayer`]'s names under `to`, both ending in the layer index's `*`.
 #[must_use]
-pub fn deformable_encoder_rules(from: &str, to: &str) -> Rules {
+pub fn deformable_encoder_rules(from: &str, to: &str) -> RuleSet {
     deformable_attention_rules(&join(from, "self_attn"), &join(to, "attention")).rename_each(
         from,
         to,
@@ -294,7 +294,7 @@ impl DeformableDecoderLayer {
         positions: &Tensor,
         references: &Tensor,
         memory: &Tensor,
-        levels: &FeatureLevels,
+        levels: &FeaturePyramid,
         state: &ModelState,
     ) -> SingeResult<Tensor> {
         let positioned = hidden.add(positions)?;
@@ -317,7 +317,7 @@ impl DeformableDecoderLayer {
 
 /// Renames a checkpoint's DETR-family decoder layers under `from` to [`DeformableDecoderLayer`]'s names under `to`, both ending in the layer index's `*`.
 #[must_use]
-pub fn deformable_decoder_rules(from: &str, to: &str) -> Rules {
+pub fn deformable_decoder_rules(from: &str, to: &str) -> RuleSet {
     attention_rules(&join(from, "self_attn"), &join(to, "attention"))
         .then(deformable_attention_rules(
             &join(from, "encoder_attn"),

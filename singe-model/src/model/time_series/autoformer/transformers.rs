@@ -5,7 +5,7 @@ use singe::nn::Activation;
 
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{RuleSet, transformers::activation_field},
     model::time_series::autoformer::AutoformerConfig,
     source::Source,
 };
@@ -78,12 +78,12 @@ pub(crate) fn config(source: &Source) -> Result<AutoformerConfig> {
     })
 }
 
-fn stack_rules(stack: &str) -> Rules {
+fn stack_rules(stack: &str) -> RuleSet {
     let (from, to) = (
         format!("model.{stack}.layers.*"),
         format!("{stack}.blocks.*"),
     );
-    Rules::new()
+    RuleSet::new()
         .rename(
             &format!("model.{stack}.value_embedding.value_projection"),
             &format!("{stack}.value"),
@@ -118,7 +118,7 @@ fn stack_rules(stack: &str) -> Rules {
         )
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     stack_rules("encoder")
         .then(stack_rules("decoder"))
         .rename(

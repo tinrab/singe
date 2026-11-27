@@ -13,7 +13,9 @@ use singe::{
 use crate::{
     error::{Error, Result},
     format::Loader,
-    head::{Draws, Forecast, Forecaster, HeadLoader, PastValues, Series, Uniforms, upload},
+    head::{
+        Forecast, Forecaster, HeadLoader, PastSeries, PathSampling, Series, UniformSource, upload,
+    },
     model::{
         ModelEntry,
         time_series::lagged::{self, StepEmbedding},
@@ -458,11 +460,11 @@ pub type Autoformer = Model<AutoformerLayers>;
 
 impl Forecaster for Autoformer {
     /// Forecasts one univariate series as `AutoformerForPrediction.generate` does, returning the Student-T it samples each step from, or with `draws`, paths of independent draws from each step's distribution, as `generate` samples them.
-    fn forecast(&self, series: &Series, draws: Option<Draws>) -> Result<Forecast> {
+    fn forecast(&self, series: &Series, draws: Option<PathSampling>) -> Result<Forecast> {
         series.refuse_extras("Autoformer")?;
         series.refuse_missing("Autoformer")?;
         let config = &self.layer().config;
-        let PastValues::Univariate(values) = &series.past_values else {
+        let PastSeries::Univariate(values) = &series.past_values else {
             return Err(Error::unsupported(
                 "an Autoformer forecast of several channels",
             ));
@@ -529,8 +531,8 @@ impl Forecaster for Autoformer {
                 loc,
                 scale: spread,
             },
-            Some(Draws { count, seed }) => {
-                let mut uniforms = Uniforms::new(seed);
+            Some(PathSampling { count, seed }) => {
+                let mut uniforms = UniformSource::new(seed);
                 Forecast::Samples(
                     (0..count)
                         .map(|_| {

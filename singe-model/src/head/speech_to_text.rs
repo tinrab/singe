@@ -6,7 +6,7 @@ use singe::{Tensor, generation::GenerationOptions};
 use crate::{
     BatchOptions,
     error::{Error, Result},
-    head::{LoopLimits, LoopSteps},
+    head::{LoopLimits, LoopStepSet},
     processor::text::TextTokenizer,
 };
 
@@ -52,5 +52,9 @@ pub trait SpeechToText: Debug {
 
     /// Returns the steps an exported transcription loop runs within `limits`: an encode step that reads the clip, and the decoder's steps, choosing tokens as `generation` asks.
     /// Whisper keeps only `generation`'s sampling and otherwise chooses as its own generation config says; a transducer returns an error.
-    fn loop_steps(&self, limits: &LoopLimits, generation: &GenerationOptions) -> Result<LoopSteps>;
+    fn loop_steps(
+        &self,
+        limits: &LoopLimits,
+        generation: &GenerationOptions,
+    ) -> Result<LoopStepSet>;
 }

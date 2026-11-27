@@ -36,7 +36,7 @@ pub struct LoopStep<'a> {
 
 // The steps a generation loop runs: `decode`, of a token per row, and optionally `prompt`, of more rows, and `encode`, once before the prompt.
 #[derive(Debug, Clone, Copy)]
-pub struct LoopSteps<'a> {
+pub struct LoopStepSet<'a> {
     pub decode: LoopStep<'a>,
     pub prompt: Option<LoopStep<'a>>,
     pub encode: Option<LoopStep<'a>>,
@@ -51,11 +51,11 @@ struct Buffer {
 }
 
 #[derive(Default)]
-struct Buffers {
+struct BufferTable {
     named: Vec<Buffer>,
 }
 
-impl Buffers {
+impl BufferTable {
     fn index(&mut self, name: &str, bytes: u64) -> Result<usize> {
         if let Some(index) = self.find(name) {
             if self.named[index].bytes != bytes {
@@ -107,7 +107,7 @@ fn step_code(
     variable: &str,
     slot: usize,
     sequences: i64,
-    buffers: &mut Buffers,
+    buffers: &mut BufferTable,
 ) -> Result<(String, u64)> {
     let input = |name: &str| {
         step.program
@@ -198,7 +198,7 @@ fn finish_code(step: &LoopStep<'_>, slot: usize) -> String {
 pub fn generation_loop_source(
     prefix: &str,
     decoding: &Decoding,
-    steps: LoopSteps<'_>,
+    steps: LoopStepSet<'_>,
     weights_bytes: usize,
 ) -> Result<String> {
     let layout = decoding.layout;
@@ -216,7 +216,7 @@ pub fn generation_loop_source(
         ));
     }
 
-    let mut buffers = Buffers::default();
+    let mut buffers = BufferTable::default();
     let mut step_lines = String::new();
     let mut finish_lines = String::new();
     let mut staging = 0;
@@ -483,7 +483,7 @@ impl Renderer<'_> {
         generation_loop_source(
             prefix,
             decoding,
-            LoopSteps {
+            LoopStepSet {
                 decode: LoopStep {
                     program: self.program,
                     types: prefix,

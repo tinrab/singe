@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     backend::{
-        cuda::graph_binding::{InPlaceWrites, ScatterTarget, WritableInputs, graph_users},
+        cuda::graph_binding::{InPlaceWritePlan, ScatterTarget, WritableInputs, graph_users},
         registry::Operation,
     },
     data_type::DataType,
@@ -48,7 +48,7 @@ fn target_in(
     let order = compiled.value_order().to_vec();
     let users = graph_users(&ir, &order).unwrap();
     let outputs = ir.output_value_set();
-    let analysis = InPlaceWrites::analyze(&ir, &order, &users, &outputs, inputs).unwrap();
+    let analysis = InPlaceWritePlan::analyze(&ir, &order, &users, &outputs, inputs).unwrap();
     let scatter = order
         .iter()
         .copied()

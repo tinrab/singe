@@ -27,7 +27,7 @@ use crate::{
         export::{
             CudaProgram, CudaProgramSet, ProgramValue, RowCount,
             writer::{
-                CONFIGURATION_REFUSED, CUBLAS_BASE, LIBRARY_FILE, LIBRARY_VERSION, ProgramFiles,
+                CONFIGURATION_REFUSED, CUBLAS_BASE, LIBRARY_FILE, LIBRARY_VERSION, ProgramArtifact,
             },
         },
         runtime::runtime_for_device,
@@ -144,11 +144,11 @@ struct Built {
     library: Library,
     weights: Arc<Vec<u8>>,
     directory: PathBuf,
-    files: Files,
+    files: FileRetention,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Files {
+enum FileRetention {
     Removed,
     Kept,
 }
@@ -156,7 +156,7 @@ enum Files {
 impl Drop for Built {
     fn drop(&mut self) {
         // A program that fails to compile never gets here, so its files stay for reading what the compiler rejected.
-        if self.files == Files::Removed
+        if self.files == FileRetention::Removed
             && let Err(error) = fs::remove_dir_all(&self.directory)
         {
             report_cleanup_failure("remove", "program directory", &error);
@@ -527,7 +527,7 @@ fn build_set(
 }
 
 // Writes what compiling `files` needs, which leaves out its weights, since those are read from memory.
-fn write_for_compiling(files: &ProgramFiles, directory: &Path) -> Result<(), ProgramError> {
+fn write_for_compiling(files: &ProgramArtifact, directory: &Path) -> Result<(), ProgramError> {
     fs::create_dir_all(directory)?;
     fs::write(directory.join("model.h"), &files.header)?;
     fs::write(directory.join("model.cu"), &files.source)?;
@@ -540,7 +540,7 @@ impl CompiledProgram {
     // Those built together keep one copy of the weights they share, since a tuning step's candidates differ in little else.
     #[must_use]
     pub fn create_many(
-        programs: Vec<(CudaProgram, ProgramFiles, PathBuf)>,
+        programs: Vec<(CudaProgram, ProgramArtifact, PathBuf)>,
         jobs: usize,
     ) -> Vec<Result<Self, ProgramError>> {
         let commands = programs
@@ -615,7 +615,7 @@ impl CompiledProgram {
                 library,
                 weights,
                 directory,
-                files: Files::Removed,
+                files: FileRetention::Removed,
             }),
         })
     }
@@ -655,14 +655,14 @@ impl CompiledProgram {
         directory: PathBuf,
     ) -> Result<Self, ProgramError> {
         program.write_to(&directory, "model")?;
-        Self::load(directory, Files::Removed)
+        Self::load(directory, FileRetention::Removed)
     }
 
     pub fn open(directory: PathBuf) -> Result<Self, ProgramError> {
-        Self::load(directory, Files::Kept)
+        Self::load(directory, FileRetention::Kept)
     }
 
-    fn load(directory: PathBuf, files: Files) -> Result<Self, ProgramError> {
+    fn load(directory: PathBuf, files: FileRetention) -> Result<Self, ProgramError> {
         let manifest = read_manifest(&directory, "model")?;
         let set = manifest["steps"].as_array();
         let steps = match set {

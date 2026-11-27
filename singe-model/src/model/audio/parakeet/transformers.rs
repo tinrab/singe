@@ -12,7 +12,7 @@ use crate::{
     },
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{activation, activation_field},
     },
     model::audio::parakeet::{ParakeetConfig, ParakeetFeatures, ParakeetHead},
@@ -282,14 +282,14 @@ pub(crate) fn config(source: &Source) -> Result<ParakeetConfig> {
     })
 }
 
-pub(crate) fn encoder_rules() -> Rules {
+pub(crate) fn encoder_rules() -> RuleSet {
     conformer_rules("encoder", "encoder")
 }
 
-pub(crate) fn decoder_rules() -> Rules {
+pub(crate) fn decoder_rules() -> RuleSet {
     transducer_rules("decoder")
 }
 
-pub(crate) fn ctc_rules() -> Rules {
+pub(crate) fn ctc_rules() -> RuleSet {
     conformer_rules("encoder", "encoder").rename("ctc_head", "head")
 }

@@ -1,5 +1,5 @@
 use crate::{
-    backend::spec::{Extents, dimension_product_usize, validate_rank},
+    backend::spec::{ExtentSign, dimension_product_usize, validate_rank},
     error::{Error, Result},
     shape::{Shape, normalize_dim_usize, spatial::Padding},
     utility::{checked_add_i64, checked_mul_i64, to_usize},
@@ -147,12 +147,12 @@ pub fn concat_problem(
     let outer_size = dimension_product_usize(
         format!("{diagnostic_prefix} outer size"),
         &first_dimensions[..axis],
-        Extents::NonNegative,
+        ExtentSign::NonNegative,
     )?;
     let inner_size = dimension_product_usize(
         format!("{diagnostic_prefix} inner size"),
         &first_dimensions[axis + 1..],
-        Extents::NonNegative,
+        ExtentSign::NonNegative,
     )?;
 
     Ok(ConcatProblem {
@@ -260,12 +260,12 @@ pub fn gather_problem(
     let outer_size = dimension_product_usize(
         format!("{diagnostic_prefix} outer size"),
         &input_dimensions[..axis],
-        Extents::NonNegative,
+        ExtentSign::NonNegative,
     )?;
     let inner_size = dimension_product_usize(
         format!("{diagnostic_prefix} inner size"),
         &input_dimensions[axis + 1..],
-        Extents::NonNegative,
+        ExtentSign::NonNegative,
     )?;
 
     let output_dimensions = input_dimensions[..axis]
@@ -334,12 +334,12 @@ pub fn multi_index_problem(
     let outer_size = dimension_product_usize(
         "index outer size",
         &input_dimensions[..axis],
-        Extents::NonNegative,
+        ExtentSign::NonNegative,
     )?;
     let inner_size = dimension_product_usize(
         "index inner size",
         &input_dimensions[end..],
-        Extents::NonNegative,
+        ExtentSign::NonNegative,
     )?;
     let output_dimensions = input_dimensions[..axis]
         .iter()

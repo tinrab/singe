@@ -182,11 +182,11 @@ pub struct GeneratedConstantKey {
     device: Device,
     shape: Shape,
     layout: Layout,
-    values: GeneratedConstantValues,
+    values: GeneratedConstant,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum GeneratedConstantValues {
+enum GeneratedConstant {
     F32Bits(Vec<u32>),
     F64Bits(Vec<u64>),
     Bool(Vec<bool>),
@@ -213,22 +213,22 @@ pub fn generated_constant_key(tensor: &Tensor) -> Result<Option<GeneratedConstan
     }
 
     let values = match tensor.data_type() {
-        DataType::Bool => GeneratedConstantValues::Bool(tensor.to_vec::<bool>()?),
-        DataType::F64 => GeneratedConstantValues::F64Bits(
+        DataType::Bool => GeneratedConstant::Bool(tensor.to_vec::<bool>()?),
+        DataType::F64 => GeneratedConstant::F64Bits(
             tensor
                 .to_vec::<f64>()?
                 .into_iter()
                 .map(f64::to_bits)
                 .collect(),
         ),
-        DataType::F32 => GeneratedConstantValues::F32Bits(
+        DataType::F32 => GeneratedConstant::F32Bits(
             tensor
                 .to_vec::<f32>()?
                 .into_iter()
                 .map(f32::to_bits)
                 .collect(),
         ),
-        DataType::I64 => GeneratedConstantValues::I64(tensor.to_vec::<i64>()?),
+        DataType::I64 => GeneratedConstant::I64(tensor.to_vec::<i64>()?),
         _ => return Ok(None),
     };
     Ok(Some(GeneratedConstantKey {

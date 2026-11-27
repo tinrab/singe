@@ -13,14 +13,14 @@ use crate::{
         cuda::{
             CudaEvent, CudaStream, EventTiming, clear_cache,
             export::{
-                BufferKind, CudaExport, CudaProgram, ProgramFiles,
+                BufferKind, CudaExport, CudaProgram, ProgramArtifact,
                 compiled::{CompiledProgram, ProgramInstance},
             },
             tuning::{
                 comparison::Comparison,
                 library::LibraryRecorder,
                 plan::{MeasureError, Measured, PlanRunner, nanoseconds},
-                records::{Measurement, TunedChoice, TuningEnvironment, TuningRecords},
+                records::{Measurement, TunedChoice, TuningEnvironment, TuningRecordSet},
                 report::{Attempt, CandidateFailure, FailureStage, SelfComparison, TimeSpent},
                 small_graph::{Judging, SmallGraph, judged, restore_written},
                 tune::GraphTuneOptions,
@@ -68,7 +68,7 @@ fn refuse(bytes: u64, refuse_over: Option<u64>) -> Attempt<(), MeasureError> {
 
 fn prepare_replay(
     small: &SmallGraph,
-    records: &TuningRecords,
+    records: &TuningRecordSet,
     device: Device,
     options: &GraphTuneOptions,
 ) -> Attempt<GraphExecutor, MeasureError> {
@@ -114,7 +114,7 @@ fn refused_by_library(error: &(dyn StdError + 'static)) -> bool {
 // A graph that does not compile lists nothing, and running it reports why.
 pub fn listed_library_choices(
     small: &SmallGraph,
-    records: &TuningRecords,
+    records: &TuningRecordSet,
     device: Device,
     options: &GraphTuneOptions,
     key: &str,
@@ -145,10 +145,10 @@ pub fn listed_library_choices(
 struct Prepared<'a> {
     agrees: bool,
     bytes: u64,
-    runs: Runs<'a>,
+    runs: RunTarget<'a>,
 }
 
-enum Runs<'a> {
+enum RunTarget<'a> {
     Replay {
         executor: Box<GraphExecutor>,
         inputs: &'a HashMap<String, Tensor>,
@@ -166,7 +166,7 @@ impl Prepared<'_> {
     // How long each of `runs` runs took.
     fn timed(&mut self, runs: usize) -> Attempt<Vec<Duration>> {
         match &mut self.runs {
-            Runs::Replay {
+            RunTarget::Replay {
                 executor,
                 inputs,
                 stream,
@@ -200,7 +200,7 @@ impl Prepared<'_> {
                 }
                 Ok(samples)
             }
-            Runs::Program { instance, operands } => instance
+            RunTarget::Program { instance, operands } => instance
                 .timed_runs(operands, runs)
                 .map_err(|error| CandidateFailure::from_error(FailureStage::Run, &error)),
         }
@@ -258,7 +258,7 @@ impl<'a> Measurer<'a> {
         &self.spent
     }
 
-    const fn is_program(records: &TuningRecords) -> bool {
+    const fn is_program(records: &TuningRecordSet) -> bool {
         matches!(
             records.environment(),
             Some(TuningEnvironment {
@@ -271,8 +271,8 @@ impl<'a> Measurer<'a> {
     fn exported(
         &mut self,
         small: &SmallGraph,
-        records: &TuningRecords,
-    ) -> Attempt<(CudaProgram, ProgramFiles)> {
+        records: &TuningRecordSet,
+    ) -> Attempt<(CudaProgram, ProgramArtifact)> {
         let started = Instant::now();
         let exported = export_program(small, records, self.options, self.library_table);
         let exported = exported.and_then(|program| {
@@ -294,7 +294,7 @@ impl<'a> Measurer<'a> {
     }
 
     // Builds at once what the candidates of a choice point need, so no build runs beside a timing, and forgets what the last one built.
-    pub fn build_ahead(&mut self, small: &SmallGraph, candidates: &[TuningRecords]) {
+    pub fn build_ahead(&mut self, small: &SmallGraph, candidates: &[TuningRecordSet]) {
         self.built.clear();
         if !candidates.first().is_some_and(Self::is_program) {
             return;
@@ -334,7 +334,7 @@ impl<'a> Measurer<'a> {
     fn compiled(
         &mut self,
         program: &CudaProgram,
-        files: &ProgramFiles,
+        files: &ProgramArtifact,
     ) -> Attempt<CompiledProgram> {
         let source = source_of(files);
         if let Some(index) = self.built.iter().position(|(built, _)| *built == source) {
@@ -354,7 +354,7 @@ impl<'a> Measurer<'a> {
     fn prepare<'s>(
         &mut self,
         small: &'s SmallGraph,
-        records: &TuningRecords,
+        records: &TuningRecordSet,
         refuse_over: Option<u64>,
         judging: Judging,
     ) -> Attempt<Prepared<'s>, MeasureError> {
@@ -372,7 +372,7 @@ impl<'a> Measurer<'a> {
     fn prepare_replay<'s>(
         &mut self,
         small: &'s SmallGraph,
-        records: &TuningRecords,
+        records: &TuningRecordSet,
         refuse_over: Option<u64>,
         judging: Judging,
     ) -> Attempt<Prepared<'s>, MeasureError> {
@@ -412,7 +412,7 @@ impl<'a> Measurer<'a> {
         Ok(Prepared {
             agrees,
             bytes,
-            runs: Runs::Replay {
+            runs: RunTarget::Replay {
                 executor: Box::new(executor),
                 inputs: &small.inputs,
                 stream,
@@ -426,7 +426,7 @@ impl<'a> Measurer<'a> {
         &mut self,
         small: &'s SmallGraph,
         program: &CudaProgram,
-        files: &ProgramFiles,
+        files: &ProgramArtifact,
         compiled: &CompiledProgram,
         bytes: u64,
         judging: Judging,
@@ -467,7 +467,7 @@ impl<'a> Measurer<'a> {
         Ok(Prepared {
             agrees,
             bytes,
-            runs: Runs::Program { instance, operands },
+            runs: RunTarget::Program { instance, operands },
         })
     }
 
@@ -480,7 +480,7 @@ impl<'a> Measurer<'a> {
     pub fn measure(
         &mut self,
         small: &SmallGraph,
-        records: &TuningRecords,
+        records: &TuningRecordSet,
         refuse_over: Option<u64>,
         abandon_above: Option<Duration>,
     ) -> Attempt<Measured, MeasureError> {
@@ -512,8 +512,8 @@ impl<'a> Measurer<'a> {
     pub fn compare(
         &mut self,
         small: &SmallGraph,
-        baseline: &TuningRecords,
-        candidate: &TuningRecords,
+        baseline: &TuningRecordSet,
+        candidate: &TuningRecordSet,
     ) -> Attempt<Comparison, MeasureError> {
         let mut pairs = Vec::with_capacity(BASELINE_MADE_FIRST.len());
         for &made_first in BASELINE_MADE_FIRST {
@@ -539,8 +539,8 @@ impl<'a> Measurer<'a> {
     fn compare_pair(
         &mut self,
         small: &SmallGraph,
-        first: &TuningRecords,
-        second: &TuningRecords,
+        first: &TuningRecordSet,
+        second: &TuningRecordSet,
     ) -> Attempt<Option<Comparison>, MeasureError> {
         self.free_for_program(first)?;
         let mut first = self.prepare(small, first, None, Judging::Skip)?;
@@ -574,8 +574,8 @@ impl<'a> Measurer<'a> {
     pub fn compare_in_blocks(
         &mut self,
         small: &SmallGraph,
-        baseline: &TuningRecords,
-        candidate: &TuningRecords,
+        baseline: &TuningRecordSet,
+        candidate: &TuningRecordSet,
     ) -> Attempt<Comparison, MeasureError> {
         let runs = (self.options.runs / BLOCK_PAIRS).max(3);
         let mut baseline_times = Vec::with_capacity(BLOCK_PAIRS);
@@ -607,7 +607,7 @@ impl<'a> Measurer<'a> {
     }
 
     // A program allocates from the driver, which cannot see what the process's allocator keeps cached.
-    fn free_for_program(&self, records: &TuningRecords) -> Attempt<()> {
+    fn free_for_program(&self, records: &TuningRecordSet) -> Attempt<()> {
         if Self::is_program(records) {
             clear_cache(self.device)
                 .map_err(|error| CandidateFailure::from_error(FailureStage::Run, &error))?;
@@ -624,7 +624,7 @@ impl<'a> Measurer<'a> {
         &mut self,
         key: &str,
         small: &SmallGraph,
-        records: &TuningRecords,
+        records: &TuningRecordSet,
     ) -> Attempt<SelfComparison, MeasureError> {
         let in_rounds = self.compare(small, records, records)?;
         let earlier = self.measure(small, records, None, None)?.median;
@@ -641,13 +641,13 @@ fn no_rounds(comparison: Option<Comparison>) -> Attempt<Comparison> {
     comparison.ok_or_else(|| CandidateFailure::at(FailureStage::Run, "no rounds"))
 }
 
-fn source_of(files: &ProgramFiles) -> String {
+fn source_of(files: &ProgramArtifact) -> String {
     format!("{}{}{}", files.header, files.source, files.manifest)
 }
 
 pub fn export_program(
     small: &SmallGraph,
-    records: &TuningRecords,
+    records: &TuningRecordSet,
     options: &GraphTuneOptions,
     library_table: bool,
 ) -> Attempt<CudaProgram> {
@@ -751,7 +751,7 @@ impl<'a> WholeGraphRunner<'a> {
     pub fn self_comparison(
         &mut self,
         key: &str,
-        records: &TuningRecords,
+        records: &TuningRecordSet,
     ) -> Attempt<SelfComparison> {
         self.measurer
             .self_comparison(key, self.whole, records)
@@ -772,7 +772,7 @@ fn whole_plan_failure(error: MeasureError) -> CandidateFailure {
 }
 
 impl PlanRunner for WholeGraphRunner<'_> {
-    fn fingerprint(&mut self, records: &TuningRecords) -> Attempt<String> {
+    fn fingerprint(&mut self, records: &TuningRecordSet) -> Attempt<String> {
         if Measurer::is_program(records) {
             let program = export_program(self.whole, records, self.options, false)?;
             let files = program
@@ -788,7 +788,7 @@ impl PlanRunner for WholeGraphRunner<'_> {
 
     fn run(
         &mut self,
-        records: &TuningRecords,
+        records: &TuningRecordSet,
         abandon_above: Option<Duration>,
     ) -> Attempt<Measured> {
         self.measurer.free_for_program(records)?;
@@ -804,8 +804,8 @@ impl PlanRunner for WholeGraphRunner<'_> {
 
     fn compare(
         &mut self,
-        baseline: &TuningRecords,
-        candidate: &TuningRecords,
+        baseline: &TuningRecordSet,
+        candidate: &TuningRecordSet,
     ) -> Attempt<Comparison> {
         self.measurer
             .compare(self.whole, baseline, candidate)

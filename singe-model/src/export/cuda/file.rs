@@ -12,7 +12,7 @@ use singe::{
             CudaExport, GpuArchitecture, Library, ProgramValue,
             compiled::{build_written_runner, program_target},
         },
-        tuning::{Measurement, TuningRecords},
+        tuning::{Measurement, TuningRecordSet},
     },
     onnx::WeightPlacement,
 };
@@ -56,7 +56,7 @@ pub enum Build {
 #[derive(Debug)]
 pub struct FileExported {
     pub manifest: ExportManifest,
-    pub records: Option<TuningRecords>,
+    pub records: Option<TuningRecordSet>,
     pub checks: Vec<String>,
 }
 
@@ -261,7 +261,7 @@ fn records(
     tuning: &Tuning,
     options: &FileExport,
     output: &Path,
-) -> Result<TuningRecords> {
+) -> Result<TuningRecordSet> {
     let architecture = options.architecture.to_string();
     let records = if let Some(path) = &tuning.records {
         read_records(path, Some(&architecture), Measurement::Program)?

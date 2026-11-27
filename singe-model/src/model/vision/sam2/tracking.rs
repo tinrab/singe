@@ -11,7 +11,7 @@ use singe::{
 
 use crate::{
     assembly::{
-        AxialRotary, ConvNextBlock, ConvNextScaling, LinearStack, SinePositions, channel_norm,
+        AxialRotary, ConvNextBlock, ConvNextScaling, LinearStack, SinePositionSpec, channel_norm,
         merge_heads, sine_positions, split_heads, to_map, to_tokens,
     },
     error::{Error, Result},
@@ -422,7 +422,7 @@ impl TrackingLayers for Sam2TrackerLayers {
         }
 
         let reach = frames.min(config.pointers);
-        let positions = SinePositions::DETR;
+        let positions = SinePositionSpec::DETR;
         let size = image.config.image_size;
         let mut prompted: Option<Remembered> = None;
         let mut tracked: Vec<Remembered> = Vec::new();

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use regex_syntax::hir::{Class, HirKind};
 use serde_json::Value;
 use singe::backend::cuda::export::{
-    CharacterClasses, Composition, LoopEncoder, LoopToken, LoopTokenizer,
+    CharacterClassTable, Composition, LoopEncoder, LoopToken, LoopTokenizer,
 };
 use unicode_normalization_alignments::char::{
     canonical_combining_class, compose, decompose_canonical,
@@ -158,7 +158,7 @@ fn encoder(
         placeholder: template.placeholder,
         added,
         merges,
-        classes: CharacterClasses {
+        classes: CharacterClassTable {
             letters: class_ranges(r"\p{L}")?,
             marks: class_ranges(r"\p{M}")?,
             numbers: class_ranges(r"\p{N}")?,

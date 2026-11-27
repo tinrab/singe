@@ -7,7 +7,7 @@ use crate::{
     assembly::{ConvNextConfig, ConvNextScaling, convnext_rules},
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{activation_field, classifier_config},
     },
     model::vision::convnext::ConvNextClassifierConfig,
@@ -75,7 +75,7 @@ pub(crate) fn config(source: &Source) -> Result<ConvNextClassifierConfig> {
 }
 
 /// Returns the rules of a classifier whose backbone `transformers` stores as `convnext`, or as `convnextv2` with response norms.
-pub(crate) fn rules(scaling: ConvNextScaling) -> Rules {
+pub(crate) fn rules(scaling: ConvNextScaling) -> RuleSet {
     let prefix = match scaling {
         ConvNextScaling::LayerScale => "convnext",
         ConvNextScaling::ResponseNorm => "convnextv2",

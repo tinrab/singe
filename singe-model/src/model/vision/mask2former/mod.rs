@@ -15,7 +15,7 @@ use singe::{
 use crate::{
     assembly::{
         Attention, AttentionSpec, ConvGroupNorm, DeformableAttentionSpec, DeformableEncoderLayer,
-        FeatureLevels, LinearStack, PYTORCH_NORM_EPS, SinePositions, Swin, SwinConfig,
+        FeaturePyramid, LinearStack, PYTORCH_NORM_EPS, SinePositionSpec, Swin, SwinConfig,
         sine_positions, to_map, to_tokens,
     },
     error::Result,
@@ -262,7 +262,7 @@ impl Mask2FormerLayers {
                 .narrow(0, i64::try_from(level).unwrap_or(i64::MAX), 1)?
                 .unsqueeze(0)?;
             positions.push(
-                sine_positions(map, self.width, SinePositions::DETR)?
+                sine_positions(map, self.width, SinePositionSpec::DETR)?
                     .cast(projected.data_type())?
                     .add(&embedding)?,
             );
@@ -271,7 +271,7 @@ impl Mask2FormerLayers {
         }
 
         let positions = Tensor::concat(&positions, 1)?;
-        let levels = FeatureLevels::create(input.device(), sizes.clone())?;
+        let levels = FeaturePyramid::create(input.device(), sizes.clone())?;
         let references = levels.reference_points()?.cast(positions.data_type())?;
         let mut memory = Tensor::concat(&tokens, 1)?;
         for layer in &self.encoder {
@@ -359,8 +359,9 @@ impl Layer for Mask2FormerLayers {
             let embedding = query_level_embeddings
                 .narrow(0, i64::try_from(index).unwrap_or(i64::MAX), 1)?
                 .unsqueeze(0)?;
-            memory_positions
-                .push(sine_positions(map, self.width, SinePositions::DETR)?.cast(map.data_type())?);
+            memory_positions.push(
+                sine_positions(map, self.width, SinePositionSpec::DETR)?.cast(map.data_type())?,
+            );
             memories.push(to_tokens(map)?.add(&embedding)?);
             sizes.push([height, width]);
         }

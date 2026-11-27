@@ -21,7 +21,7 @@ use crate::{
     assembly::{merge_heads, split_heads},
     error::{Error, Result},
     format::Loader,
-    head::{Draws, Forecast, Forecaster, HeadLoader, PastValues, Series, refuse_draws},
+    head::{Forecast, Forecaster, HeadLoader, PastSeries, PathSampling, Series, refuse_draws},
     model::ModelEntry,
     schema::Schema,
     source::Format,
@@ -336,11 +336,11 @@ pub type TimesFm = Model<TimesFmLayers>;
 
 impl Forecaster for TimesFm {
     /// Forecasts a univariate series as `TimesFm2_5ModelForPrediction.forward` forecasts one series with its defaults.
-    fn forecast(&self, series: &Series, draws: Option<Draws>) -> Result<Forecast> {
+    fn forecast(&self, series: &Series, draws: Option<PathSampling>) -> Result<Forecast> {
         refuse_draws(draws, "TimesFM")?;
         series.refuse_extras("TimesFM")?;
         series.refuse_missing("TimesFM")?;
-        let PastValues::Univariate(series) = &series.past_values else {
+        let PastSeries::Univariate(series) = &series.past_values else {
             return Err(Error::unsupported("a TimesFM forecast of several channels"));
         };
         let config = &self.layer().config;

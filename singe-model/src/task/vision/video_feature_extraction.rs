@@ -7,7 +7,7 @@ use crate::{
     error::{Error, Result},
     head::VideoEncoder,
     host, model,
-    processor::{image::ImageTransforms, video::Video},
+    processor::{image::ImagePreprocessor, video::Video},
     source::{LoadOptions, Source},
     task::Pipeline,
 };
@@ -15,7 +15,7 @@ use crate::{
 #[derive(Debug)]
 pub struct VideoFeatureExtractionPipeline {
     model: VideoEncoder,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     options: LoadOptions,
 }
 
@@ -51,7 +51,7 @@ impl Pipeline for VideoFeatureExtractionPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             options,
         })
     }

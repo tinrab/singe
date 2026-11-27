@@ -6,7 +6,7 @@ use crate::{
     error::Result,
     head::{Autoencoder, Head, ImageUpscaler},
     model,
-    processor::image::{Image, ImageTransforms, PixelRange},
+    processor::image::{Image, ImagePreprocessor, PixelRange},
     source::{LoadOptions, Source},
     task::Pipeline,
 };
@@ -16,7 +16,7 @@ enum ImageModel {
     Autoencoder(Autoencoder),
     Upscaler {
         model: ImageUpscaler,
-        processor: ImageTransforms,
+        processor: ImagePreprocessor,
     },
 }
 
@@ -37,7 +37,7 @@ impl Pipeline for ImageToImagePipeline {
         let model = if model::default_head(source)? == Head::SuperResolution {
             ImageModel::Upscaler {
                 model: model::load(source, options)?,
-                processor: ImageTransforms::load(source)?,
+                processor: ImagePreprocessor::load(source)?,
             }
         } else {
             ImageModel::Autoencoder(model::load(source, options)?)

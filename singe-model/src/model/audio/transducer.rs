@@ -14,8 +14,8 @@ use crate::{
     BatchOptions,
     assembly::{ConformerEncoder, TransducerLayers, TransducerStep, greedy_decode},
     error::{Error, Result},
-    format::{Loader, Rules},
-    head::{LoopLimits, LoopSteps, SpeechToText, Transcription},
+    format::{Loader, RuleSet},
+    head::{LoopLimits, LoopStepSet, SpeechToText, Transcription},
     processor::text::TextTokenizer,
 };
 
@@ -62,8 +62,8 @@ impl<C, E: AudioEncoder> TransducerModel<C, E> {
         loader: &mut Loader<'_>,
         config: C,
         front_end: LogMelOptions,
-        (encoder, encoder_rules): (&Model<E>, &Rules),
-        (decoder, decoder_rules): (&Model<TransducerLayers>, &Rules),
+        (encoder, encoder_rules): (&Model<E>, &RuleSet),
+        (decoder, decoder_rules): (&Model<TransducerLayers>, &RuleSet),
     ) -> Result<Self> {
         let encoder = loader.load("encoder", encoder, encoder_rules)?;
         let decoder = loader.load("decoder", decoder, decoder_rules)?;
@@ -183,7 +183,7 @@ impl<C: Debug + Send + Sync, E: AudioEncoder> SpeechToText for TransducerModel<C
         })
     }
 
-    fn loop_steps(&self, _: &LoopLimits, _: &GenerationOptions) -> Result<LoopSteps> {
+    fn loop_steps(&self, _: &LoopLimits, _: &GenerationOptions) -> Result<LoopStepSet> {
         Err(Error::unsupported("exporting a transducer's decoding loop"))
     }
 }

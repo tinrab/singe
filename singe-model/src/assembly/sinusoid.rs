@@ -77,14 +77,14 @@ pub fn relative_sinusoids(device: Device, reach: DimensionExpr, width: i64) -> R
 
 /// How [`sine_positions`] places each point's coordinates.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct SinePositions {
+pub struct SinePositionSpec {
     /// What each coordinate, counted from one, has subtracted before the axis's length divides it: 0 for DETR, 0.5 for Deformable DETR.
     pub offset: f32,
     /// The base of the periods, 10000 for DETR.
     pub temperature: f32,
 }
 
-impl SinePositions {
+impl SinePositionSpec {
     /// DETR's positions: coordinates from one, under a temperature of 10000.
     pub const DETR: Self = Self {
         offset: 0.0,
@@ -96,7 +96,7 @@ impl SinePositions {
 ///
 /// Half the features encode the point's row and half its column, each from its coordinate counted from one, less the offset, and scaled to (0, 2π), over the temperature to the power of each feature pair's share.
 /// They are computed from the map's height and width, so a program with run-time axes follows each image's.
-pub fn sine_positions(map: &Tensor, features: i64, positions: SinePositions) -> Result<Tensor> {
+pub fn sine_positions(map: &Tensor, features: i64, positions: SinePositionSpec) -> Result<Tensor> {
     const SIDE_OFFSET: f32 = 1e-6;
     let device = map.device();
     let half = features / 2;

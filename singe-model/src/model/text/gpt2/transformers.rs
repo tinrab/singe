@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     error::{Error, Result},
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{activation_field, default_true},
     },
     model::text::gpt2::Gpt2Config,
@@ -69,17 +69,17 @@ pub(crate) fn config(source: &Source) -> Result<Gpt2Config> {
 }
 
 /// Returns the rules that import a checkpoint, whose names start with `transformer`, or in older checkpoints, without it.
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     model_rules("transformer")
         .then(model_rules(""))
         .rename("lm_head", "head")
 }
 
 /// Returns the rules that import a model whose names start with `prefix`.
-pub(crate) fn model_rules(prefix: &str) -> Rules {
+pub(crate) fn model_rules(prefix: &str) -> RuleSet {
     let layer = |name: &str| join(prefix, &format!("h.*.{name}"));
     let block = |name: &str| format!("blocks.*.{name}");
-    Rules::new()
+    RuleSet::new()
         .rename(&join(prefix, "wte"), "embeddings.tokens")
         .rename(&join(prefix, "wpe"), "embeddings.positions")
         // Older checkpoints also store attention masks, which this definition computes itself.

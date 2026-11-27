@@ -307,14 +307,14 @@ fn packed(
 
 // The masks that hide scores from queries, in their own operation graph.
 #[derive(Debug, Default)]
-struct ScoreMasks {
+struct ScoreMaskBuilder {
     tensors: Vec<CudnnBackendTensor>,
     operations: Vec<DiagonalBandMaskOperation>,
     graph: Option<CudnnOperationGraph>,
     last: i64,
 }
 
-impl ScoreMasks {
+impl ScoreMaskBuilder {
     fn create(
         cudnn: &CudnnContext,
         scores: [i64; 4],
@@ -530,7 +530,7 @@ fn build_template(
         };
         [batch, heads, queries, keys]
     };
-    let masks = ScoreMasks::create(
+    let masks = ScoreMaskBuilder::create(
         cudnn,
         scores,
         problem.causal,
@@ -596,7 +596,7 @@ fn build_template(
         }
     };
     let workspace_size = plan.workspace_size()?;
-    let ScoreMasks {
+    let ScoreMaskBuilder {
         tensors: mask_tensors,
         operations,
         graph,

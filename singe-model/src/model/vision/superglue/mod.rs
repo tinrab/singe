@@ -13,8 +13,8 @@ use crate::{
     error::Result,
     format::Loader,
     head::{
-        Boxed, HeadLoader, KeypointLayers, KeypointMatcher, Keypoints, MatchingLayers, PairMatches,
-        extract_keypoints,
+        Boxed, HeadLoader, KeypointLayers, KeypointMatcher, KeypointSet, MatchingLayers,
+        PairMatching, extract_keypoints,
     },
     model::{
         ModelEntry,
@@ -127,7 +127,7 @@ impl SuperGlueLayers {
         })
     }
 
-    fn detect(&self, pixels: &Tensor, image: i64, state: &ModelState) -> SingeResult<Keypoints> {
+    fn detect(&self, pixels: &Tensor, image: i64, state: &ModelState) -> SingeResult<KeypointSet> {
         let (scores, descriptors) = self.detector.maps(&pixels.narrow(0, image, 1)?, state)?;
         extract_keypoints(&scores, &descriptors, &self.config.detector.keypoints)?
             .into_iter()
@@ -138,7 +138,7 @@ impl SuperGlueLayers {
     /// Returns one image's descriptors, `[1, n, W]`, with its keypoints' encoding added: each keypoint's position centered and scaled by 0.7 of the longer side, and its score, as `normalize_keypoints` and the keypoint encoder read them.
     fn encoded(
         &self,
-        found: &Keypoints,
+        found: &KeypointSet,
         [height, width]: [i64; 2],
         like: &Tensor,
         state: &ModelState,
@@ -239,7 +239,7 @@ impl SuperGlueLayers {
 }
 
 impl MatchingLayers for SuperGlueLayers {
-    fn match_pair(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<PairMatches> {
+    fn match_pair(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<PairMatching> {
         let &[_, _, height, width] = pixels.shape().dimensions() else {
             return Err(SingeError::invalid_argument("image pair"));
         };
@@ -249,7 +249,7 @@ impl MatchingLayers for SuperGlueLayers {
         ];
         let (first, second) = (found[0].keypoints.len(), found[1].keypoints.len());
         if first == 0 || second == 0 {
-            return Ok(PairMatches {
+            return Ok(PairMatching {
                 keypoints: found.map(|found| found.keypoints),
                 matches: vec![-1; first],
                 scores: vec![0.0; first],
@@ -317,7 +317,7 @@ impl MatchingLayers for SuperGlueLayers {
             });
             scores.push(if valid { score } else { 0.0 });
         }
-        Ok(PairMatches {
+        Ok(PairMatching {
             keypoints: found.map(|found| found.keypoints),
             matches,
             scores,

@@ -10,7 +10,7 @@ use crate::{
     },
     random::{self, Generator},
     shape::Shape,
-    tensor::{Draws, SamplingOptions, Tensor},
+    tensor::{DrawSource, SamplingOptions, Tensor},
 };
 
 // One token a running batch chose.
@@ -347,7 +347,7 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
 
         let draws = streams
             .as_ref()
-            .map_or(Draws::Generator(None), Draws::Streams);
+            .map_or(DrawSource::Generator(None), DrawSource::Streams);
         let mut choice = Choice::new(&first, &self.options, &sampling, draws);
         choice.bias = bias
             .as_ref()
@@ -670,7 +670,7 @@ fn step_portions(pending: &[usize], largest: Option<usize>) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::generation::{Penalties, generate, generate_batch};
+    use crate::generation::{PenaltySet, generate, generate_batch};
 
     // Answers each step with logits favouring a token one above each sequence's last.
     struct Counting {
@@ -1013,9 +1013,9 @@ mod tests {
         // Token 6 beats the decoder's choice until two of it cost more than the bias.
         let frequent = SequenceOptions {
             logit_bias: vec![(6, 2.0)],
-            penalties: Penalties {
+            penalties: PenaltySet {
                 frequency: 0.6,
-                ..Penalties::default()
+                ..PenaltySet::default()
             },
             logprobs: Some(2),
             ..limited(4)
@@ -1023,9 +1023,9 @@ mod tests {
         // The decoder's choice, 4, is in the prompt, so the penalty halves it below token 6's bias.
         let repeated = SequenceOptions {
             logit_bias: vec![(6, 0.8)],
-            penalties: Penalties {
+            penalties: PenaltySet {
                 repetition: 2.0,
-                ..Penalties::default()
+                ..PenaltySet::default()
             },
             ..limited(1)
         };

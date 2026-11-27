@@ -6,7 +6,7 @@ use singe::nn::Activation;
 
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{RuleSet, transformers::activation_field},
     model::time_series::time_series_transformer::TimeSeriesTransformerConfig,
     source::Source,
 };
@@ -92,12 +92,12 @@ pub(crate) fn config(source: &Source) -> Result<TimeSeriesTransformerConfig> {
     })
 }
 
-fn stack_rules(stack: &str) -> Rules {
+fn stack_rules(stack: &str) -> RuleSet {
     let (from, to) = (
         format!("model.{stack}.layers.*"),
         format!("{stack}.blocks.*"),
     );
-    Rules::new()
+    RuleSet::new()
         .rename(
             &format!("model.{stack}.value_embedding.value_projection"),
             &format!("{stack}.value"),
@@ -131,7 +131,7 @@ fn stack_rules(stack: &str) -> Rules {
         )
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     stack_rules("encoder")
         // A batch norm's count of the batches it saw in training, which evaluation never reads.
         .skip("model.encoder.conv_layers.*.norm.num_batches_tracked")

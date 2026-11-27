@@ -7,7 +7,7 @@ use crate::{
     head::{Seq2SeqInput, Seq2SeqLm},
     model,
     processor::{
-        image::{Image, ImageTransforms},
+        image::{Image, ImagePreprocessor},
         text::TextTokenizer,
     },
     source::{LoadOptions, Source},
@@ -17,7 +17,7 @@ use crate::{
 #[derive(Debug)]
 pub struct DocumentQuestionAnsweringPipeline {
     model: Seq2SeqLm,
-    processor: ImageTransforms,
+    processor: ImagePreprocessor,
     tokenizer: TextTokenizer,
     options: LoadOptions,
 }
@@ -75,7 +75,7 @@ impl Pipeline for DocumentQuestionAnsweringPipeline {
     fn load(source: &Source, options: LoadOptions) -> Result<Self> {
         Ok(Self {
             model: model::load(source, options)?,
-            processor: ImageTransforms::load(source)?,
+            processor: ImagePreprocessor::load(source)?,
             tokenizer: TextTokenizer::load(source)?,
             options,
         })

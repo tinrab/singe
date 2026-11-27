@@ -49,14 +49,14 @@ impl Summary {
 }
 
 #[derive(Debug, Default)]
-pub struct Benches {
+pub struct BenchSuite {
     filters: Vec<String>,
     save: Option<String>,
     compare: Option<String>,
     results: BTreeMap<String, Summary>,
 }
 
-impl Benches {
+impl BenchSuite {
     #[must_use]
     pub fn from_args() -> Self {
         let mut benches = Self::default();

@@ -476,7 +476,7 @@ for (int h = 0; h < 2; ++h) {{
 
         merge_splits(
             attention,
-            &MergedSplits {
+            &SplitMerger {
                 data_type,
                 kind,
                 splits,
@@ -492,7 +492,7 @@ for (int h = 0; h < 2; ++h) {{
 
 // What the kernel that merges split keys reads.
 #[derive(Debug, Clone)]
-struct MergedSplits {
+struct SplitMerger {
     data_type: DataType,
     kind: &'static str,
     splits: usize,
@@ -505,10 +505,10 @@ struct MergedSplits {
 // Runs `attention`, which leaves each split's normalized output and log-sum-exp, before one block a row, which weighs each split's output by its share of the row's total, `2^(lse - largest)` over their sum.
 fn merge_splits(
     attention: KernelPlan,
-    merged: &MergedSplits,
+    merged: &SplitMerger,
     inputs: &[KernelInput],
 ) -> Result<KernelPlan> {
-    let &MergedSplits {
+    let &SplitMerger {
         data_type,
         kind,
         splits,

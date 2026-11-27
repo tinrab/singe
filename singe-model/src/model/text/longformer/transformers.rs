@@ -9,8 +9,8 @@ use singe::{
 use crate::{
     assembly::{KeyPattern, PostNormEncoderConfig, post_norm_encoder_rules},
     error::{Error, Result},
-    format::{Rules, transformers::EncoderFields},
-    head::{ClassifierLayout, EncoderBody, EncoderModel, Head, HeadLayouts, post_norm_body},
+    format::{RuleSet, transformers::EncoderFields},
+    head::{ClassifierLayout, EncoderBody, EncoderHeadLayout, EncoderModel, Head, post_norm_body},
     model::text::longformer::Longformer,
     schema::Schema,
     source::Source,
@@ -29,7 +29,7 @@ impl EncoderModel for Longformer {
     type Config = PostNormEncoderConfig;
 
     /// The masked language model's projection is exact GELU, as `RoBERTa`'s is.
-    const LAYOUTS: HeadLayouts = HeadLayouts {
+    const LAYOUTS: EncoderHeadLayout = EncoderHeadLayout {
         classifier: ClassifierLayout {
             pooling: PoolingMode::Cls,
             projection: Some(Activation::Tanh),
@@ -61,9 +61,9 @@ impl EncoderModel for Longformer {
         post_norm_body(schema, config)
     }
 
-    fn encoder_rules() -> Rules {
+    fn encoder_rules() -> RuleSet {
         let layers = "longformer.encoder.layer.*.attention.self";
-        Rules::new()
+        RuleSet::new()
             .rename("lm_head.decoder.weight", "embeddings.tokens.weight")
             // Global tokens' projections, which no loaded head reads.
             .skip(&format!("{layers}.query_global"))
@@ -73,9 +73,9 @@ impl EncoderModel for Longformer {
             .skip("lm_head")
     }
 
-    fn head_rules(head: Head) -> Rules {
+    fn head_rules(head: Head) -> RuleSet {
         match head {
-            Head::MaskedLm => Rules::new().rename_each(
+            Head::MaskedLm => RuleSet::new().rename_each(
                 "lm_head",
                 "masked_lm",
                 &[
@@ -84,7 +84,7 @@ impl EncoderModel for Longformer {
                     ("bias", "output.bias"),
                 ],
             ),
-            _ => Rules::new(),
+            _ => RuleSet::new(),
         }
     }
 }

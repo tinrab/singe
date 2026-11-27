@@ -6,7 +6,7 @@ use singe::{
     nn::{DecoderModel, Model},
 };
 
-use crate::decoder_cache::{DecoderKey, Decoders, bucketed_capacity, cached_decoder};
+use crate::decoder_cache::{DecoderCache, DecoderKey, bucketed_capacity, cached_decoder};
 
 #[derive(Debug, Clone)]
 pub struct BatchOptions {
@@ -58,7 +58,7 @@ impl BatchOptions {
 
     pub(crate) fn run_decoder<L: DecoderModel, T, E: From<SingeError>>(
         &self,
-        decoders: &Decoders<DecoderKey, CachedDecoder<L>>,
+        decoders: &DecoderCache<DecoderKey, CachedDecoder<L>>,
         model: &Model<L>,
         options: DecoderOptions,
         run: impl FnOnce(&mut CachedDecoder<L>) -> StdResult<T, E>,

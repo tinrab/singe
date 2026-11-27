@@ -12,13 +12,13 @@ use crate::{
 };
 
 /// Slices of a tensor along one dimension, addressed in its row-major element order.
-struct Slices {
+struct SliceLayout {
     outer: usize,
     length: usize,
     inner: usize,
 }
 
-impl Slices {
+impl SliceLayout {
     fn create(input: &Tensor, dim: i64, context: &'static str) -> Result<Self> {
         if input.device() != Device::Cpu {
             return Err(cpu_device_mismatch(context, input.device()));
@@ -68,7 +68,7 @@ impl Slices {
 
 /// Orders values ascending with NaN largest, so descending order puts NaN first.
 pub fn argsort(input: &Tensor, dim: i64, descending: bool) -> Result<Tensor> {
-    let slices = Slices::create(input, dim, "cpu argsort input")?;
+    let slices = SliceLayout::create(input, dim, "cpu argsort input")?;
     let values = keys(input)?;
     let mut output = vec![0_i64; values.len()];
     let mut order = (0..slices.length).collect::<Vec<_>>();
@@ -106,7 +106,7 @@ pub fn cumprod(input: &Tensor, dim: i64) -> Result<Tensor> {
 fn cumulative(input: &Tensor, dim: i64, operation: Operation) -> Result<Tensor> {
     fn accumulated<T: Copy>(
         mut values: Vec<T>,
-        slices: &Slices,
+        slices: &SliceLayout,
         identity: T,
         combine: impl Fn(T, T) -> T,
     ) -> Vec<T> {
@@ -121,7 +121,7 @@ fn cumulative(input: &Tensor, dim: i64, operation: Operation) -> Result<Tensor> 
         values
     }
 
-    let slices = Slices::create(input, dim, "cpu cumulative input")?;
+    let slices = SliceLayout::create(input, dim, "cpu cumulative input")?;
     let shape = input.shape().clone();
     let product = operation == Operation::Cumprod;
     match input.data_type() {

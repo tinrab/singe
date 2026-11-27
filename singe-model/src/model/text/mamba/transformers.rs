@@ -5,7 +5,7 @@ use singe::nn::MambaSpec;
 
 use crate::{
     error::{Error, Result},
-    format::{Rules, transformers::default_true},
+    format::{RuleSet, transformers::default_true},
     model::text::mamba::MambaConfig,
     source::Source,
 };
@@ -69,8 +69,8 @@ pub(crate) fn config(source: &Source) -> Result<MambaConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename("backbone.embeddings", "embeddings.tokens")
         .rename_each(
             "backbone.layers.*.mixer",

@@ -29,7 +29,7 @@ use crate::{
 
 /// The multipliers Falcon-H1 applies inside its blocks, which loading folds into the weights they follow.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct FalconH1Multipliers {
+pub struct FalconH1Scaling {
     pub attention_in: f32,
     pub attention_out: f32,
     pub key: f32,
@@ -51,7 +51,7 @@ pub struct FalconH1Config {
     pub convolution_bias: bool,
     pub embedding_scale: f32,
     pub logit_scale: f32,
-    pub multipliers: FalconH1Multipliers,
+    pub multipliers: FalconH1Scaling,
 }
 
 pub type FalconH1Layer = HybridLayer<GroupedQueryAttention, Mamba2Mixer>;

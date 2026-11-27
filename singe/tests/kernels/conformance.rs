@@ -1240,7 +1240,7 @@ fn test_cuda_tile_kernels_match_the_cuda_baseline() {
 
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ProgramSteps {
+enum ProgramRequirement {
     Any,
     NeedsLibrary,
 }
@@ -1252,7 +1252,7 @@ fn check_program(
     case: &Case,
     export: &CudaExport,
     label: &str,
-    steps: ProgramSteps,
+    steps: ProgramRequirement,
 ) -> anyhow::Result<bool> {
     let device = ExecutionPath::Graph.device();
     let named = case
@@ -1266,7 +1266,7 @@ fn check_program(
     let (graph, _) = Graph::capture(named.clone(), |inputs| run_case(case, inputs))?;
     cuda::synchronize(device)?;
     let program: CudaProgram = export.export(&graph)?;
-    if steps == ProgramSteps::NeedsLibrary
+    if steps == ProgramRequirement::NeedsLibrary
         && !program
             .steps
             .iter()
@@ -1332,9 +1332,9 @@ fn test_exported_programs_match_pytorch_on_a_sample_of_cases() {
         let case = cases[cases.len() / 2];
         let exports = library_exports
             .iter()
-            .map(|(label, export)| (label.as_str(), export, ProgramSteps::NeedsLibrary));
+            .map(|(label, export)| (label.as_str(), export, ProgramRequirement::NeedsLibrary));
         for (label, export, steps) in
-            once(("generated", &generated, ProgramSteps::Any)).chain(exports)
+            once(("generated", &generated, ProgramRequirement::Any)).chain(exports)
         {
             let result = catch_unwind(AssertUnwindSafe(|| {
                 check_program(&fixture, case, export, label, steps)

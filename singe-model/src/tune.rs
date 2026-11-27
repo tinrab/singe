@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "cuda_13_4")]
 use singe::backend::cuda::{
     LoweringPolicy,
-    tuning::{GraphTuneOptions, Measurement, TuningRecords},
+    tuning::{GraphTuneOptions, Measurement, TuningRecordSet},
 };
 
 use crate::error::{Error, Result};
@@ -78,8 +78,8 @@ pub fn read_records(
     path: &Path,
     architecture: Option<&str>,
     measurement: Measurement,
-) -> Result<TuningRecords> {
-    let records = TuningRecords::read(path)?;
+) -> Result<TuningRecordSet> {
+    let records = TuningRecordSet::read(path)?;
     if let Some(mismatch) = records.mismatch(architecture, measurement) {
         return Err(Error::invalid(format!(
             "tuning records {} made {mismatch}",

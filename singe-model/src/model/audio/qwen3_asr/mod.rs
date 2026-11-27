@@ -25,7 +25,7 @@ use crate::{
     },
     error::Result,
     format::Loader,
-    head::{HeadLoader, LoopLimits, LoopSteps, SpeechToText, Transcription},
+    head::{HeadLoader, LoopLimits, LoopStepSet, SpeechToText, Transcription},
     model::{ModelEntry, audio::speech::SpeechModel},
     processor::text::TextTokenizer,
     schema::Schema,
@@ -545,14 +545,18 @@ impl SpeechToText for Qwen3Asr {
         self.config().encoder.log_mel().sample_rate
     }
 
-    fn loop_steps(&self, limits: &LoopLimits, generation: &GenerationOptions) -> Result<LoopSteps> {
+    fn loop_steps(
+        &self,
+        limits: &LoopLimits,
+        generation: &GenerationOptions,
+    ) -> Result<LoopStepSet> {
         let chunks = limits.audio_seconds.max(1);
         let rows = chunks * self.config().encoder.chunk_positions();
         // The encode step writes a row for every position of its chunks after the prompt's start, which the cache must hold beside the transcription.
         let capacity = limits.capacity.max(rows + 64);
         let decoder = CachedDecoder::create(self.decoder(), DecoderOptions::new(1, capacity))?;
         let (encode, _) = self.encode_step_graph(&decoder, chunks)?;
-        LoopSteps::create(&decoder, Some(encode), generation, Some(limits.prompt_rows))
+        LoopStepSet::create(&decoder, Some(encode), generation, Some(limits.prompt_rows))
     }
 
     fn respond(

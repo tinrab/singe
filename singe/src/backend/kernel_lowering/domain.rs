@@ -13,7 +13,7 @@ use crate::{
     backend::{
         kernel_lowering::{
             element_type,
-            expression::{ElementValue, Expressions},
+            expression::{ElementValue, ExpressionBuilder},
             group::ElementGroup,
         },
         registry::Operation,
@@ -226,7 +226,7 @@ impl DomainKernel {
                 .first()
                 .ok_or_else(|| Error::missing_input("group value"))?
         } else {
-            let mut expressions = Expressions {
+            let mut expressions = ExpressionBuilder {
                 kernel: &mut self.kernel,
                 bindings: &mut self.bindings,
                 labels: &mut self.labels,
@@ -291,7 +291,7 @@ impl DomainKernel {
                 .first()
                 .ok_or_else(|| Error::missing_input("group value at"))?
         } else {
-            let mut expressions = Expressions {
+            let mut expressions = ExpressionBuilder {
                 kernel: &mut self.kernel,
                 bindings: &mut self.bindings,
                 labels: &mut self.labels,

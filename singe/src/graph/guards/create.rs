@@ -6,13 +6,13 @@ use crate::{
     error::{Error, Result},
     graph::{
         Graph,
-        guards::{GraphGuards, InputGuard, storage::static_input_storage_guard},
+        guards::{GraphGuardSet, InputGuard, storage::static_input_storage_guard},
     },
 };
 #[cfg(test)]
 use crate::{graph::guards::storage::constant_guard, graph::guards::storage::storage_span_bytes};
 
-impl GraphGuards {
+impl GraphGuardSet {
     /// Creates guards for the inputs and constants of a prepared IR.
     ///
     /// # Errors

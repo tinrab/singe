@@ -30,7 +30,7 @@ pub struct KeypointConfig {
 
 /// An image's keypoints at pixels of the image the model read, `[x, y]`, their probabilities, and their unit descriptors.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct Keypoints {
+pub struct KeypointSet {
     pub keypoints: Vec<[f32; 2]>,
     pub scores: Vec<f32>,
     pub descriptors: Vec<Vec<f32>>,
@@ -187,7 +187,7 @@ impl KeypointDetector {
     }
 
     /// Returns each image's keypoints, as [`extract_keypoints`] finds them in the model's maps.
-    pub fn detect(&self, pixels: &Tensor) -> Result<Vec<Keypoints>> {
+    pub fn detect(&self, pixels: &Tensor) -> Result<Vec<KeypointSet>> {
         let (scores, descriptors) = self.model.layer().maps(pixels, self.model.state())?;
         Ok(extract_keypoints(&scores, &descriptors, &self.config)?)
     }
@@ -203,7 +203,7 @@ pub fn extract_keypoints(
     scores: &Tensor,
     descriptors: &Tensor,
     config: &KeypointConfig,
-) -> SingeResult<Vec<Keypoints>> {
+) -> SingeResult<Vec<KeypointSet>> {
     let side = |dimension: i64| {
         usize::try_from(dimension).map_err(|_| SingeError::out_of_range("map size"))
     };
@@ -249,7 +249,7 @@ pub fn extract_keypoints(
                 .iter()
                 .map(|&((row, column), _)| [column as f32, row as f32])
                 .collect::<Vec<_>>();
-            Keypoints {
+            KeypointSet {
                 descriptors: keypoints
                     .iter()
                     .map(|&point| sample(map, depth, rows, columns, point))
@@ -264,11 +264,11 @@ pub fn extract_keypoints(
 /// A keypoint matcher's layers.
 pub trait MatchingLayers: Debug + Send + Sync {
     /// Returns, for a pair of images, `pixels`, `[2, C, H, W]`, each image's keypoints at its pixels, `[x, y]`, and each of the first image's keypoints' match among the second's, or -1, with its score.
-    fn match_pair(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<PairMatches>;
+    fn match_pair(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<PairMatching>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct PairMatches {
+pub struct PairMatching {
     pub keypoints: [Vec<[f32; 2]>; 2],
     pub matches: Vec<i64>,
     pub scores: Vec<f32>,
@@ -290,7 +290,7 @@ impl KeypointMatcher {
         &self.model
     }
 
-    pub fn match_pair(&self, pixels: &Tensor) -> Result<PairMatches> {
+    pub fn match_pair(&self, pixels: &Tensor) -> Result<PairMatching> {
         Ok(self.model.layer().match_pair(pixels, self.model.state())?)
     }
 }

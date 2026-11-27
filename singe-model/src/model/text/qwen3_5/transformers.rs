@@ -13,14 +13,14 @@ use crate::{
     },
     error::{Error, Result},
     format::{
-        Rules, join,
+        RuleSet, join,
         transformers::{
             DecoderDefaults, DecoderFields, LayerType, RotaryFields, activation_field,
             default_true, parse,
         },
     },
     model::text::qwen3_5::{
-        Draft, ImageSizeBounds, Qwen35Config, Qwen35ImageProcessor, Qwen35Mixer, Qwen35TextConfig,
+        Draft, ImageSizeRange, Qwen35Config, Qwen35ImageProcessor, Qwen35Mixer, Qwen35TextConfig,
         Qwen35VisionConfig, Qwen35VisionLanguageConfig,
     },
     source::Source,
@@ -204,7 +204,7 @@ pub(crate) fn config(source: &Source) -> Result<Qwen35Config> {
             image_token_id: fields.image_token_id,
             position_sections: sections(&fields.text_config.decoder.rotary)?,
             processor: Qwen35ImageProcessor {
-                bounds: ImageSizeBounds {
+                bounds: ImageSizeRange {
                     min_pixels: processor.size.shortest_edge,
                     max_pixels: processor.size.longest_edge,
                 },
@@ -235,7 +235,7 @@ pub(crate) enum Vision {
     Skipped,
 }
 
-pub(crate) fn decoder_rules(config: &Qwen35Config, draft: Draft, vision: Vision) -> Rules {
+pub(crate) fn decoder_rules(config: &Qwen35Config, draft: Draft, vision: Vision) -> RuleSet {
     let model = if config.vision.is_some() {
         "model.language_model"
     } else {
@@ -243,9 +243,9 @@ pub(crate) fn decoder_rules(config: &Qwen35Config, draft: Draft, vision: Vision)
     };
     let layers = join(model, "layers.*");
     let rules = match vision {
-        Vision::Loaded => Rules::new(),
+        Vision::Loaded => RuleSet::new(),
         // Decoding text reads no image.
-        Vision::Skipped => Rules::new().skip("model.visual"),
+        Vision::Skipped => RuleSet::new().skip("model.visual"),
     };
     let rules = match draft {
         Draft::Included => rules.then(draft_rules()),
@@ -287,8 +287,8 @@ pub(crate) fn decoder_rules(config: &Qwen35Config, draft: Draft, vision: Vision)
 }
 
 /// Returns the rules that import the one multi-token-prediction layer into `draft`.
-fn draft_rules() -> Rules {
-    Rules::new()
+fn draft_rules() -> RuleSet {
+    RuleSet::new()
         .rename_each(
             "mtp",
             "draft",
@@ -302,9 +302,9 @@ fn draft_rules() -> Rules {
         .then(llama_block_rules("mtp.layers.0", "draft.block"))
 }
 
-pub(crate) fn vision_rules() -> Rules {
+pub(crate) fn vision_rules() -> RuleSet {
     let blocks = "model.visual.blocks.*";
-    Rules::new()
+    RuleSet::new()
         .rename_each(
             "model.visual",
             "",

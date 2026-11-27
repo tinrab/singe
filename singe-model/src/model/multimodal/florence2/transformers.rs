@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     assembly::{BartStackConfig, PYTORCH_NORM_EPS, bart_stack_rules, embedding_scale},
     error::{Error, Result},
-    format::{Rules, transformers::activation_field},
+    format::{RuleSet, transformers::activation_field},
     model::multimodal::florence2::{DavitStage, Florence2Config},
     source::Source,
 };
@@ -126,9 +126,9 @@ pub(crate) fn config(source: &Source) -> Result<Florence2Config> {
     })
 }
 
-fn half_block_rules(from: &str, to: &str, attention: &str) -> Rules {
+fn half_block_rules(from: &str, to: &str, attention: &str) -> RuleSet {
     let attention_from = format!("{from}.{attention}");
-    Rules::new()
+    RuleSet::new()
         .split(
             &format!("{attention_from}.qkv"),
             0,
@@ -156,9 +156,9 @@ fn half_block_rules(from: &str, to: &str, attention: &str) -> Rules {
         )
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     let (vision, projector) = ("model.vision_tower", "model.multi_modal_projector");
-    Rules::new()
+    RuleSet::new()
         .rename(&format!("{vision}.convs.*.conv"), "vision.stages.*.conv")
         .rename(&format!("{vision}.convs.*.norm"), "vision.stages.*.norm")
         .then(half_block_rules(

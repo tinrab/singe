@@ -532,7 +532,7 @@ impl TextStream<'_> {
 #[derive(Debug, Clone)]
 pub enum CtcTokenizer {
     /// Characters, as `Wav2Vec2CTCTokenizer` reads them from `vocab.json`: the blank is the padding token, and the word delimiter a space.
-    Characters(CtcCharacters),
+    Characters(CtcVocabulary),
     /// Pieces of `tokenizer.json`, as `ParakeetTokenizer` decodes them: the blank is the padding token, and the rest decode without special tokens.
     Pieces {
         tokenizer: Box<TextTokenizer>,
@@ -541,7 +541,7 @@ pub enum CtcTokenizer {
 }
 
 #[derive(Debug, Clone)]
-pub struct CtcCharacters {
+pub struct CtcVocabulary {
     tokens: Vec<String>,
     padding: String,
     delimiter: String,
@@ -579,7 +579,7 @@ impl CtcTokenizer {
 
             tokens[id].clone_from(token);
         }
-        Ok(Self::Characters(CtcCharacters {
+        Ok(Self::Characters(CtcVocabulary {
             tokens,
             padding: special_or(&config, "pad_token", "<pad>"),
             delimiter: special_or(&config, "word_delimiter_token", "|"),
@@ -614,7 +614,7 @@ impl CtcTokenizer {
     }
 }
 
-impl CtcCharacters {
+impl CtcVocabulary {
     /// Decodes `ids`, collapsing repeats, dropping the blank but keeping other special tokens, and writing the word delimiter as a space.
     fn decode(&self, ids: &[i64]) -> Result<String> {
         let mut text = String::new();

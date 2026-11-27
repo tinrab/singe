@@ -13,7 +13,7 @@ use crate::{
         kernel_lowering::{
             domain::DomainKernel,
             element_type,
-            expression::{ElementValue, Expressions},
+            expression::{ElementValue, ExpressionBuilder},
         },
         registry::{Operation, OperationAttributes},
     },
@@ -252,7 +252,7 @@ impl<'a, 'b> EpilogueWriter<'a, 'b> {
                 }
 
                 let shape = epilogue.nodes[node].shape.clone();
-                let mut expressions = Expressions {
+                let mut expressions = ExpressionBuilder {
                     kernel: &mut builder.kernel,
                     bindings: &mut builder.bindings,
                     labels: &mut builder.labels,

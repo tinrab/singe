@@ -9,12 +9,12 @@ use syn::{
     spanned::Spanned,
 };
 
-struct TensorElements {
+struct TensorLiteral {
     elements: Vec<Expr>,
     shape: Vec<u32>,
 }
 
-impl TensorElements {
+impl TensorLiteral {
     fn new() -> Self {
         Self {
             elements: Vec::new(),
@@ -23,7 +23,7 @@ impl TensorElements {
     }
 }
 
-fn parse_recursive(expr: &Expr, data: &mut TensorElements, depth: usize) -> SynResult<()> {
+fn parse_recursive(expr: &Expr, data: &mut TensorLiteral, depth: usize) -> SynResult<()> {
     if let Expr::Array(array_expr) = expr {
         let current_len = u32::try_from(array_expr.elems.len())
             .map_err(|_| SynError::new_spanned(array_expr, "tensor dimension exceeds u32"))?;
@@ -198,7 +198,7 @@ pub fn expand(input: TokenStream) -> SynResult<TokenStream> {
 
     let original_elements_expr = elements_expr.clone();
 
-    let mut tensor_data = TensorElements::new();
+    let mut tensor_data = TensorLiteral::new();
 
     let is_empty_top_array = match &elements_expr {
         Expr::Array(a) => a.elems.is_empty(),

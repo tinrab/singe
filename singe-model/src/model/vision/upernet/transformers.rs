@@ -5,7 +5,7 @@ use serde::Deserialize;
 use crate::{
     assembly::convnext_rules,
     error::{Error, Result},
-    format::{Rules, transformers::classifier_config},
+    format::{RuleSet, transformers::classifier_config},
     model::vision::{convnext::transformers::ConvNextFields, upernet::UperNetConfig},
     source::Source,
 };
@@ -45,15 +45,15 @@ pub(crate) fn config(source: &Source) -> Result<UperNetConfig> {
 }
 
 /// Renames an `UperNetConvModule` under `from`, `conv` and `batch_norm`, to a convolution and norm under `to`.
-fn conv_module(rules: Rules, from: &str, to: &str) -> Rules {
+fn conv_module(rules: RuleSet, from: &str, to: &str) -> RuleSet {
     rules
         .skip(&format!("{from}.batch_norm.num_batches_tracked"))
         .rename_each(from, to, &[("conv", "convolution"), ("batch_norm", "norm")])
 }
 
 /// Returns the rules of an `UperNet` whose backbone has `stages` stages.
-pub(crate) fn rules(stages: usize) -> Rules {
-    let mut rules = Rules::new()
+pub(crate) fn rules(stages: usize) -> RuleSet {
+    let mut rules = RuleSet::new()
         // The auxiliary head only feeds the training loss.
         .skip("auxiliary_head")
         .then(convnext_rules("backbone", "backbone"));

@@ -7,7 +7,7 @@ use crate::{
     assembly::{SwinConfig, attention_rules, deformable_encoder_rules, swin_rules},
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{activation_field, classifier_config},
     },
     model::vision::mask2former::Mask2FormerConfig,
@@ -122,12 +122,12 @@ pub(crate) fn config(source: &Source) -> Result<Mask2FormerConfig> {
     })
 }
 
-pub(crate) fn rules() -> Rules {
+pub(crate) fn rules() -> RuleSet {
     let backbone = "model.pixel_level_module.encoder";
     let pixel = "model.pixel_level_module.decoder";
     let transformer = "model.transformer_module";
     let decoder = format!("{transformer}.decoder.layers.*");
-    let mut rules = Rules::new()
+    let mut rules = RuleSet::new()
         // The loss's weights of each class, which inference never reads.
         .skip("criterion.empty_weight")
         .then(swin_rules(

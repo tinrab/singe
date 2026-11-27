@@ -14,8 +14,8 @@ use crate::{
     error::Result,
     format::Loader,
     head::{
-        Boxed, HeadLoader, KeypointLayers, KeypointMatcher, Keypoints, MatchingLayers, PairMatches,
-        extract_keypoints,
+        Boxed, HeadLoader, KeypointLayers, KeypointMatcher, KeypointSet, MatchingLayers,
+        PairMatching, extract_keypoints,
     },
     model::{
         ModelEntry,
@@ -261,7 +261,7 @@ impl LightGlueLayers {
         })
     }
 
-    fn detect(&self, pixels: &Tensor, image: i64, state: &ModelState) -> SingeResult<Keypoints> {
+    fn detect(&self, pixels: &Tensor, image: i64, state: &ModelState) -> SingeResult<KeypointSet> {
         let (scores, descriptors) = self.detector.maps(&pixels.narrow(0, image, 1)?, state)?;
         extract_keypoints(&scores, &descriptors, &self.config.detector.keypoints)?
             .into_iter()
@@ -296,7 +296,7 @@ impl LightGlueLayers {
 
     fn side(
         &self,
-        points: &Keypoints,
+        points: &KeypointSet,
         image_size: Spatial2dI64,
         pixels: &Tensor,
         state: &ModelState,
@@ -469,7 +469,7 @@ impl LightGlueLayers {
 }
 
 impl MatchingLayers for LightGlueLayers {
-    fn match_pair(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<PairMatches> {
+    fn match_pair(&self, pixels: &Tensor, state: &ModelState) -> SingeResult<PairMatching> {
         let &[_, _, height, width] = pixels.shape().dimensions() else {
             return Err(SingeError::invalid_argument("image pair"));
         };
@@ -479,7 +479,7 @@ impl MatchingLayers for LightGlueLayers {
         ];
         let keypoints = [found[0].keypoints.clone(), found[1].keypoints.clone()];
         if keypoints.iter().any(Vec::is_empty) {
-            return Ok(PairMatches {
+            return Ok(PairMatching {
                 matches: vec![-1; keypoints[0].len()],
                 scores: vec![0.0; keypoints[0].len()],
                 keypoints,
@@ -545,7 +545,7 @@ fn unpruned(
     keypoints: &[Vec<[f32; 2]>; 2],
     matches: &[i64],
     scores: &[f32],
-) -> PairMatches {
+) -> PairMatching {
     let count = keypoints[0].len();
     let mut all_matches = vec![-1; count];
     let mut all_scores = vec![0.0; count];
@@ -558,7 +558,7 @@ fn unpruned(
             .and_then(|&found| i64::try_from(found).ok())
             .unwrap_or(-1);
     }
-    PairMatches {
+    PairMatching {
         keypoints: keypoints.clone(),
         matches: all_matches,
         scores: all_scores,

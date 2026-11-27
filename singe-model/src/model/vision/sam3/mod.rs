@@ -20,7 +20,7 @@ use singe::{
 
 use crate::{
     assembly::{
-        Attention, AttentionSpec, AxialRotary, LinearStack, SinePositions, inverse_sigmoid,
+        Attention, AttentionSpec, AxialRotary, LinearStack, SinePositionSpec, inverse_sigmoid,
         merge_heads, merge_windows, partition_windows, sine_positions, split_heads, to_map,
         to_tokens,
     },
@@ -748,7 +748,7 @@ impl ConceptLayers for Sam3Layers {
             return Err(SingeError::invalid_argument("SAM 3's three pyramid levels"));
         };
         let grid = coarsest.shape().dimensions()[2];
-        let positions = sine_positions(coarsest, self.config.width, SinePositions::DETR)?
+        let positions = sine_positions(coarsest, self.config.width, SinePositionSpec::DETR)?
             .cast(coarsest.data_type())?;
         let text = self
             .text

@@ -8,7 +8,7 @@ use singe::{
 use crate::{
     decoder_cache::cached_decoder,
     error::Result,
-    head::{LoopLimits, LoopSteps},
+    head::{LoopLimits, LoopStepSet},
 };
 
 /// A model that generates text a token at a time.
@@ -17,7 +17,11 @@ pub trait CausalLm: Debug {
     fn decoder(&self, options: DecoderOptions, compile: bool) -> Result<Box<dyn Decoder>>;
 
     /// Returns the steps an exported generation loop runs within `limits`, each choosing tokens as `generation` asks.
-    fn loop_steps(&self, limits: &LoopLimits, generation: &GenerationOptions) -> Result<LoopSteps>;
+    fn loop_steps(
+        &self,
+        limits: &LoopLimits,
+        generation: &GenerationOptions,
+    ) -> Result<LoopStepSet>;
 }
 
 impl<L: DecoderModel> CausalLm for Model<L> {
@@ -25,9 +29,13 @@ impl<L: DecoderModel> CausalLm for Model<L> {
         Ok(Box::new(cached_decoder(self, options, compile)?))
     }
 
-    fn loop_steps(&self, limits: &LoopLimits, generation: &GenerationOptions) -> Result<LoopSteps> {
+    fn loop_steps(
+        &self,
+        limits: &LoopLimits,
+        generation: &GenerationOptions,
+    ) -> Result<LoopStepSet> {
         let decoder =
             CachedDecoder::create(self, DecoderOptions::new(limits.rows, limits.capacity))?;
-        LoopSteps::create(&decoder, None, generation, Some(limits.prompt_rows))
+        LoopStepSet::create(&decoder, None, generation, Some(limits.prompt_rows))
     }
 }

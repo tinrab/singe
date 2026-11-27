@@ -9,8 +9,8 @@ use singe::{
 use crate::{
     assembly::{PostNormEncoderConfig, post_norm_encoder_rules},
     error::Result,
-    format::{Rules, transformers::EncoderFields},
-    head::{ClassifierLayout, EncoderBody, EncoderModel, Head, HeadLayouts, post_norm_body},
+    format::{RuleSet, transformers::EncoderFields},
+    head::{ClassifierLayout, EncoderBody, EncoderHeadLayout, EncoderModel, Head, post_norm_body},
     model::text::roberta::Roberta,
     schema::Schema,
     source::Source,
@@ -27,7 +27,7 @@ impl EncoderModel for Roberta {
     type Config = PostNormEncoderConfig;
 
     /// A classifier reads the first token's state through a tanh projection, with no pooler, and the masked language model's projection is exact GELU whatever the encoder's activation.
-    const LAYOUTS: HeadLayouts = HeadLayouts {
+    const LAYOUTS: EncoderHeadLayout = EncoderHeadLayout {
         classifier: ClassifierLayout {
             pooling: PoolingMode::Cls,
             projection: Some(Activation::Tanh),
@@ -46,7 +46,7 @@ impl EncoderModel for Roberta {
         post_norm_body(schema, config)
     }
 
-    fn encoder_rules() -> Rules {
+    fn encoder_rules() -> RuleSet {
         post_norm_encoder_rules("", "")
             .then(post_norm_encoder_rules("roberta", ""))
             // The heads' tensors, which only their own head's rules read.
@@ -55,14 +55,14 @@ impl EncoderModel for Roberta {
             .skip("lm_head")
     }
 
-    fn head_rules(head: Head) -> Rules {
+    fn head_rules(head: Head) -> RuleSet {
         match head {
-            Head::SequenceClassification => Rules::new().rename_each(
+            Head::SequenceClassification => RuleSet::new().rename_each(
                 "classifier",
                 "classifier",
                 &[("dense", "projection"), ("out_proj", "output")],
             ),
-            Head::MaskedLm => Rules::new()
+            Head::MaskedLm => RuleSet::new()
                 .rename_each(
                     "lm_head",
                     "masked_lm",
@@ -75,7 +75,7 @@ impl EncoderModel for Roberta {
                 )
                 // The same parameter as `lm_head.bias`.
                 .skip("lm_head.decoder.bias"),
-            _ => Rules::new(),
+            _ => RuleSet::new(),
         }
     }
 }

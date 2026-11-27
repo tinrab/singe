@@ -10,7 +10,7 @@ use crate::{
     source::{LoadOptions, Source},
     task::{
         Pipeline,
-        seq2seq::{Seq2SeqParameters, TaskPrefixes},
+        seq2seq::{Seq2SeqParameters, TaskPrefixTable},
     },
 };
 
@@ -18,7 +18,7 @@ use crate::{
 pub struct TranslationPipeline {
     model: Seq2SeqLm,
     tokenizer: TextTokenizer,
-    prefixes: TaskPrefixes,
+    prefixes: TaskPrefixTable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
@@ -48,7 +48,7 @@ impl Pipeline for TranslationPipeline {
         Ok(Self {
             model: model::load(source, options)?,
             tokenizer: TextTokenizer::load(source)?,
-            prefixes: TaskPrefixes::load(source)?,
+            prefixes: TaskPrefixTable::load(source)?,
         })
     }
 

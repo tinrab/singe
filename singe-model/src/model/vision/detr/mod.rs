@@ -12,7 +12,7 @@ use singe::{
 use crate::{
     assembly::{
         Attention, AttentionSpec, LinearStack, PYTORCH_NORM_EPS, ResNet, ResNetConfig,
-        SinePositions, sine_positions, to_tokens,
+        SinePositionSpec, sine_positions, to_tokens,
     },
     error::Result,
     format::Loader,
@@ -172,7 +172,8 @@ impl Layer for DetrLayers {
         let &[_, width, _, _] = map.shape().dimensions() else {
             return Err(SingeError::invalid_argument("DETR feature map"));
         };
-        let positions = sine_positions(&map, width, SinePositions::DETR)?.cast(map.data_type())?;
+        let positions =
+            sine_positions(&map, width, SinePositionSpec::DETR)?.cast(map.data_type())?;
         let mut memory = to_tokens(&map)?;
         for block in &self.encoder {
             let keyed = memory.add(&positions)?;

@@ -8,7 +8,7 @@ use crate::{
         ConformerConfig, ConformerFeedForward, HifiGanConfig, PYTORCH_NORM_EPS, hifigan_rules,
     },
     error::{Error, Result},
-    format::{Rules, join},
+    format::{RuleSet, join},
     model::audio::fastspeech2_conformer::{ConvStack, FastSpeech2Config},
     source::Source,
 };
@@ -155,9 +155,9 @@ pub(crate) fn config(source: &Source) -> Result<FastSpeech2Config> {
     })
 }
 
-fn stack_rules(from: &str, to: &str) -> Rules {
+fn stack_rules(from: &str, to: &str) -> RuleSet {
     let (from, to) = (join(from, "conformer_layers.*"), join(to, "blocks.*"));
-    Rules::new()
+    RuleSet::new()
         // A batch norm's count of the batches it saw in training, which evaluation never reads.
         .skip(&join(&from, "conv_module.norm.num_batches_tracked"))
         .rename_each(
@@ -188,8 +188,8 @@ fn stack_rules(from: &str, to: &str) -> Rules {
         )
 }
 
-fn predictor_rules(from: &str, to: &str) -> Rules {
-    Rules::new()
+fn predictor_rules(from: &str, to: &str) -> RuleSet {
+    RuleSet::new()
         .rename_each(
             &format!("model.{from}.conv_layers.*"),
             &format!("{to}.layers.*"),
@@ -198,8 +198,8 @@ fn predictor_rules(from: &str, to: &str) -> Rules {
         .rename(&format!("model.{from}.linear"), &format!("{to}.output"))
 }
 
-pub(crate) fn rules() -> Rules {
-    Rules::new()
+pub(crate) fn rules() -> RuleSet {
+    RuleSet::new()
         .rename("model.encoder.embed", "tokens")
         .then(stack_rules("model.encoder", "encoder"))
         .then(stack_rules("model.decoder", "decoder"))

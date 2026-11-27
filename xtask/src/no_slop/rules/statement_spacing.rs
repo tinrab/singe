@@ -18,13 +18,13 @@ const DENSE_RUN: usize = 6;
 
 type StatementCheck = fn(&[Stmt], &Context<'_>, &mut Vec<Diagnostic>);
 
-struct Blocks<'a> {
+struct BlockVisitor<'a> {
     context: &'a Context<'a>,
     statement_check: StatementCheck,
     findings: Vec<Diagnostic>,
 }
 
-impl<'ast> Visit<'ast> for Blocks<'_> {
+impl<'ast> Visit<'ast> for BlockVisitor<'_> {
     fn visit_block(&mut self, block: &'ast Block) {
         let tested = block
             .stmts
@@ -43,7 +43,7 @@ fn check_blocks(
     context: &Context<'_>,
     statement_check: StatementCheck,
 ) -> Vec<Diagnostic> {
-    let mut blocks = Blocks {
+    let mut blocks = BlockVisitor {
         context,
         statement_check,
         findings: Vec::new(),

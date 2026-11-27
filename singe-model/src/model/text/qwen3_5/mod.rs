@@ -9,13 +9,13 @@ use serde::{Deserialize, Serialize};
 use singe::nn::{Activation, GatedDeltaNetSpec, SourcedCausalLm};
 
 pub use self::{
-    processor::{ImageSizeBounds, Qwen35ImageProcessor},
+    processor::{ImageSizeRange, Qwen35ImageProcessor},
     text::{Qwen35, Qwen35Block, Qwen35Layer, Qwen35Layers},
     vision::{Qwen35ImageDecoder, Qwen35VisionEncoder, Qwen35VisionLanguage},
 };
 use crate::{
     assembly::{DecoderConfig, ExpertsConfig},
-    decoder_cache::Decoders,
+    decoder_cache::DecoderCache,
     error::{Error, Result},
     format::Loader,
     head::HeadLoader,
@@ -197,6 +197,6 @@ pub fn load_vision_language(loader: &mut Loader<'_>) -> Result<Qwen35VisionLangu
         encoder,
         decoder,
         device: loader.options().device,
-        decoders: Decoders::default(),
+        decoders: DecoderCache::default(),
     })
 }

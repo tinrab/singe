@@ -10,7 +10,7 @@ use crate::{
     source::{LoadOptions, Source},
     task::{
         Pipeline,
-        seq2seq::{Seq2SeqParameters, TaskPrefixes},
+        seq2seq::{Seq2SeqParameters, TaskPrefixTable},
     },
 };
 
@@ -37,7 +37,7 @@ impl Pipeline for SummarizationPipeline {
         Ok(Self {
             model: model::load(source, options)?,
             tokenizer: TextTokenizer::load(source)?,
-            prefix: TaskPrefixes::load(source)?
+            prefix: TaskPrefixTable::load(source)?
                 .prefix("summarization")
                 .to_owned(),
         })

@@ -25,7 +25,7 @@ use crate::{
     device::Device,
     error::Result,
     graph::{
-        guards::GraphGuards,
+        guards::GraphGuardSet,
         ir::{Graph, ValueId},
     },
 };
@@ -34,7 +34,7 @@ pub struct GraphFinalizeInput<'a> {
     pub(crate) ir: Arc<Graph>,
     pub(crate) cache_key: GraphCacheKey,
     pub(crate) device: Device,
-    pub(crate) guards: GraphGuards,
+    pub(crate) guards: GraphGuardSet,
     pub(crate) execution_order: Vec<ValueId>,
     pub(crate) lowering_plan: LoweringPlan,
     pub(crate) realized_lowering: RealizedLoweringPlan,

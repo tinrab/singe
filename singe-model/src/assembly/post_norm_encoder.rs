@@ -12,7 +12,7 @@ use singe::{
 };
 
 use crate::{
-    format::{Rules, join},
+    format::{RuleSet, join},
     schema::Schema,
 };
 
@@ -281,9 +281,9 @@ fn block_mask(
 
 /// Imports the encoder `transformers`' BERT layout stores under `from` (such as `bert`, `roberta`, or nothing): `embeddings` and `encoder.layer.N`, to the schema's names under `to`.
 #[must_use]
-pub fn post_norm_encoder_rules(from: &str, to: &str) -> Rules {
+pub fn post_norm_encoder_rules(from: &str, to: &str) -> RuleSet {
     let embeddings = join(from, "embeddings");
-    Rules::new()
+    RuleSet::new()
         .rename_each(
             &embeddings,
             &join(to, "embeddings"),

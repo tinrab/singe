@@ -13,8 +13,8 @@ use singe::{
 
 use crate::{
     assembly::{
-        MiddleBlock, Norms, ResnetBlock, SpatialAttention, UpsampleBlock, downsample, resnet_stack,
-        same_2d,
+        GroupNormSpec, MiddleBlock, ResnetBlock, SpatialAttention, UpsampleBlock, downsample,
+        resnet_stack, same_2d,
     },
     error::Result,
     format::Loader,
@@ -37,8 +37,8 @@ pub struct AutoencoderKlConfig {
 }
 
 impl AutoencoderKlConfig {
-    const fn norms(&self) -> Norms {
-        Norms {
+    const fn norms(&self) -> GroupNormSpec {
+        GroupNormSpec {
             groups: self.groups,
             eps: NORM_EPS,
         }
@@ -58,7 +58,7 @@ fn conv(
 fn middle(
     schema: &mut Schema<'_>,
     width: i64,
-    norms: Norms,
+    norms: GroupNormSpec,
 ) -> SingeResult<MiddleBlock<SpatialAttention>> {
     MiddleBlock::create(
         &mut schema.scope("middle"),

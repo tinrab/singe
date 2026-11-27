@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     backend::{
         cuda::{
-            graph_binding::{InPlaceWrites, ScatterTarget},
+            graph_binding::{InPlaceWritePlan, ScatterTarget},
             tuning::{
                 reference::{Evaluated, Expected, agrees, evaluate, held_tensor},
                 report::{Attempt, CandidateFailure, FailureStage, SecondReference},
@@ -83,7 +83,7 @@ pub fn subgraph(
     evaluated: &Evaluated,
     members: &[ValueId],
     outputs: &[ValueId],
-    in_place: &InPlaceWrites,
+    in_place: &InPlaceWritePlan,
     device: Device,
 ) -> Result<SmallGraph> {
     // Views stay in the small graph, so its nodes read the layouts the whole graph's do.

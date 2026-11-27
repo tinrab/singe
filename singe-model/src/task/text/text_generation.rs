@@ -3,13 +3,13 @@
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use singe::{
-    generation::{Decoder, DecoderOptions, GenerationOptions, Penalties, generate_batch},
+    generation::{Decoder, DecoderOptions, GenerationOptions, PenaltySet, generate_batch},
     random::Generator,
     tensor::SamplingOptions,
 };
 
 use crate::{
-    decoder_cache::{DecoderKey, Decoders, bucketed_capacity},
+    decoder_cache::{DecoderCache, DecoderKey, bucketed_capacity},
     error::{Error, Result},
     head::CausalLm,
     model,
@@ -29,7 +29,7 @@ pub struct TextGenerationPipeline {
     stop_tokens: Vec<i64>,
     defaults: GenerationDefaults,
     context_length: Option<usize>,
-    decoders: Decoders<DecoderKey, Box<dyn Decoder>>,
+    decoders: DecoderCache<DecoderKey, Box<dyn Decoder>>,
 }
 
 /// The sampling `generation_config.json` asks for, which a server applies where a request names none.
@@ -91,10 +91,10 @@ impl Default for TextGenerationParameters {
 impl TextGenerationParameters {
     /// Returns the penalties these parameters ask for: `repetition_penalty`, and no frequency or presence penalty.
     #[must_use]
-    pub fn penalties(&self) -> Penalties {
-        Penalties {
+    pub fn penalties(&self) -> PenaltySet {
+        PenaltySet {
             repetition: self.repetition_penalty,
-            ..Penalties::default()
+            ..PenaltySet::default()
         }
     }
 }
@@ -172,7 +172,7 @@ impl Pipeline for TextGenerationPipeline {
                 .optional_json("generation_config.json")?
                 .unwrap_or_default(),
             context_length: source.context_length()?,
-            decoders: Decoders::default(),
+            decoders: DecoderCache::default(),
         })
     }
 

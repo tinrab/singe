@@ -367,12 +367,12 @@ fn numpy_interp(at: f64, values: &[f32]) -> f64 {
 }
 
 #[derive(Debug, Clone)]
-struct AlphaProducts {
+struct AlphaSchedule {
     products: Vec<f32>,
     before_first: f32,
 }
 
-impl AlphaProducts {
+impl AlphaSchedule {
     fn at(&self, timestep: i64) -> f32 {
         usize::try_from(timestep).map_or(self.before_first, |timestep| self.products[timestep])
     }
@@ -395,7 +395,7 @@ fn scale_input(sigma: f32, sample: &Tensor) -> Result<Tensor> {
 /// `DDPMScheduler`: ancestral sampling, a step's prediction of the clean sample mixed with the sample, and noise added at every timestep above zero.
 #[derive(Debug, Clone)]
 struct DdpmScheduler {
-    alphas: AlphaProducts,
+    alphas: AlphaSchedule,
     timesteps: Vec<i64>,
     clip: Option<f32>,
     /// What the step scales its noise by the square root of: the posterior's variance for [`VarianceType::FixedSmall`], or the step's beta for [`VarianceType::FixedLarge`].
@@ -415,7 +415,7 @@ impl DdpmScheduler {
             other => return Err(Error::unsupported(format!("DDPM variance {other:?}"))),
         };
         Ok(Self {
-            alphas: AlphaProducts {
+            alphas: AlphaSchedule {
                 products: config.alphas_cumprod()?,
                 before_first: 1.0,
             },
@@ -543,7 +543,7 @@ impl EulerScheduler {
 /// `PNDMScheduler` with its Runge–Kutta steps skipped, as Stable Diffusion 1.5's is: linear multistep updates of the predicted noise over the steps before, starting with one step taken twice.
 #[derive(Debug, Clone)]
 struct PndmScheduler {
-    alphas: AlphaProducts,
+    alphas: AlphaSchedule,
     /// The timesteps as `set_timesteps` lists them for PLMS steps, last first, with the second-largest repeated.
     timesteps: Vec<i64>,
     /// The training timesteps between two inference timesteps.
@@ -577,7 +577,7 @@ impl PndmScheduler {
         timesteps.push(ascending[count - 1]);
         timesteps.reverse();
         Ok(Self {
-            alphas: AlphaProducts {
+            alphas: AlphaSchedule {
                 before_first: if config.set_alpha_to_one {
                     1.0
                 } else {

@@ -16,7 +16,7 @@ use serde_json::Value;
 use singe::nn::{Checkpoint, CheckpointOptions, LoadPlan, Model, ModelState};
 
 pub(crate) use self::native::NativeConfig;
-pub use self::rule::{Matched, Rules, join};
+pub use self::rule::{Matched, RuleSet, join};
 use crate::{
     error::{Error, Result},
     head::Head,
@@ -128,7 +128,7 @@ impl<'a> Loader<'a> {
 
     /// Loads part `part` of the model, whose layers and state `model` builds on metadata.
     /// A native directory stores each part under Singe's names in `{part}.flashpack` or `{part}.safetensors`, read in that order; another format's checkpoint goes through `rules`.
-    pub fn load<L>(&mut self, part: &str, model: &Model<L>, rules: &Rules) -> Result<Model<L>> {
+    pub fn load<L>(&mut self, part: &str, model: &Model<L>, rules: &RuleSet) -> Result<Model<L>> {
         let options = CheckpointOptions {
             device: Some(self.options.device),
             convert: true,
@@ -199,7 +199,7 @@ impl<'a> Loader<'a> {
         }
     }
 
-    pub fn load_whole<L>(&mut self, model: &Model<L>, rules: &Rules) -> Result<Model<L>> {
+    pub fn load_whole<L>(&mut self, model: &Model<L>, rules: &RuleSet) -> Result<Model<L>> {
         let model = self.load("model", model, rules)?;
         self.finish()?;
         Ok(model)

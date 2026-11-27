@@ -42,11 +42,11 @@ pub enum WritableInputs<'a> {
 // What every scatter of a graph writes.
 // A scatter this does not name writes a fresh buffer, into which its base is first copied.
 #[derive(Debug, Clone, Default)]
-pub struct InPlaceWrites {
+pub struct InPlaceWritePlan {
     targets: HashMap<ValueId, ScatterTarget>,
 }
 
-impl InPlaceWrites {
+impl InPlaceWritePlan {
     // Finds what each scatter in `order` can write.
     //
     // # Errors

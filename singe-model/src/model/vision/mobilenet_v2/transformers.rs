@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     error::{Error, Result},
     format::{
-        Rules,
+        RuleSet,
         transformers::{activation_field, classifier_config},
     },
     model::vision::mobilenet_v2::{MobileNetV2Config, make_divisible},
@@ -79,7 +79,7 @@ pub(crate) fn config(source: &Source) -> Result<MobileNetV2Config> {
 }
 
 /// Renames a `MobileNetV2ConvLayer` under `from` to a convolution and norm under `to`.
-fn conv_rules(rules: Rules, from: &str, to: &str) -> Rules {
+fn conv_rules(rules: RuleSet, from: &str, to: &str) -> RuleSet {
     rules
         .skip(&format!("{from}.normalization.num_batches_tracked"))
         .rename_each(
@@ -90,8 +90,8 @@ fn conv_rules(rules: Rules, from: &str, to: &str) -> Rules {
 }
 
 /// Imports the backbone, which `transformers` stores under `mobilenet_v2`.
-fn backbone_rules() -> Rules {
-    let mut rules = Rules::new();
+fn backbone_rules() -> RuleSet {
+    let mut rules = RuleSet::new();
     for (from, to) in [
         ("conv_stem.first_conv", "stem"),
         ("conv_stem.expand_1x1", "first.expand"),
@@ -107,13 +107,13 @@ fn backbone_rules() -> Rules {
 }
 
 /// Imports the backbone and the classifier.
-pub(crate) fn classifier_rules() -> Rules {
+pub(crate) fn classifier_rules() -> RuleSet {
     conv_rules(backbone_rules(), "mobilenet_v2.conv_1x1", "output")
         .rename("classifier", "classifier")
 }
 
 /// Imports the backbone and `DeepLabV3`'s head.
-pub(crate) fn segmenter_rules() -> Rules {
+pub(crate) fn segmenter_rules() -> RuleSet {
     let mut rules = backbone_rules();
     for (from, to) in [
         ("conv_pool", "pool"),

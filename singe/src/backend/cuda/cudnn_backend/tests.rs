@@ -23,16 +23,16 @@ use crate::{
 };
 
 /// Restores native CUDA graph recording when the test ends, including on panic.
-struct ForceCapturedGraphs;
+struct ForcedGraphCapture;
 
-impl ForceCapturedGraphs {
+impl ForcedGraphCapture {
     fn enable() -> Self {
         FORCE_CAPTURED_GRAPHS.store(true, Ordering::Relaxed);
         Self
     }
 }
 
-impl Drop for ForceCapturedGraphs {
+impl Drop for ForcedGraphCapture {
     fn drop(&mut self) {
         FORCE_CAPTURED_GRAPHS.store(false, Ordering::Relaxed);
     }
@@ -134,7 +134,7 @@ fn test_cuda_compiled_graph_reuses_captured_cudnn_steps_with_changed_inputs() {
     };
     let rhs = weight_tensor(&first_rhs).unwrap();
 
-    let _force = ForceCapturedGraphs::enable();
+    let _force = ForcedGraphCapture::enable();
     let captured_before = CAPTURED_GRAPHS.load(Ordering::Relaxed);
     let policy = LoweringPolicy::new(vec![CudaGraphProvider::CudnnBackend]);
     let Some(mut compiled) = skip_if_stub(cuda::compile_graph(

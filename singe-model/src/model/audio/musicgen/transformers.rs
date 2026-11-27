@@ -5,7 +5,7 @@ use serde::Deserialize;
 use crate::{
     assembly::attention_rules,
     error::{Error, Result},
-    format::{Rules, transformers::activation},
+    format::{RuleSet, transformers::activation},
     head::{MusicGeneration, SamplingFields},
     model::{
         audio::{
@@ -103,9 +103,9 @@ pub(crate) fn config(source: &Source) -> Result<MusicgenConfig> {
     })
 }
 
-pub(crate) fn rules(config: &MusicgenConfig) -> Rules {
+pub(crate) fn rules(config: &MusicgenConfig) -> RuleSet {
     let (from, to) = ("decoder.model.decoder.layers.*", "decoder.blocks.*");
-    Rules::new()
+    RuleSet::new()
         .rename("enc_to_dec_proj", "enc_to_dec")
         .rename("decoder.model.decoder.embed_tokens", "decoder.tokens")
         .rename(

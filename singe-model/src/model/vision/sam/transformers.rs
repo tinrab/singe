@@ -6,7 +6,7 @@ use singe::nn::Activation;
 use crate::{
     assembly::attention_rules,
     error::{Error, Result},
-    format::{Rules, join, transformers::activation_field},
+    format::{RuleSet, join, transformers::activation_field},
     model::vision::sam::SamConfig,
     source::Source,
 };
@@ -124,8 +124,8 @@ pub(crate) fn config(source: &Source) -> Result<SamConfig> {
 }
 
 /// Returns the rules that import a `SamFeedForward`'s layers, stored as `proj_in`, `layers.N`, and `proj_out`, to layers under `to` numbered in order.
-pub(crate) fn linear_stack_rules(from: &str, to: &str, depth: i64) -> Rules {
-    let mut rules = Rules::new()
+pub(crate) fn linear_stack_rules(from: &str, to: &str, depth: i64) -> RuleSet {
+    let mut rules = RuleSet::new()
         .rename(&join(from, "proj_in"), &join(to, "0"))
         .rename(&join(from, "proj_out"), &join(to, &(depth - 1).to_string()));
     for index in 0..depth - 2 {
@@ -137,9 +137,9 @@ pub(crate) fn linear_stack_rules(from: &str, to: &str, depth: i64) -> Rules {
     rules
 }
 
-pub(crate) fn rules(iou_depth: i64) -> Rules {
+pub(crate) fn rules(iou_depth: i64) -> RuleSet {
     let two_way = "mask_decoder.transformer.layers.*";
-    Rules::new()
+    RuleSet::new()
         .rename("vision_encoder.patch_embed.projection", "patches")
         .rename("vision_encoder.pos_embed", "positions")
         .rename_each(

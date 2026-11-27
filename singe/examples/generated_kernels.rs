@@ -70,7 +70,7 @@ fn main() -> Result<()> {
     let recorder = KernelRecorder::new();
     let mut cuda = GraphCudaOptions::new().with_kernel_recorder(recorder.clone());
     let records = if tune {
-        // `TuningRecords::write` keeps these for later processes.
+        // `TuningRecordSet::write` keeps these for later processes.
         let records = tune_graph(
             &graph,
             &tuning_inputs,
